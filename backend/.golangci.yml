@@ -1,0 +1,76 @@
+version: "2"
+
+run:
+  timeout: 5m
+  relative-path-mode: gomod
+  modules-download-mode: readonly
+  tests: true
+
+linters:
+  default: standard
+  enable:
+    - staticcheck
+    - revive
+    - errcheck
+    - errorlint
+    - bodyclose
+    - contextcheck
+    - misspell
+    - nolintlint
+    - rowserrcheck
+    - sqlclosecheck
+    - unconvert
+    - usestdlibvars
+    - wastedassign
+
+  exclusions:
+    generated: strict
+    warn-unused: true
+    presets:
+      - comments
+      - common-false-positives
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+
+  settings:
+    staticcheck:
+      checks:
+        - all
+        - -ST1000
+        - -ST1020
+        - -ST1021
+        - -ST1022
+
+    revive:
+      severity: warning
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

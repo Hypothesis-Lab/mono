@@ -1,0 +1,64 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "127.0.0.1:5174:5173"
+      - "10.8.0.4:5174:5173"
+    command: sh -c "npm run build && npm run preview -- --host 0.0.0.0 --port 5173"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      PORT: "8000"
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/app?sslmode=disable
+      JWT_SECRET: 7744c2b280979ec898753a45769926de9408a3472ba566521ee7f798714fd0e5
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_REGION: us-east-1
+      S3_BUCKET: my-bucket
+      S3_ACCESS_KEY_ID: admin
+      S3_SECRET_ACCESS_KEY: secret
+      DEV_LOGGER: "true"
+      DEV_SEED_DB: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_started
+    restart: on-failure
+
+  postgres:
+    image: docker.io/library/postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: app
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  seaweedfs:
+    image: docker.io/chrislusf/seaweedfs:4.40
+    ports:
+      - "127.0.0.1:8333:8333"
+    environment:
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: secret
+    command: server -s3
+    volumes:
+      - seaweedfs-data:/data
+
+volumes:
+  postgres-data:
+  seaweedfs-data:

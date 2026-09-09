@@ -1,0 +1,30 @@
+version: "3"
+
+tasks:
+  lint:
+    cmds:
+      - >-
+        bash -o pipefail -c "go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest run ./... 2>&1 | sed '/^go: downloading /d'"
+
+  test:unit:
+    cmds:
+      - go test $(go list ./... | grep -v '^app/test') -count=1 -v
+
+  test:integration:
+    cmds:
+      - go test ./test/... -count=1 -v
+
+  test:
+    cmds:
+      - task: test:unit
+      - task: test:integration
+
+  check:
+    cmds:
+      - task: lint
+      - task: test
+
+  gen:
+    cmds:
+      - >-
+        bash -o pipefail -c "go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@c5590db43374a95d850bc78848bb34379e0153d7 --config internal/api/cfg.yaml internal/api/spec.yaml 2>&1 | sed '/^go: downloading /d'"

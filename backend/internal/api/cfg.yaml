@@ -1,0 +1,9 @@
+# output is resolved relative to CWD, so generation must run from the repo root
+# via `task api_spec_generate` (Taskfile runs from backend/). See MIGRATION.md.
+package: api
+generate:
+  chi-server: true
+  models: true
+  strict-server: true
+  embedded-spec: true
+output: internal/api/gen.go

@@ -1,0 +1,891 @@
+openapi: "3.0.3"
+info:
+  title: API
+  version: "1.0.0"
+security:
+  - bearerAuth: []
+paths:
+  /healthz:
+    get:
+      operationId: healthz
+      tags: [health]
+      summary: Liveness probe
+      security: []
+      responses:
+        "200":
+          description: OK
+  /api/v1/auth/register:
+    post:
+      operationId: registerUser
+      tags: [auth]
+      summary: Register a new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterUserRequest"
+      responses:
+        "201":
+          description: registered and logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokenResponse"
+        "400":
+          description: invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "409":
+          description: email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+  /api/v1/auth/login:
+    post:
+      operationId: loginUser
+      tags: [auth]
+      summary: Log in an existing user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginUserRequest"
+      responses:
+        "200":
+          description: authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokenResponse"
+        "400":
+          description: invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "401":
+          description: invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+  /api/v1/hypothesis:
+    get:
+      operationId: listHypotheses
+      tags: [hypothesis]
+      summary: List hypotheses
+      responses:
+        "200":
+          description: list of hypotheses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HypothesisResponse"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+    post:
+      operationId: createHypothesis
+      tags: [hypothesis]
+      summary: Create hypothesis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHypothesisRequest"
+      responses:
+        "201":
+          description: created hypothesis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HypothesisResponse"
+        "400":
+          description: invalid request body or description is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+  /api/v1/hypothesis/{id}:
+    get:
+      operationId: getHypothesis
+      tags: [hypothesis]
+      summary: Get hypothesis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: hypothesis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HypothesisResponse"
+        "404":
+          description: hypothesis not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+    patch:
+      operationId: updateHypothesis
+      tags: [hypothesis]
+      summary: Update hypothesis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateHypothesisRequest"
+      responses:
+        "200":
+          description: updated hypothesis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HypothesisResponse"
+        "400":
+          description: invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "404":
+          description: hypothesis not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+    delete:
+      operationId: deleteHypothesis
+      tags: [hypothesis]
+      summary: Delete hypothesis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: hypothesis deleted
+        "400":
+          description: hypothesis in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "404":
+          description: hypothesis not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+  /api/v1/hypothesis/{id}/launch:
+    post:
+      operationId: launchHypothesis
+      tags: [hypothesis]
+      summary: Launch hypothesis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: launched hypothesis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HypothesisResponse"
+        "400":
+          description: hypothesis already in progress or has no product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "404":
+          description: hypothesis not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+  /api/v1/hypothesis/{id}/stop:
+    post:
+      operationId: stopHypothesis
+      tags: [hypothesis]
+      summary: Stop hypothesis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: stopped hypothesis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HypothesisResponse"
+        "400":
+          description: hypothesis not in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "404":
+          description: hypothesis not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+  /api/v1/hypothesis/{id}/product:
+    get:
+      operationId: getHypothesisProduct
+      tags: [hypothesis]
+      summary: Get the product attached to a hypothesis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: product attached to the hypothesis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductResponse"
+        "404":
+          description: hypothesis not found, or no product attached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+  /api/v1/product:
+    post:
+      operationId: createProduct
+      tags: [product]
+      summary: Create product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductRequest"
+      responses:
+        "201":
+          description: created product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductResponse"
+        "400":
+          description: invalid request body or name is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "404":
+          description: hypothesis not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+  /api/v1/product/{id}:
+    patch:
+      operationId: updateProduct
+      tags: [product]
+      summary: Update product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProductRequest"
+      responses:
+        "200":
+          description: updated product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductResponse"
+        "400":
+          description: invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "404":
+          description: product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+    delete:
+      operationId: deleteProduct
+      tags: [product]
+      summary: Delete product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: product deleted
+        "404":
+          description: product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+  /api/v1/product/{id}/audiences:
+    get:
+      operationId: listProductAudiences
+      tags: [audience]
+      summary: List audiences for a product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: list of audiences
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AudienceResponse"
+        "404":
+          description: product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+    post:
+      operationId: createProductAudience
+      tags: [audience]
+      summary: Create audience for a product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAudienceRequest"
+      responses:
+        "201":
+          description: created audience
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AudienceResponse"
+        "400":
+          description: invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "404":
+          description: product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+  /api/v1/audiences/{id}:
+    get:
+      operationId: getAudience
+      tags: [audience]
+      summary: Get audience
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: audience
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AudienceResponse"
+        "404":
+          description: audience not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+    patch:
+      operationId: updateAudience
+      tags: [audience]
+      summary: Update audience
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAudienceRequest"
+      responses:
+        "200":
+          description: updated audience
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AudienceResponse"
+        "400":
+          description: invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "404":
+          description: audience not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+    delete:
+      operationId: deleteAudience
+      tags: [audience]
+      summary: Delete audience
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: audience deleted
+        "404":
+          description: audience not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+  /api/v1/hypothesis/{id}/files:
+    get:
+      operationId: listProductFiles
+      tags: [file]
+      summary: List product files attached to a hypothesis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: list of product files
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProductFileResponse"
+        "404":
+          description: hypothesis not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+    post:
+      operationId: uploadProductFile
+      tags: [file]
+      summary: Upload a product file attached to a hypothesis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, type]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The file to upload. Only .docx, .doc, .pdf, and .txt files are accepted.
+                type:
+                  type: string
+                  enum: [product, brandbook, reference, other]
+      responses:
+        "201":
+          description: uploaded product file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductFileResponse"
+        "400":
+          description: invalid request body, missing file, or unsupported file format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "404":
+          description: hypothesis not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "409":
+          description: brandbook already exists for this hypothesis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "413":
+          description: file exceeds size limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+  /api/v1/files/{id}:
+    delete:
+      operationId: deleteProductFile
+      tags: [file]
+      summary: Delete a product file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: product file deleted
+        "404":
+          description: product file not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    HypothesisResponse:
+      type: object
+      required: [id, description, status, created_at]
+      properties:
+        id:          { type: string }
+        description: { type: string }
+        status:      { type: string }
+        created_at:  { type: string, format: date-time }
+    CreateHypothesisRequest:
+      type: object
+      required: [description]
+      properties:
+        description: { type: string, maxLength: 1024 }
+    UpdateHypothesisRequest:
+      type: object
+      properties:
+        description: { type: string, maxLength: 1024, nullable: true }
+    ProductResponse:
+      type: object
+      required: [id, name, category, hypothesis_id, keywords]
+      properties:
+        id:            { type: string }
+        name:          { type: string }
+        description:   { type: string, nullable: true }
+        category:      { $ref: "#/components/schemas/ProductCategory" }
+        keywords:      { type: array, items: { type: string } }
+        price:         { type: string, nullable: true }
+        link:          { type: string, nullable: true }
+        hypothesis_id: { type: string }
+    CreateProductRequest:
+      type: object
+      required: [name, category, hypothesis_id]
+      properties:
+        name:          { type: string }
+        description:   { type: string, nullable: true }
+        category:      { $ref: "#/components/schemas/ProductCategory" }
+        keywords:      { type: array, items: { type: string, maxLength: 64 } }
+        price:         { type: string, maxLength: 128, nullable: true }
+        link:          { type: string, maxLength: 128, nullable: true }
+        hypothesis_id: { type: string }
+    UpdateProductRequest:
+      type: object
+      properties:
+        name:        { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        category:    { $ref: "#/components/schemas/ProductCategory" }
+        keywords:    { type: array, items: { type: string, maxLength: 64 }, nullable: true }
+        price:       { type: string, maxLength: 128, nullable: true }
+        link:        { type: string, maxLength: 128, nullable: true }
+    ProductCategory:
+      type: string
+      enum:
+        - electronics
+        - clothing
+        - food
+        - furniture
+        - beauty
+        - sports
+        - toys
+        - books
+        - automotive
+        - health
+        - home
+        - office
+        - garden
+        - pets
+        - music
+        - other
+    AudienceResponse:
+      type: object
+      required: [id, product_id, description]
+      properties:
+        id:                 { type: string }
+        product_id:         { type: string }
+        description:        { type: string }
+        age_from:           { type: integer, nullable: true }
+        age_to:             { type: integer, nullable: true }
+        gender:             { $ref: "#/components/schemas/AudienceGender", nullable: true }
+        interests:          { type: string, nullable: true }
+        geography:          { type: string, nullable: true }
+        pain_points:        { type: string, nullable: true }
+        desires_motivation: { type: string, nullable: true }
+        created_at:         { type: string, format: date-time }
+    CreateAudienceRequest:
+      type: object
+      required: [description]
+      properties:
+        description:        { type: string }
+        age_from:           { type: integer, minimum: 0, maximum: 100, nullable: true }
+        age_to:             { type: integer, minimum: 0, maximum: 100, nullable: true }
+        gender:             { $ref: "#/components/schemas/AudienceGender", nullable: true }
+        interests:          { type: string, maxLength: 1000, nullable: true }
+        geography:          { type: string, maxLength: 255, nullable: true }
+        pain_points:        { type: string, nullable: true }
+        desires_motivation: { type: string, nullable: true }
+    UpdateAudienceRequest:
+      type: object
+      properties:
+        description:        { type: string, nullable: true }
+        age_from:           { type: integer, minimum: 0, maximum: 100, nullable: true }
+        age_to:             { type: integer, minimum: 0, maximum: 100, nullable: true }
+        gender:             { $ref: "#/components/schemas/AudienceGender", nullable: true }
+        interests:          { type: string, maxLength: 1000, nullable: true }
+        geography:          { type: string, maxLength: 255, nullable: true }
+        pain_points:        { type: string, nullable: true }
+        desires_motivation: { type: string, nullable: true }
+    AudienceGender:
+      type: string
+      enum: [men, women, all]
+    ProductFileResponse:
+      type: object
+      required: [id, hypothesis_id, type, filename, content_type, size, created_at]
+      properties:
+        id:            { type: string }
+        hypothesis_id: { type: string }
+        type:          { type: string, enum: [product, brandbook, reference, other] }
+        filename:      { type: string }
+        content_type:  { type: string }
+        size:          { type: integer }
+        created_at:    { type: string, format: date-time }
+    ErrBody:
+      type: object
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/ErrDetail"
+    ErrDetail:
+      type: object
+      required: [code, description]
+      properties:
+        code:        { type: integer }
+        description: { type: string }
+    RegisterUserRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:    { type: string, format: email }
+        password: { type: string, format: password, minLength: 6 }
+    LoginUserRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:    { type: string, format: email }
+        password: { type: string, format: password }
+    AuthTokenResponse:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }

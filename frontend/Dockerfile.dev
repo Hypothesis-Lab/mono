@@ -1,0 +1,14 @@
+ARG NODE_VERSION=26-alpine
+FROM node:${NODE_VERSION}
+
+WORKDIR /app
+
+# Install deps strictly from the lockfile so nothing runs on the host
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+EXPOSE 5173
+
+CMD ["npm", "run", "dev"]
