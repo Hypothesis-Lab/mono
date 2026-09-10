@@ -16,7 +16,7 @@ if added new tables, add them to test/harness/db.go to be cleared in tests
 
 prefer no defaults unless really makes sense
 
-ALL errors in handlers should be logged; if it's an operation on an object, its id should be included
+ALL errors in handlers should be logged; if it's an operation on an object, it should be included
 
 # Unit tests
 - assert exact returned fields in returned structs, e.g. "expecting only {A, B} in this struct", this is to catch field drift (something was deleted or added, a test should catch that)
