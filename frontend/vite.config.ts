@@ -14,6 +14,7 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: true,
+    allowedHosts: ['.tailbb2009.ts.net'],
     proxy: {
       '/api': 'http://backend:8000',
     },
