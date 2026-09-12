@@ -602,12 +602,17 @@ export function ProductPage() {
           <S.AudienceList>
             {audiences!.map((audience) => (
               <S.AudienceItem key={audience.id}>
-                <S.AudienceInfo>
-                  <S.AudienceDescription>{audience.persona.label}</S.AudienceDescription>
-                  <S.AudienceMeta>
-                    Ранг {audience.rank} · Оценка {audience.score}
-                  </S.AudienceMeta>
-                </S.AudienceInfo>
+                <S.AudienceDetails open>
+                  <S.AudienceSummary>
+                    <S.AudienceInfo>
+                      <S.AudienceDescription>{audience.persona.label}</S.AudienceDescription>
+                      <S.AudienceMeta>
+                        Ранг {audience.rank} · Оценка {audience.score}
+                      </S.AudienceMeta>
+                    </S.AudienceInfo>
+                  </S.AudienceSummary>
+                  <S.AudienceData>{JSON.stringify(audience, null, 2)}</S.AudienceData>
+                </S.AudienceDetails>
               </S.AudienceItem>
             ))}
           </S.AudienceList>

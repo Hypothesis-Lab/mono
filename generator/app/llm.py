@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 
 from app.config import Settings
@@ -16,7 +18,7 @@ class LLMClient:
         self,
         system_prompt: str,
         user_prompt: str,
-        temperature: float,
+        response_schema: dict[str, Any],
     ) -> str:
         if not self.base_url or not self.api_key or not self.model:
             raise RuntimeError(
@@ -24,7 +26,7 @@ class LLMClient:
             )
 
         response = httpx.post(
-            self.base_url,
+            f"{self.base_url.rstrip('/')}/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
@@ -35,8 +37,15 @@ class LLMClient:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                "temperature": temperature,
                 "reasoning_effort": self.reasoning_effort,
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "generation_output",
+                        "schema": response_schema,
+                        "strict": True,
+                    },
+                },
             },
             timeout=httpx.Timeout(120.0, connect=10.0),
         )

@@ -78,14 +78,23 @@ export const AudienceList = styled.ul`
 `
 
 export const AudienceItem = styled.li`
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 10px 12px;
   border: 1px solid #e2e2e2;
   border-radius: 6px;
   background: #fff;
+`
+
+export const AudienceDetails = styled.details`
+  width: 100%;
+`
+
+export const AudienceSummary = styled.summary`
+  display: block;
+  padding: 10px 12px;
+  cursor: pointer;
+
+  &::-webkit-details-marker {
+    display: none;
+  }
 `
 
 export const AudienceInfo = styled.div`
@@ -106,6 +115,18 @@ export const AudienceDescription = styled.span`
 export const AudienceMeta = styled.span`
   font-size: 12px;
   color: #888;
+`
+
+export const AudienceData = styled.pre`
+  margin: 0;
+  padding: 12px;
+  border-top: 1px solid #e2e2e2;
+  background: #f7f7f7;
+  color: #333;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 `
 
 export const FilesSection = styled.section`

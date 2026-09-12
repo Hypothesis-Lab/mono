@@ -152,17 +152,18 @@ class Workflow:
             """
 You are Synthetic Persona Interviewer. Simulate answers from exactly the supplied persona.
 Use only the persona and confirmed product facts. Do not invent biographical facts, product
-features, rates, terms, or approval guarantees. Write in Russian and return only JSON.
-Answer every question exactly once and in the supplied order. Then summarize the findings.
+ features, rates, terms, or approval guarantees. Write in Russian and return only JSON.
+ Answer every question exactly once and in the supplied order. Then summarize the findings.
+ Return exactly 10 interview_answers. Include 2 to 5 items each for problems, pains, needs,
+ desires, and decision_factors; include 1 to 4 items each for objections, decision_triggers,
+ and relevant_use_cases.
 """,
             product=product,
             persona=persona,
             questions=questions,
             output_fields=list(PersonaResearch.model_fields),
         )
-        research = self._model_output(
-            PersonaResearch, prompt, previous_error, temperature=0.15
-        )
+        research = self._model_output(PersonaResearch, prompt, previous_error)
         if research.persona_id != persona.persona_id:
             raise ValueError(
                 f"expected persona_id {persona.persona_id}, got {research.persona_id}"
@@ -195,9 +196,7 @@ be grounds for approval. Use only confirmed product facts. Write in Russian and 
             eligibility=eligibility,
             output_fields=list(PersonaMetricScores.model_fields),
         )
-        scores = self._model_output(
-            PersonaMetricScores, prompt, previous_error, temperature=0.1
-        )
+        scores = self._model_output(PersonaMetricScores, prompt, previous_error)
         if scores.persona_id != persona.persona_id:
             raise ValueError(
                 f"expected persona_id {persona.persona_id}, got {scores.persona_id}"
@@ -230,9 +229,7 @@ Write in Russian and return only JSON with a hypotheses array.
             expected_hypothesis_ids=expected_ids,
             output_fields=list(HypothesisBatch.model_fields),
         )
-        batch = self._model_output(
-            HypothesisBatch, prompt, previous_error, temperature=0.35
-        )
+        batch = self._model_output(HypothesisBatch, prompt, previous_error)
         self._validate_hypotheses(product, persona, batch, expected_ids)
         return batch.model_dump(mode="json")
 
@@ -241,7 +238,6 @@ Write in Russian and return only JSON with a hypotheses array.
         model: type[ModelT],
         prompt: str,
         previous_error: str | None,
-        temperature: float,
     ) -> ModelT:
         retry_instruction = ""
         if previous_error:
@@ -249,10 +245,15 @@ Write in Russian and return only JSON with a hypotheses array.
                 "\n\nYour previous output was invalid. Return the full JSON object again and fix this "
                 f"validation error: {previous_error[:1000]}"
             )
+        schema = self._strict_schema(model.model_json_schema())
+        schema_instruction = (
+            "\n\nReturn a JSON object that conforms exactly to this schema, including all array length limits:\n"
+            + json.dumps(schema, ensure_ascii=False)
+        )
         response = self.llm.complete(
             "Return a single valid JSON object without Markdown or explanation.",
-            prompt + retry_instruction,
-            temperature,
+            prompt + retry_instruction + schema_instruction,
+            schema,
         )
         return model.model_validate(self._parse_json(response))
 
@@ -487,6 +488,19 @@ Write in Russian and return only JSON with a hypotheses array.
         if not isinstance(value, dict):
             raise ValueError("model output JSON must be an object")
         return value
+
+    @staticmethod
+    def _strict_schema(schema: dict[str, Any]) -> dict[str, Any]:
+        values: list[object] = [schema]
+        while values:
+            value = values.pop()
+            if isinstance(value, dict):
+                if "properties" in value:
+                    value["additionalProperties"] = False
+                values.extend(value.values())
+            elif isinstance(value, list):
+                values.extend(value)
+        return schema
 
     @staticmethod
     def _nodes(progress: dict[str, Any]) -> dict[str, Any]:
