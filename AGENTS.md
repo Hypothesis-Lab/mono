@@ -1,8 +1,8 @@
 # Temporary rules override
 I'm currently exploring by writing code.
-- do not run or write new tests
+- do not write new tests
+- run non-integration tests
 - you can still run linter and fix linter issues
-- don't restart services after making changes
 
 # Local Compose
 

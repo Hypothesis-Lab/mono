@@ -125,6 +125,15 @@ const injectedRtkApi = api.injectEndpoints({
         method: "POST",
       }),
     }),
+    retryProductAudienceGeneration: build.mutation<
+      RetryProductAudienceGenerationApiResponse,
+      RetryProductAudienceGenerationApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/v1/product/${queryArg.id}/audience-generation/retry`,
+        method: "POST",
+      }),
+    }),
     listProductAudiences: build.query<
       ListProductAudiencesApiResponse,
       ListProductAudiencesApiArg
@@ -233,6 +242,11 @@ export type GetProductAudienceGenerationStatusApiArg = {
 export type QueueProductAudienceGenerationApiResponse =
   /** status 201 audience generation queued */ AudienceGenerationStatusResponse;
 export type QueueProductAudienceGenerationApiArg = {
+  id: string;
+};
+export type RetryProductAudienceGenerationApiResponse =
+  /** status 200 audience generation requeued */ AudienceGenerationStatusResponse;
+export type RetryProductAudienceGenerationApiArg = {
   id: string;
 };
 export type ListProductAudiencesApiResponse =
@@ -413,6 +427,7 @@ export const {
   useDeleteProductMutation,
   useGetProductAudienceGenerationStatusQuery,
   useQueueProductAudienceGenerationMutation,
+  useRetryProductAudienceGenerationMutation,
   useListProductAudiencesQuery,
   useListProductFilesQuery,
   useUploadProductFileMutation,

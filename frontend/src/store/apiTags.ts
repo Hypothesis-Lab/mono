@@ -39,6 +39,9 @@ api.enhanceEndpoints({
     queueProductAudienceGeneration: {
       invalidatesTags: (_result, _error, { id }) => [{ type: 'audience', id: `Generation-${id}` }],
     },
+    retryProductAudienceGeneration: {
+      invalidatesTags: (_result, _error, { id }) => [{ type: 'audience', id: `Generation-${id}` }],
+    },
     createProduct: {
       invalidatesTags: (_result, _error, { createProductRequest }) => [
         { type: 'product', id: `Hypothesis-${createProductRequest.hypothesis_id}` },

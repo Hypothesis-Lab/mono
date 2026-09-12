@@ -19,6 +19,7 @@ import (
 var (
 	ErrProductAlreadyQueued      = errors.New("product already queued")
 	ErrProductGenerationNotFound = errors.New("product generation not found")
+	ErrProductGenerationNotFailed = errors.New("product generation is not failed")
 )
 
 type GeneratorClient struct {
@@ -192,6 +193,33 @@ func (c *GeneratorClient) ProductGenerationStatus(ctx context.Context, productID
 	}
 
 	return result.Status, nil
+}
+
+func (c *GeneratorClient) RetryProductGeneration(ctx context.Context, productID string) error {
+	endpoint := strings.TrimSuffix(c.endpoint, "/jobs") + "/products/" + url.PathEscape(productID) + "/generation-retry"
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("create generator retry request: %w", err)
+	}
+
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return fmt.Errorf("send generator retry request: %w", err)
+	}
+	defer response.Body.Close()
+
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		return fmt.Errorf("read generator retry response: %w", err)
+	}
+	if response.StatusCode == http.StatusNotFound {
+		return ErrProductGenerationNotFailed
+	}
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("generator retry request returned HTTP status %d: %s", response.StatusCode, responseBody)
+	}
+
+	return nil
 }
 
 func (c *GeneratorClient) NextCompletedAudienceGeneration(ctx context.Context) (*CompletedAudienceGeneration, error) {

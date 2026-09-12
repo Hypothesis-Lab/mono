@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import UUID, uuid4
 
 import psycopg
@@ -75,7 +75,7 @@ class JobRepository:
             row = cursor.fetchone()
         return self._job(dict(row)) if row else None
 
-    def generation_status(self, product_id: str) -> str | None:
+    def generation_status(self, product_id: str) -> Literal["created", "failed"] | None:
         with self._connection() as connection, connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -94,6 +94,43 @@ class JobRepository:
         if row[0]:
             return "failed"
         return "created"
+
+    def retry(self, product_id: str) -> bool:
+        with (
+            self._connection() as connection,
+            connection.cursor(row_factory=dict_row) as cursor,
+        ):
+            cursor.execute(
+                """
+                SELECT id, progress
+                FROM generator.job
+                WHERE product_id = %s
+                  AND NOT finished
+                  AND jsonb_path_exists(
+                      progress,
+                      '$.nodes.* ? (@.completed == false && @.retry_count >= 2)'
+                  )
+                FOR UPDATE
+                """,
+                (product_id,),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return False
+
+            progress = cast(dict[str, Any], row["progress"])
+            nodes = cast(dict[str, dict[str, Any]], progress["nodes"])
+            for node in nodes.values():
+                if not node.get("completed") and int(node.get("retry_count", 0)) >= 2:
+                    node.clear()
+                    node.update({"completed": False, "retry_count": 0})
+                    break
+
+            cursor.execute(
+                "UPDATE generator.job SET progress = %s WHERE id = %s AND NOT finished",
+                (Jsonb(progress), row["id"]),
+            )
+            return cursor.rowcount > 0
 
     def next_completed(self) -> CompletedJob | None:
         with (

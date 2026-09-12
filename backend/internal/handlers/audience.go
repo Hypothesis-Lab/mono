@@ -92,6 +92,41 @@ func (s *Server) GetProductAudienceGenerationStatus(ctx context.Context, req api
 	return api.GetProductAudienceGenerationStatus200JSONResponse(api.AudienceGenerationStatusResponse{Status: api.AudienceGenerationStatusResponseStatus(generationStatus)}), nil
 }
 
+func (s *Server) RetryProductAudienceGeneration(ctx context.Context, req api.RetryProductAudienceGenerationRequestObject) (api.RetryProductAudienceGenerationResponseObject, error) {
+	userID, ok := middlewares.UserIDFromContext(ctx)
+	if !ok {
+		s.logger.Error("missing user id in context")
+
+		return api.RetryProductAudienceGeneration500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	if _, err := s.products.Get(ctx, userID, req.Id); err != nil {
+		if errors.Is(err, product.ErrNotFound) {
+			s.logger.Error("get product for audience generation retry", zap.String("id", req.Id), zap.Error(err))
+
+			return api.RetryProductAudienceGeneration404JSONResponse(errBody(http.StatusNotFound, "product not found")), nil
+		}
+
+		s.logger.Error("get product for audience generation retry", zap.String("id", req.Id), zap.Error(err))
+
+		return api.RetryProductAudienceGeneration500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	if err := s.generator.RetryProductGeneration(ctx, req.Id); err != nil {
+		if errors.Is(err, clients.ErrProductGenerationNotFailed) {
+			s.logger.Error("retry product audience generation", zap.String("id", req.Id), zap.Error(err))
+
+			return api.RetryProductAudienceGeneration409JSONResponse(errBody(http.StatusConflict, "The audience generation is not failed.")), nil
+		}
+
+		s.logger.Error("retry product audience generation", zap.String("id", req.Id), zap.Error(err))
+
+		return api.RetryProductAudienceGeneration500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	return api.RetryProductAudienceGeneration200JSONResponse(api.AudienceGenerationStatusResponse{Status: api.Created}), nil
+}
+
 func (s *Server) ListProductAudiences(ctx context.Context, req api.ListProductAudiencesRequestObject) (api.ListProductAudiencesResponseObject, error) {
 	userID, ok := middlewares.UserIDFromContext(ctx)
 	if !ok {

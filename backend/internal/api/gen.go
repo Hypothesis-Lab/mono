@@ -443,6 +443,9 @@ type ServerInterface interface {
 	// Queue audience generation for a product
 	// (POST /api/v1/product/{id}/audience-generation)
 	QueueProductAudienceGeneration(w http.ResponseWriter, r *http.Request, id string)
+	// Retry failed audience generation for a product
+	// (POST /api/v1/product/{id}/audience-generation/retry)
+	RetryProductAudienceGeneration(w http.ResponseWriter, r *http.Request, id string)
 	// List audiences for a product
 	// (GET /api/v1/product/{id}/audiences)
 	ListProductAudiences(w http.ResponseWriter, r *http.Request, id string)
@@ -560,6 +563,12 @@ func (_ Unimplemented) GetProductAudienceGenerationStatus(w http.ResponseWriter,
 // Queue audience generation for a product
 // (POST /api/v1/product/{id}/audience-generation)
 func (_ Unimplemented) QueueProductAudienceGeneration(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Retry failed audience generation for a product
+// (POST /api/v1/product/{id}/audience-generation/retry)
+func (_ Unimplemented) RetryProductAudienceGeneration(w http.ResponseWriter, r *http.Request, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1088,6 +1097,38 @@ func (siw *ServerInterfaceWrapper) QueueProductAudienceGeneration(w http.Respons
 	handler.ServeHTTP(w, r)
 }
 
+// RetryProductAudienceGeneration operation middleware
+func (siw *ServerInterfaceWrapper) RetryProductAudienceGeneration(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RetryProductAudienceGeneration(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListProductAudiences operation middleware
 func (siw *ServerInterfaceWrapper) ListProductAudiences(w http.ResponseWriter, r *http.Request) {
 
@@ -1300,6 +1341,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/product/{id}/audience-generation", wrapper.QueueProductAudienceGeneration)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/product/{id}/audience-generation/retry", wrapper.RetryProductAudienceGeneration)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/product/{id}/audiences", wrapper.ListProductAudiences)
@@ -2363,6 +2407,70 @@ func (response QueueProductAudienceGeneration500JSONResponse) VisitQueueProductA
 	return err
 }
 
+type RetryProductAudienceGenerationRequestObject struct {
+	Id string `json:"id"`
+}
+
+type RetryProductAudienceGenerationResponseObject interface {
+	VisitRetryProductAudienceGenerationResponse(w http.ResponseWriter) error
+}
+
+type RetryProductAudienceGeneration200JSONResponse AudienceGenerationStatusResponse
+
+func (response RetryProductAudienceGeneration200JSONResponse) VisitRetryProductAudienceGenerationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RetryProductAudienceGeneration404JSONResponse ErrBody
+
+func (response RetryProductAudienceGeneration404JSONResponse) VisitRetryProductAudienceGenerationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RetryProductAudienceGeneration409JSONResponse ErrBody
+
+func (response RetryProductAudienceGeneration409JSONResponse) VisitRetryProductAudienceGenerationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RetryProductAudienceGeneration500JSONResponse ErrBody
+
+func (response RetryProductAudienceGeneration500JSONResponse) VisitRetryProductAudienceGenerationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListProductAudiencesRequestObject struct {
 	Id string `json:"id"`
 }
@@ -2484,6 +2592,9 @@ type StrictServerInterface interface {
 	// Queue audience generation for a product
 	// (POST /api/v1/product/{id}/audience-generation)
 	QueueProductAudienceGeneration(ctx context.Context, request QueueProductAudienceGenerationRequestObject) (QueueProductAudienceGenerationResponseObject, error)
+	// Retry failed audience generation for a product
+	// (POST /api/v1/product/{id}/audience-generation/retry)
+	RetryProductAudienceGeneration(ctx context.Context, request RetryProductAudienceGenerationRequestObject) (RetryProductAudienceGenerationResponseObject, error)
 	// List audiences for a product
 	// (GET /api/v1/product/{id}/audiences)
 	ListProductAudiences(ctx context.Context, request ListProductAudiencesRequestObject) (ListProductAudiencesResponseObject, error)
@@ -3028,6 +3139,32 @@ func (sh *strictHandler) QueueProductAudienceGeneration(w http.ResponseWriter, r
 	}
 }
 
+// RetryProductAudienceGeneration operation middleware
+func (sh *strictHandler) RetryProductAudienceGeneration(w http.ResponseWriter, r *http.Request, id string) {
+	var request RetryProductAudienceGenerationRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RetryProductAudienceGeneration(ctx, request.(RetryProductAudienceGenerationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RetryProductAudienceGeneration")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RetryProductAudienceGenerationResponseObject); ok {
+		if err := validResponse.VisitRetryProductAudienceGenerationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListProductAudiences operation middleware
 func (sh *strictHandler) ListProductAudiences(w http.ResponseWriter, r *http.Request, id string) {
 	var request ListProductAudiencesRequestObject
@@ -3083,46 +3220,47 @@ func (sh *strictHandler) Healthz(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"Y5la1k+sex4sQ83ZzZ/bfb7eXG/+NwA=",
+	"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",
+	"/jcA",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

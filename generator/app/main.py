@@ -126,6 +126,20 @@ def product_generation_status(
     return ProductGenerationStatusResponse(status=generation_status)
 
 
+@app.post(
+    "/products/{product_id}/generation-retry",
+    response_model=ProductGenerationStatusResponse,
+)
+def retry_product_generation(
+    request: Request, product_id: str
+) -> ProductGenerationStatusResponse:
+    if not _repository(request).retry(product_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="failed generation job not found"
+        )
+    return ProductGenerationStatusResponse(status="created")
+
+
 @app.get(
     "/completed-jobs/next",
     response_model=CompletedJobResponse,

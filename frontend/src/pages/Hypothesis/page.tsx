@@ -8,6 +8,7 @@ import {
   useGetHypothesisQuery,
   useLaunchHypothesisMutation,
   useQueueProductAudienceGenerationMutation,
+  useRetryProductAudienceGenerationMutation,
   useStopHypothesisMutation,
 } from '../../store/generatedApi'
 import * as S from './styles'
@@ -33,6 +34,7 @@ export function HypothesisPage() {
   const [launchHypothesis, { isLoading: launching }] = useLaunchHypothesisMutation()
   const [stopHypothesis, { isLoading: stopping }] = useStopHypothesisMutation()
   const [queueAudienceGeneration, { isLoading: queueingAudienceGeneration }] = useQueueProductAudienceGenerationMutation()
+  const [retryAudienceGeneration, { isLoading: retryingAudienceGeneration }] = useRetryProductAudienceGenerationMutation()
 
   const [launchError, setLaunchError] = useState<string | null>(null)
   const [stopError, setStopError] = useState<string | null>(null)
@@ -89,6 +91,21 @@ export function HypothesisPage() {
     }
   }
 
+  async function handleRetryAudienceGeneration() {
+    if (!product) {
+      return
+    }
+
+    setAudienceGenerationError(null)
+
+    try {
+      await retryAudienceGeneration({ id: product.id }).unwrap()
+      refetchAudienceGeneration()
+    } catch (err) {
+      setAudienceGenerationError(rtkErrorMessage(err, 'Не удалось повторить генерацию'))
+    }
+  }
+
   return (
     <S.Page>
       {loading && <S.Message>Загрузка гипотезы…</S.Message>}
@@ -118,10 +135,16 @@ export function HypothesisPage() {
                 )}
                 <S.AudienceGenerationButton
                   type="button"
-                  onClick={handleQueueAudienceGeneration}
-                  disabled={queueingAudienceGeneration || audienceGeneration?.status === 'created' || audienceGeneration?.status === 'working'}
+                  onClick={audienceGeneration?.status === 'failed' ? handleRetryAudienceGeneration : handleQueueAudienceGeneration}
+                  disabled={queueingAudienceGeneration || retryingAudienceGeneration || audienceGeneration?.status === 'created' || audienceGeneration?.status === 'working'}
                 >
-                  {queueingAudienceGeneration ? 'Добавляем в очередь…' : 'Сгенерировать аудитории'}
+                  {retryingAudienceGeneration
+                    ? 'Повторяем генерацию…'
+                    : queueingAudienceGeneration
+                      ? 'Добавляем в очередь…'
+                      : audienceGeneration?.status === 'failed'
+                        ? 'Повторить генерацию'
+                        : 'Сгенерировать аудитории'}
                 </S.AudienceGenerationButton>
                 {audienceGenerationError && <S.ErrorMessage>{audienceGenerationError}</S.ErrorMessage>}
               </>

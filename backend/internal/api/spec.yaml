@@ -515,6 +515,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrBody"
+  /api/v1/product/{id}/audience-generation/retry:
+    post:
+      operationId: retryProductAudienceGeneration
+      tags: [audience]
+      summary: Retry failed audience generation for a product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: audience generation requeued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AudienceGenerationStatusResponse"
+        "404":
+          description: product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "409":
+          description: audience generation is not failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
   /api/v1/product/{id}/audiences:
     get:
       operationId: listProductAudiences
