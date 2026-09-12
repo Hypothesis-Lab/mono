@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, Request, status
 from app.config import Settings
 from app.db import Job, JobRepository
 from app.llm import LLMClient
+from app.migrations import apply as apply_migrations
 from app.models import (
     CreateJobRequest,
     CreateJobResponse,
@@ -58,8 +59,8 @@ class Worker:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = Settings.from_environment()
+    apply_migrations(settings.database_url)
     repository = JobRepository(settings.database_url)
-    repository.initialize()
     worker = Worker(repository, Workflow(repository, LLMClient(settings)))
     app.state.repository = repository
     app.state.worker = worker

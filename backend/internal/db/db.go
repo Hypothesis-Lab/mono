@@ -2,18 +2,24 @@ package db
 
 import (
 	"context"
-	_ "embed"
+	"embed"
+	"errors"
 	"fmt"
 
+	gomigrate "github.com/golang-migrate/migrate/v4"
+	pgxmigrate "github.com/golang-migrate/migrate/v4/database/pgx/v5"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 
 	"app/internal/config"
 )
 
-//go:embed schema.sql
-var schemaSQL string
+//go:embed migrations/*.sql
+var migrationFiles embed.FS
 
 type DB struct {
 	cfg    *config.Config
@@ -36,13 +42,11 @@ func NewDB(lc fx.Lifecycle, cfg *config.Config, logger *zap.Logger) *DB {
 
 			database.pool = pool
 
-			database.logger.Warn("dropping database tables")
-
-			if err := database.applySchema(ctx); err != nil {
+			if err := database.applyMigrations(); err != nil {
 				return err
 			}
 
-			database.logger.Info("schema applied")
+			database.logger.Info("database migrations applied")
 
 			return nil
 		},
@@ -62,9 +66,36 @@ func (db *DB) Pool() *pgxpool.Pool {
 	return db.pool
 }
 
-func (db *DB) applySchema(ctx context.Context) error {
-	if _, err := db.pool.Exec(ctx, schemaSQL); err != nil {
-		return fmt.Errorf("apply schema: %w", err)
+func (db *DB) applyMigrations() error {
+	migrationConfig, err := pgx.ParseConfig(db.cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("parse migration database URL: %w", err)
+	}
+	migrationDB := stdlib.OpenDB(*migrationConfig)
+	defer migrationDB.Close()
+
+	source, err := iofs.New(migrationFiles, "migrations")
+	if err != nil {
+		return fmt.Errorf("load embedded migrations: %w", err)
+	}
+
+	driver, err := pgxmigrate.WithInstance(migrationDB, &pgxmigrate.Config{
+		MigrationsTable:       "schema_migrations",
+		SchemaName:            "public",
+		MultiStatementEnabled: true,
+	})
+	if err != nil {
+		return fmt.Errorf("create migration database driver: %w", err)
+	}
+
+	migrator, err := gomigrate.NewWithInstance("embedded", source, "pgx", driver)
+	if err != nil {
+		return fmt.Errorf("create migrator: %w", err)
+	}
+	defer migrator.Close()
+
+	if err := migrator.Up(); err != nil && !errors.Is(err, gomigrate.ErrNoChange) {
+		return fmt.Errorf("apply database migrations: %w", err)
 	}
 
 	return nil

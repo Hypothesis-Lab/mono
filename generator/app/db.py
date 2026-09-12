@@ -26,37 +26,6 @@ class JobRepository:
     def __init__(self, database_url: str) -> None:
         self.database_url = database_url
 
-    def initialize(self) -> None:
-        with self._connection() as connection, connection.cursor() as cursor:
-            cursor.execute("CREATE SCHEMA IF NOT EXISTS generator")
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS generator.job (
-                    id UUID PRIMARY KEY,
-                    product_id TEXT NOT NULL,
-                    input JSONB NOT NULL,
-                    progress JSONB NOT NULL DEFAULT '{"pipeline_version": 1, "nodes": {}}',
-                    result JSONB,
-                    finished BOOLEAN NOT NULL DEFAULT FALSE,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    finished_at TIMESTAMPTZ
-                )
-                """
-            )
-            cursor.execute(
-                """
-                CREATE INDEX IF NOT EXISTS generator_job_unfinished_created_at_idx
-                ON generator.job (created_at)
-                WHERE NOT finished
-                """
-            )
-            cursor.execute(
-                """
-                CREATE INDEX IF NOT EXISTS generator_job_progress_idx
-                ON generator.job USING GIN (progress jsonb_path_ops)
-                """
-            )
-
     def create(self, product_id: str, input_data: dict[str, Any]) -> Job:
         job_id = uuid4()
         with (
