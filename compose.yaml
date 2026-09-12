@@ -33,6 +33,17 @@ services:
         condition: service_started
     restart: on-failure
 
+  generator:
+    build:
+      context: ./generator
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/app?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
   postgres:
     image: docker.io/library/postgres:18
     environment:

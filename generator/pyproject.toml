@@ -2,7 +2,12 @@
 name = "generator"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "fastapi",
+    "httpx",
+    "psycopg[binary]",
+    "uvicorn[standard]",
+]
 
 [dependency-groups]
 dev = [
@@ -11,8 +16,14 @@ dev = [
 ]
 
 [tool.ruff]
+line-length = 120
 target-version = "py313"
+extend-exclude = ["collab"]
 
 [tool.pyright]
 pythonVersion = "3.13"
 typeCheckingMode = "standard"
+exclude = ["collab"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
