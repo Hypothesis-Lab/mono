@@ -4,8 +4,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.dev
     ports:
-      - "127.0.0.1:5174:5173"
-      - "10.8.0.4:5174:5173"
+      - "127.0.0.1:5175:5173"
+      - "10.8.0.4:5175:5173"
     command: sh -c "npm run build && npm run preview -- --host 0.0.0.0 --port 5173"
 
   backend:
@@ -26,7 +26,6 @@ services:
       S3_SECRET_ACCESS_KEY: secret
       GENERATOR_URL: http://generator:8000
       DEV_LOGGER: "true"
-      DEV_SEED_DB: "true"
     depends_on:
       postgres:
         condition: service_healthy

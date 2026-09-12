@@ -177,7 +177,6 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 			"S3_BUCKET":            s3Bucket,
 			"S3_ACCESS_KEY_ID":     s3AccessKeyID,
 			"S3_SECRET_ACCESS_KEY": s3SecretKey,
-			"DEV_SEED_DB":          "false",
 		},
 		WaitingFor: wait.ForHTTP("/healthz").WithPort(appPort + "/tcp").WithStartupTimeout(10 * time.Second),
 	})

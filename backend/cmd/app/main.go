@@ -14,7 +14,6 @@ import (
 	"app/internal/repositories/hypothesis"
 	"app/internal/repositories/product"
 	"app/internal/repositories/user"
-	"app/internal/seeder"
 	"app/internal/services"
 	"app/internal/storage"
 
@@ -41,7 +40,6 @@ func main() {
 		fx.Provide(handlers.NewServerInterface),
 		fx.Provide(apphttp.NewRouter),
 		fx.Provide(apphttp.NewServer),
-		fx.Provide(seeder.New),
-		fx.Invoke(func(*db.DB, *http.Server, *seeder.Seeder, *services.AudienceGenerationWorker) {}),
+		fx.Invoke(func(*db.DB, *http.Server, *services.AudienceGenerationWorker) {}),
 	).Run()
 }

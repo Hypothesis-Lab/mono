@@ -48,17 +48,13 @@ func NewS3(lc fx.Lifecycle, cfg *config.Config, logger *zap.Logger) (*S3, error)
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			storage.logger.Warn("dropping s3 bucket", zap.String("bucket", storage.bucket))
-
-			if _, err := storage.client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(storage.bucket)}); err != nil {
-				var apiErr smithy.APIError
-				if !errors.As(err, &apiErr) || apiErr.ErrorCode() != "NoSuchBucket" {
-					return fmt.Errorf("delete bucket: %w", err)
-				}
-			}
+			storage.logger.Info("ensuring s3 bucket", zap.String("bucket", storage.bucket))
 
 			if _, err := storage.client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(storage.bucket)}); err != nil {
-				return fmt.Errorf("create bucket: %w", err)
+				var apiErr smithy.APIError
+				if !errors.As(err, &apiErr) || (apiErr.ErrorCode() != "BucketAlreadyExists" && apiErr.ErrorCode() != "BucketAlreadyOwnedByYou") {
+					return fmt.Errorf("create bucket: %w", err)
+				}
 			}
 
 			return nil

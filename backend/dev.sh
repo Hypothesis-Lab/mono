@@ -14,7 +14,6 @@ export S3_BUCKET="my-bucket"
 export S3_ACCESS_KEY_ID="admin"
 export S3_SECRET_ACCESS_KEY="secret"
 export DEV_LOGGER="true"
-export DEV_SEED_DB="true"
 
 exec watchexec -r \
   --debounce 200ms \

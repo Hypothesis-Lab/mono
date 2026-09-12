@@ -20,7 +20,6 @@ type Config struct {
 	YandexDirectClientSecret string
 	GeneratorURL             string
 	IsDevLogger              bool
-	DevSeedDB                bool
 
 	ReadHeaderTimeout time.Duration
 	ReadTimeout       time.Duration
@@ -90,7 +89,6 @@ func New() (*Config, error) {
 	}
 
 	devLogger := os.Getenv("DEV_LOGGER")
-	devSeedDB := os.Getenv("DEV_SEED_DB")
 
 	return &Config{
 		Port:                     port,
@@ -105,7 +103,6 @@ func New() (*Config, error) {
 		YandexDirectClientSecret: yandexDirectClientSecret,
 		GeneratorURL:             generatorURL,
 		IsDevLogger:              devLogger == "true",
-		DevSeedDB:                devSeedDB == "true",
 		ReadHeaderTimeout:        envDuration("READ_HEADER_TIMEOUT", 10*time.Second),
 		ReadTimeout:              envDuration("READ_TIMEOUT", 30*time.Second),
 		WriteTimeout:             envDuration("WRITE_TIMEOUT", 30*time.Second),
