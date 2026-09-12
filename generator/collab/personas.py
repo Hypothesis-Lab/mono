@@ -286,17 +286,30 @@ def run_llm_json(
     max_attempts: int = 3,
     temperature: float = 0.20,
     max_new_tokens: int = 1600,
+    retry_feedback: str | None = None,
 ):
-    last_error = None
-    retry_note = ""
+    last_error = retry_feedback
     expected_fields = list(response_model.model_fields.keys())
+    response_schema = response_model.model_json_schema()
     format_note = (
         "\n\nТЕХНИЧЕСКИЙ ФОРМАТ: верни ровно ОДИН JSON-объект без Markdown, "
         "пояснений и JSON Schema. Не возвращай ключи $defs, properties, title, "
         "required или type на верхнем уровне. Ожидаемые верхнеуровневые поля: "
         + ", ".join(expected_fields)
-        + "."
+        + ". Строго соблюдай типы, enum и границы массивов из схемы результата:\n"
+        + json.dumps(response_schema, ensure_ascii=False)
     )
+
+    def build_retry_note(error: object) -> str:
+        short_error = re.sub(r"\s+", " ", str(error))[:500]
+        return (
+            "\n\nПРЕДЫДУЩИЙ ОТВЕТ НЕ ПРОШЕЛ ПРОВЕРКУ. "
+            "Сформируй ВЕСЬ ответ заново как один JSON-объект. "
+            "Не копируй схему и не продолжай предыдущий текст. "
+            f"Краткая ошибка: {short_error}"
+        )
+
+    retry_note = build_retry_note(retry_feedback) if retry_feedback else ""
 
     for attempt in range(1, max_attempts + 1):
         messages = [
@@ -344,13 +357,7 @@ def run_llm_json(
 
         except Exception as exc:
             last_error = exc
-            short_error = re.sub(r"\s+", " ", str(exc))[:500]
-            retry_note = (
-                "\n\nПРЕДЫДУЩИЙ ОТВЕТ НЕ ПРОШЕЛ ПРОВЕРКУ. "
-                "Сформируй ВЕСЬ ответ заново как один JSON-объект. "
-                "Не копируй схему и не продолжай предыдущий текст. "
-                f"Краткая ошибка: {short_error}"
-            )
+            retry_note = build_retry_note(exc)
             print(f"Попытка {attempt}: JSON не прошёл валидацию — {exc}")
         finally:
             del model_inputs, generated_ids, output_ids
@@ -755,6 +762,8 @@ def build_interview_prompt(
 7. Не добавляй свойства, ставки, сроки и гарантии, которых нет в facts.
 8. Не делай вывод на основании гендерных стереотипов.
 9. Пиши по-русски. Верни только JSON.
+10. Верни ровно 10 interview_answers; для problems, pains, needs, desires и decision_factors
+    используй от 2 до 5 пунктов, а для objections, decision_triggers и relevant_use_cases — от 1 до 4.
 
 ПРОДУКТ:
 {product.model_dump_json(indent=2)}
@@ -951,6 +960,7 @@ def build_persona_score_prompt(
 6. Evidence должно ссылаться на конкретные поля персоны или результаты интервью.
 7. Не завышай оценки: обычный хороший профиль — примерно 65–82.
 8. Пиши по-русски. Верни только JSON.
+9. В evidence используй от 2 до 5 конкретных пунктов.
 
 ПРОДУКТ:
 {product.model_dump_json(indent=2)}
@@ -1286,6 +1296,7 @@ def generate_hypotheses_for_persona(
             response_model=HypothesisBatch,
             temperature=0.35,
             max_new_tokens=2000,
+            retry_feedback=str(last_error) if last_error else None,
         )
         try:
             validate_hypothesis_batch(product, persona, batch)
