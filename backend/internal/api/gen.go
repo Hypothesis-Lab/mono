@@ -48,9 +48,40 @@ func (e AudienceGender) Valid() bool {
 	}
 }
 
+// Defines values for EligibilityRuleOperator.
+const (
+	Between EligibilityRuleOperator = "between"
+	Eq      EligibilityRuleOperator = "eq"
+	Gte     EligibilityRuleOperator = "gte"
+	In      EligibilityRuleOperator = "in"
+	Lte     EligibilityRuleOperator = "lte"
+	Truthy  EligibilityRuleOperator = "truthy"
+)
+
+// Valid indicates whether the value is a known member of the EligibilityRuleOperator enum.
+func (e EligibilityRuleOperator) Valid() bool {
+	switch e {
+	case Between:
+		return true
+	case Eq:
+		return true
+	case Gte:
+		return true
+	case In:
+		return true
+	case Lte:
+		return true
+	case Truthy:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProductCategory.
 const (
 	ProductCategoryAutomotive  ProductCategory = "automotive"
+	ProductCategoryBankingCard ProductCategory = "banking_card"
 	ProductCategoryBeauty      ProductCategory = "beauty"
 	ProductCategoryBooks       ProductCategory = "books"
 	ProductCategoryClothing    ProductCategory = "clothing"
@@ -72,6 +103,8 @@ const (
 func (e ProductCategory) Valid() bool {
 	switch e {
 	case ProductCategoryAutomotive:
+		return true
+	case ProductCategoryBankingCard:
 		return true
 	case ProductCategoryBeauty:
 		return true
@@ -198,14 +231,35 @@ type CreateHypothesisRequest struct {
 
 // CreateProductRequest defines model for CreateProductRequest.
 type CreateProductRequest struct {
-	Category     ProductCategory `json:"category"`
-	Description  *string         `json:"description,omitempty"`
-	HypothesisId string          `json:"hypothesis_id"`
-	Keywords     *[]string       `json:"keywords,omitempty"`
-	Link         *string         `json:"link,omitempty"`
-	Name         string          `json:"name"`
-	Price        *string         `json:"price,omitempty"`
+	AllowedChannels  []string          `json:"allowed_channels"`
+	Brand            string            `json:"brand"`
+	Category         ProductCategory   `json:"category"`
+	Description      string            `json:"description"`
+	EligibilityRules []EligibilityRule `json:"eligibility_rules"`
+	ExperimentGoal   string            `json:"experiment_goal"`
+	Facts            []ProductFact     `json:"facts"`
+	ForbiddenClaims  []string          `json:"forbidden_claims"`
+	Geography        string            `json:"geography"`
+	HypothesisId     string            `json:"hypothesis_id"`
+	Keywords         *[]string         `json:"keywords,omitempty"`
+	KnownConstraints []string          `json:"known_constraints"`
+	Link             *string           `json:"link,omitempty"`
+	Name             string            `json:"name"`
+	Price            *string           `json:"price,omitempty"`
+	TargetAction     string            `json:"target_action"`
 }
+
+// EligibilityRule defines model for EligibilityRule.
+type EligibilityRule struct {
+	Description string                  `json:"description"`
+	Field       string                  `json:"field"`
+	Operator    EligibilityRuleOperator `json:"operator"`
+	RuleId      string                  `json:"rule_id"`
+	Value       interface{}             `json:"value"`
+}
+
+// EligibilityRuleOperator defines model for EligibilityRule.Operator.
+type EligibilityRuleOperator string
 
 // ErrBody defines model for ErrBody.
 type ErrBody struct {
@@ -235,6 +289,12 @@ type LoginUserRequest struct {
 // ProductCategory defines model for ProductCategory.
 type ProductCategory string
 
+// ProductFact defines model for ProductFact.
+type ProductFact struct {
+	FactId string `json:"fact_id"`
+	Text   string `json:"text"`
+}
+
 // ProductFileResponse defines model for ProductFileResponse.
 type ProductFileResponse struct {
 	ContentType  string                  `json:"content_type"`
@@ -251,14 +311,23 @@ type ProductFileResponseType string
 
 // ProductResponse defines model for ProductResponse.
 type ProductResponse struct {
-	Category     ProductCategory `json:"category"`
-	Description  *string         `json:"description,omitempty"`
-	HypothesisId string          `json:"hypothesis_id"`
-	Id           string          `json:"id"`
-	Keywords     []string        `json:"keywords"`
-	Link         *string         `json:"link,omitempty"`
-	Name         string          `json:"name"`
-	Price        *string         `json:"price,omitempty"`
+	AllowedChannels  []string          `json:"allowed_channels"`
+	Brand            string            `json:"brand"`
+	Category         ProductCategory   `json:"category"`
+	Description      string            `json:"description"`
+	EligibilityRules []EligibilityRule `json:"eligibility_rules"`
+	ExperimentGoal   string            `json:"experiment_goal"`
+	Facts            []ProductFact     `json:"facts"`
+	ForbiddenClaims  []string          `json:"forbidden_claims"`
+	Geography        string            `json:"geography"`
+	HypothesisId     string            `json:"hypothesis_id"`
+	Id               string            `json:"id"`
+	Keywords         []string          `json:"keywords"`
+	KnownConstraints []string          `json:"known_constraints"`
+	Link             *string           `json:"link,omitempty"`
+	Name             string            `json:"name"`
+	Price            *string           `json:"price,omitempty"`
+	TargetAction     string            `json:"target_action"`
 }
 
 // RegisterUserRequest defines model for RegisterUserRequest.
@@ -286,12 +355,21 @@ type UpdateHypothesisRequest struct {
 
 // UpdateProductRequest defines model for UpdateProductRequest.
 type UpdateProductRequest struct {
-	Category    *ProductCategory `json:"category,omitempty"`
-	Description *string          `json:"description,omitempty"`
-	Keywords    *[]string        `json:"keywords,omitempty"`
-	Link        *string          `json:"link,omitempty"`
-	Name        *string          `json:"name,omitempty"`
-	Price       *string          `json:"price,omitempty"`
+	AllowedChannels  *[]string          `json:"allowed_channels,omitempty"`
+	Brand            *string            `json:"brand,omitempty"`
+	Category         *ProductCategory   `json:"category,omitempty"`
+	Description      *string            `json:"description,omitempty"`
+	EligibilityRules *[]EligibilityRule `json:"eligibility_rules,omitempty"`
+	ExperimentGoal   *string            `json:"experiment_goal,omitempty"`
+	Facts            *[]ProductFact     `json:"facts,omitempty"`
+	ForbiddenClaims  *[]string          `json:"forbidden_claims,omitempty"`
+	Geography        *string            `json:"geography,omitempty"`
+	Keywords         *[]string          `json:"keywords,omitempty"`
+	KnownConstraints *[]string          `json:"known_constraints,omitempty"`
+	Link             *string            `json:"link,omitempty"`
+	Name             *string            `json:"name,omitempty"`
+	Price            *string            `json:"price,omitempty"`
+	TargetAction     *string            `json:"target_action,omitempty"`
 }
 
 // bearerAuthContextKey is the context key for bearerAuth security scheme
@@ -3286,41 +3364,46 @@ func (sh *strictHandler) Healthz(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

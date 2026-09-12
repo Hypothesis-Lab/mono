@@ -759,23 +759,65 @@ components:
         description: { type: string, maxLength: 1024, nullable: true }
     ProductResponse:
       type: object
-      required: [id, name, category, hypothesis_id, keywords]
+      required: [id, name, description, category, brand, geography, experiment_goal, target_action, facts, eligibility_rules, allowed_channels, forbidden_claims, known_constraints, hypothesis_id, keywords]
       properties:
         id:            { type: string }
         name:          { type: string }
-        description:   { type: string, nullable: true }
+        description:   { type: string, minLength: 1 }
         category:      { $ref: "#/components/schemas/ProductCategory" }
+        brand:         { type: string, minLength: 1 }
+        geography:     { type: string, minLength: 1 }
+        experiment_goal: { type: string, minLength: 1 }
+        target_action: { type: string, minLength: 1 }
+        facts:
+          type: array
+          minItems: 3
+          items: { $ref: "#/components/schemas/ProductFact" }
+        eligibility_rules:
+          type: array
+          items: { $ref: "#/components/schemas/EligibilityRule" }
+        allowed_channels:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+        forbidden_claims:
+          type: array
+          items: { type: string }
+        known_constraints:
+          type: array
+          items: { type: string }
         keywords:      { type: array, items: { type: string } }
         price:         { type: string, nullable: true }
         link:          { type: string, nullable: true }
         hypothesis_id: { type: string }
     CreateProductRequest:
       type: object
-      required: [name, category, hypothesis_id]
+      required: [name, description, category, brand, geography, experiment_goal, target_action, facts, eligibility_rules, allowed_channels, forbidden_claims, known_constraints, hypothesis_id]
       properties:
         name:          { type: string }
-        description:   { type: string, nullable: true }
+        description:   { type: string, minLength: 1 }
         category:      { $ref: "#/components/schemas/ProductCategory" }
+        brand:         { type: string, minLength: 1 }
+        geography:     { type: string, minLength: 1 }
+        experiment_goal: { type: string, minLength: 1 }
+        target_action: { type: string, minLength: 1 }
+        facts:
+          type: array
+          minItems: 3
+          items: { $ref: "#/components/schemas/ProductFact" }
+        eligibility_rules:
+          type: array
+          items: { $ref: "#/components/schemas/EligibilityRule" }
+        allowed_channels:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+        forbidden_claims:
+          type: array
+          items: { type: string }
+        known_constraints:
+          type: array
+          items: { type: string }
         keywords:      { type: array, items: { type: string, maxLength: 64 } }
         price:         { type: string, maxLength: 128, nullable: true }
         link:          { type: string, maxLength: 128, nullable: true }
@@ -786,9 +828,47 @@ components:
         name:        { type: string, nullable: true }
         description: { type: string, nullable: true }
         category:    { $ref: "#/components/schemas/ProductCategory" }
+        brand:       { type: string }
+        geography:   { type: string }
+        experiment_goal: { type: string }
+        target_action: { type: string }
+        facts:
+          type: array
+          minItems: 3
+          items: { $ref: "#/components/schemas/ProductFact" }
+        eligibility_rules:
+          type: array
+          items: { $ref: "#/components/schemas/EligibilityRule" }
+        allowed_channels:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+        forbidden_claims:
+          type: array
+          items: { type: string }
+        known_constraints:
+          type: array
+          items: { type: string }
         keywords:    { type: array, items: { type: string, maxLength: 64 }, nullable: true }
         price:       { type: string, maxLength: 128, nullable: true }
         link:        { type: string, maxLength: 128, nullable: true }
+    ProductFact:
+      type: object
+      required: [fact_id, text]
+      properties:
+        fact_id: { type: string, minLength: 1 }
+        text:    { type: string, minLength: 1 }
+    EligibilityRule:
+      type: object
+      required: [rule_id, field, operator, value, description]
+      properties:
+        rule_id:     { type: string, minLength: 1 }
+        field:       { type: string, minLength: 1 }
+        operator:
+          type: string
+          enum: [eq, in, gte, lte, between, truthy]
+        value: {}
+        description: { type: string, minLength: 1 }
     ProductCategory:
       type: string
       enum:
@@ -807,6 +887,7 @@ components:
         - garden
         - pets
         - music
+        - banking_card
         - other
     AudienceResponse:
       type: object

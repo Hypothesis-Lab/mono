@@ -24,6 +24,7 @@ services:
       S3_BUCKET: my-bucket
       S3_ACCESS_KEY_ID: admin
       S3_SECRET_ACCESS_KEY: secret
+      GENERATOR_URL: http://generator:8000
       DEV_LOGGER: "true"
       DEV_SEED_DB: "true"
     depends_on:

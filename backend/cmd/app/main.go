@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 
+	"app/internal/clients"
 	"app/internal/config"
 	"app/internal/db"
 	"app/internal/handlers"
@@ -24,6 +25,7 @@ func main() {
 	fx.New(
 		fx.Provide(logger.New),
 		fx.Provide(config.New),
+		fx.Provide(clients.NewGeneratorClient),
 		fx.Provide(db.NewDB),
 		fx.Provide(storage.NewS3),
 		fx.Provide(hypothesis.NewRepository),

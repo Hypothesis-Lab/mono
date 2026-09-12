@@ -2,8 +2,12 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"math"
 	"net/http"
+	"strings"
 
 	"app/internal/api"
 	"app/internal/http/middlewares"
@@ -21,32 +25,22 @@ func (s *Server) CreateProduct(ctx context.Context, req api.CreateProductRequest
 		return api.CreateProduct500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
 	}
 
-	if req.Body.Name == "" {
-		return api.CreateProduct400JSONResponse(errBody(http.StatusBadRequest, "name is required")), nil
+	if req.Body == nil {
+		return api.CreateProduct400JSONResponse(errBody(http.StatusBadRequest, "invalid request body")), nil
 	}
 
-	if req.Body.Category == "" || !req.Body.Category.Valid() {
-		return api.CreateProduct400JSONResponse(errBody(http.StatusBadRequest, "category is required")), nil
+	if message := validateCreateProduct(*req.Body); message != "" {
+		return api.CreateProduct400JSONResponse(errBody(http.StatusBadRequest, message)), nil
 	}
 
-	if req.Body.HypothesisId == "" {
-		return api.CreateProduct400JSONResponse(errBody(http.StatusBadRequest, "hypothesis_id is required")), nil
+	in, err := createProductInput(*req.Body)
+	if err != nil {
+		s.logger.Error("encode create product input", zap.Error(err))
+
+		return api.CreateProduct500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
 	}
 
-	keywords := []string{}
-	if req.Body.Keywords != nil {
-		keywords = *req.Body.Keywords
-	}
-
-	created, err := s.productService.Create(ctx, userID, product.CreateInput{
-		Name:         req.Body.Name,
-		Description:  req.Body.Description,
-		Category:     string(req.Body.Category),
-		Keywords:     keywords,
-		Price:        req.Body.Price,
-		Link:         req.Body.Link,
-		HypothesisID: req.Body.HypothesisId,
-	})
+	created, err := s.productService.Create(ctx, userID, in)
 	if err != nil {
 		if errors.Is(err, hypothesis.ErrNotFound) {
 			s.logger.Error("create product", zap.String("hypothesis_id", req.Body.HypothesisId), zap.Error(err))
@@ -59,7 +53,14 @@ func (s *Server) CreateProduct(ctx context.Context, req api.CreateProductRequest
 		return api.CreateProduct500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
 	}
 
-	return api.CreateProduct201JSONResponse(newProductResponse(created)), nil
+	response, err := newProductResponse(created)
+	if err != nil {
+		s.logger.Error("build create product response", zap.String("id", created.ID), zap.Error(err))
+
+		return api.CreateProduct500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	return api.CreateProduct201JSONResponse(response), nil
 }
 
 func (s *Server) UpdateProduct(ctx context.Context, req api.UpdateProductRequestObject) (api.UpdateProductResponseObject, error) {
@@ -74,24 +75,15 @@ func (s *Server) UpdateProduct(ctx context.Context, req api.UpdateProductRequest
 		return api.UpdateProduct400JSONResponse(errBody(http.StatusBadRequest, "invalid request body")), nil
 	}
 
-	in := product.UpdateInput{
-		Name:        req.Body.Name,
-		Description: req.Body.Description,
-		Price:       req.Body.Price,
-		Link:        req.Body.Link,
+	if message := validateUpdateProduct(req.Body); message != "" {
+		return api.UpdateProduct400JSONResponse(errBody(http.StatusBadRequest, message)), nil
 	}
 
-	if req.Body.Category != nil {
-		if !req.Body.Category.Valid() {
-			return api.UpdateProduct400JSONResponse(errBody(http.StatusBadRequest, "invalid category")), nil
-		}
+	in, err := updateProductInput(req.Body)
+	if err != nil {
+		s.logger.Error("encode update product input", zap.String("id", req.Id), zap.Error(err))
 
-		category := string(*req.Body.Category)
-		in.Category = &category
-	}
-
-	if req.Body.Keywords != nil {
-		in.Keywords = req.Body.Keywords
+		return api.UpdateProduct500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
 	}
 
 	updated, err := s.productService.Update(ctx, userID, req.Id, in)
@@ -107,7 +99,14 @@ func (s *Server) UpdateProduct(ctx context.Context, req api.UpdateProductRequest
 		return api.UpdateProduct500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
 	}
 
-	return api.UpdateProduct200JSONResponse(newProductResponse(updated)), nil
+	response, err := newProductResponse(updated)
+	if err != nil {
+		s.logger.Error("build update product response", zap.String("id", updated.ID), zap.Error(err))
+
+		return api.UpdateProduct500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	return api.UpdateProduct200JSONResponse(response), nil
 }
 
 func (s *Server) DeleteProduct(ctx context.Context, req api.DeleteProductRequestObject) (api.DeleteProductResponseObject, error) {
@@ -133,15 +132,251 @@ func (s *Server) DeleteProduct(ctx context.Context, req api.DeleteProductRequest
 	return api.DeleteProduct204Response{}, nil
 }
 
-func newProductResponse(p *product.Product) api.ProductResponse {
-	return api.ProductResponse{
-		Category:     api.ProductCategory(p.Category),
-		Description:  p.Description,
-		HypothesisId: p.HypothesisID,
-		Id:           p.ID,
-		Keywords:     p.Keywords,
-		Link:         p.Link,
-		Name:         p.Name,
-		Price:        p.Price,
+func validateCreateProduct(req api.CreateProductRequest) string {
+	if strings.TrimSpace(req.Name) == "" {
+		return "name is required"
 	}
+	if strings.TrimSpace(req.Description) == "" {
+		return "description is required"
+	}
+	if req.Category == "" || !req.Category.Valid() {
+		return "category is required"
+	}
+	if strings.TrimSpace(req.Brand) == "" {
+		return "brand is required"
+	}
+	if strings.TrimSpace(req.Geography) == "" {
+		return "geography is required"
+	}
+	if strings.TrimSpace(req.ExperimentGoal) == "" {
+		return "experiment_goal is required"
+	}
+	if strings.TrimSpace(req.TargetAction) == "" {
+		return "target_action is required"
+	}
+	if message := validateFacts(req.Facts); message != "" {
+		return message
+	}
+	if message := validateEligibilityRules(req.EligibilityRules); message != "" {
+		return message
+	}
+	if message := validateAllowedChannels(req.AllowedChannels); message != "" {
+		return message
+	}
+	if strings.TrimSpace(req.HypothesisId) == "" {
+		return "hypothesis_id is required"
+	}
+
+	return ""
+}
+
+func validateUpdateProduct(req *api.UpdateProductRequest) string {
+	if req.Name != nil && strings.TrimSpace(*req.Name) == "" {
+		return "name must not be empty"
+	}
+	if req.Description != nil && strings.TrimSpace(*req.Description) == "" {
+		return "description must not be empty"
+	}
+	if req.Category != nil && !req.Category.Valid() {
+		return "invalid category"
+	}
+	if req.Brand != nil && strings.TrimSpace(*req.Brand) == "" {
+		return "brand must not be empty"
+	}
+	if req.Geography != nil && strings.TrimSpace(*req.Geography) == "" {
+		return "geography must not be empty"
+	}
+	if req.ExperimentGoal != nil && strings.TrimSpace(*req.ExperimentGoal) == "" {
+		return "experiment_goal must not be empty"
+	}
+	if req.TargetAction != nil && strings.TrimSpace(*req.TargetAction) == "" {
+		return "target_action must not be empty"
+	}
+	if req.Facts != nil {
+		if message := validateFacts(*req.Facts); message != "" {
+			return message
+		}
+	}
+	if req.EligibilityRules != nil {
+		if message := validateEligibilityRules(*req.EligibilityRules); message != "" {
+			return message
+		}
+	}
+	if req.AllowedChannels != nil {
+		if message := validateAllowedChannels(*req.AllowedChannels); message != "" {
+			return message
+		}
+	}
+
+	return ""
+}
+
+func validateFacts(facts []api.ProductFact) string {
+	if len(facts) < 3 {
+		return "at least three facts are required"
+	}
+	for _, fact := range facts {
+		if strings.TrimSpace(fact.FactId) == "" || strings.TrimSpace(fact.Text) == "" {
+			return "fact_id and text are required for every fact"
+		}
+	}
+
+	return ""
+}
+
+func validateEligibilityRules(rules []api.EligibilityRule) string {
+	for _, rule := range rules {
+		if strings.TrimSpace(rule.RuleId) == "" || strings.TrimSpace(rule.Field) == "" || strings.TrimSpace(rule.Description) == "" || !validEligibilityValue(rule.Value) || !rule.Operator.Valid() {
+			return "rule_id, field, operator, value, and description are required for every eligibility rule"
+		}
+	}
+
+	return ""
+}
+
+func validEligibilityValue(value interface{}) bool {
+	switch v := value.(type) {
+	case string, bool, int, int8, int16, int32, int64:
+		return true
+	case float64:
+		return math.Trunc(v) == v
+	case []interface{}:
+		if len(v) == 0 {
+			return true
+		}
+		_, isStringSlice := v[0].(string)
+		for _, item := range v {
+			if isStringSlice {
+				if _, ok := item.(string); !ok {
+					return false
+				}
+				continue
+			}
+			number, ok := item.(float64)
+			if !ok || math.Trunc(number) != number {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+func validateAllowedChannels(channels []string) string {
+	if len(channels) == 0 {
+		return "at least one allowed channel is required"
+	}
+	for _, channel := range channels {
+		if strings.TrimSpace(channel) == "" {
+			return "allowed channels must not be empty"
+		}
+	}
+
+	return ""
+}
+
+func createProductInput(req api.CreateProductRequest) (product.CreateInput, error) {
+	facts, err := json.Marshal(req.Facts)
+	if err != nil {
+		return product.CreateInput{}, fmt.Errorf("marshal product facts: %w", err)
+	}
+	rules, err := json.Marshal(req.EligibilityRules)
+	if err != nil {
+		return product.CreateInput{}, fmt.Errorf("marshal eligibility rules: %w", err)
+	}
+
+	keywords := []string{}
+	if req.Keywords != nil {
+		keywords = *req.Keywords
+	}
+
+	return product.CreateInput{
+		Name:             req.Name,
+		Description:      req.Description,
+		Category:         string(req.Category),
+		Brand:            req.Brand,
+		Geography:        req.Geography,
+		ExperimentGoal:   req.ExperimentGoal,
+		TargetAction:     req.TargetAction,
+		Facts:            facts,
+		EligibilityRules: rules,
+		AllowedChannels:  req.AllowedChannels,
+		ForbiddenClaims:  req.ForbiddenClaims,
+		KnownConstraints: req.KnownConstraints,
+		Keywords:         keywords,
+		Price:            req.Price,
+		Link:             req.Link,
+		HypothesisID:     req.HypothesisId,
+	}, nil
+}
+
+func updateProductInput(req *api.UpdateProductRequest) (product.UpdateInput, error) {
+	in := product.UpdateInput{
+		Name:             req.Name,
+		Description:      req.Description,
+		Brand:            req.Brand,
+		Geography:        req.Geography,
+		ExperimentGoal:   req.ExperimentGoal,
+		TargetAction:     req.TargetAction,
+		AllowedChannels:  req.AllowedChannels,
+		ForbiddenClaims:  req.ForbiddenClaims,
+		KnownConstraints: req.KnownConstraints,
+		Keywords:         req.Keywords,
+		Price:            req.Price,
+		Link:             req.Link,
+	}
+	if req.Category != nil {
+		category := string(*req.Category)
+		in.Category = &category
+	}
+	if req.Facts != nil {
+		facts, err := json.Marshal(*req.Facts)
+		if err != nil {
+			return product.UpdateInput{}, fmt.Errorf("marshal product facts: %w", err)
+		}
+		rawFacts := json.RawMessage(facts)
+		in.Facts = &rawFacts
+	}
+	if req.EligibilityRules != nil {
+		rules, err := json.Marshal(*req.EligibilityRules)
+		if err != nil {
+			return product.UpdateInput{}, fmt.Errorf("marshal eligibility rules: %w", err)
+		}
+		rawRules := json.RawMessage(rules)
+		in.EligibilityRules = &rawRules
+	}
+
+	return in, nil
+}
+
+func newProductResponse(p *product.Product) (api.ProductResponse, error) {
+	var facts []api.ProductFact
+	if err := json.Unmarshal(p.Facts, &facts); err != nil {
+		return api.ProductResponse{}, fmt.Errorf("unmarshal product facts: %w", err)
+	}
+	var rules []api.EligibilityRule
+	if err := json.Unmarshal(p.EligibilityRules, &rules); err != nil {
+		return api.ProductResponse{}, fmt.Errorf("unmarshal eligibility rules: %w", err)
+	}
+
+	return api.ProductResponse{
+		AllowedChannels:  p.AllowedChannels,
+		Brand:            p.Brand,
+		Category:         api.ProductCategory(p.Category),
+		Description:      p.Description,
+		EligibilityRules: rules,
+		ExperimentGoal:   p.ExperimentGoal,
+		Facts:            facts,
+		ForbiddenClaims:  p.ForbiddenClaims,
+		Geography:        p.Geography,
+		HypothesisId:     p.HypothesisID,
+		Id:               p.ID,
+		Keywords:         p.Keywords,
+		KnownConstraints: p.KnownConstraints,
+		Link:             p.Link,
+		Name:             p.Name,
+		Price:            p.Price,
+		TargetAction:     p.TargetAction,
+	}, nil
 }

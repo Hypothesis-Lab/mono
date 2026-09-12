@@ -69,6 +69,7 @@ export type ProductCategory =
   | 'garden'
   | 'pets'
   | 'music'
+  | 'banking_card'
   | 'other'
 
 export const PRODUCT_CATEGORIES: ProductCategory[] = [
@@ -87,14 +88,37 @@ export const PRODUCT_CATEGORIES: ProductCategory[] = [
   'garden',
   'pets',
   'music',
+  'banking_card',
   'other',
 ]
+
+export type ProductFact = {
+  fact_id: string
+  text: string
+}
+
+export type EligibilityRule = {
+  rule_id: string
+  field: string
+  operator: 'eq' | 'in' | 'gte' | 'lte' | 'between' | 'truthy'
+  value: string | number | boolean | string[] | number[]
+  description: string
+}
 
 export type Product = {
   id: string
   name: string
-  description: string | null
+  description: string
   category: ProductCategory
+  brand: string
+  geography: string
+  experiment_goal: string
+  target_action: string
+  facts: ProductFact[]
+  eligibility_rules: EligibilityRule[]
+  allowed_channels: string[]
+  forbidden_claims: string[]
+  known_constraints: string[]
   keywords: string[]
   price: string | null
   link: string | null
@@ -156,6 +180,7 @@ const categoryLabels: Record<ProductCategory, string> = {
   garden: 'Сад',
   pets: 'Питомцы',
   music: 'Музыка',
+  banking_card: 'Банковская карта',
   other: 'Другое',
 }
 

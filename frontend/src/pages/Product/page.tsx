@@ -21,6 +21,7 @@ import {
   useUpdateProductMutation,
   useUploadProductFileMutation,
 } from '../../store/generatedApi'
+import type { EligibilityRule, ProductFact, UpdateProductRequest } from '../../store/generatedApi'
 import * as S from './styles'
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024
@@ -37,6 +38,52 @@ function formatFileSize(bytes: number): string {
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString()
+}
+
+function listFromText(value: string): string[] {
+  return value
+    .split('\n')
+    .map((item) => item.trim())
+    .filter((item) => item !== '')
+}
+
+function listToText(value: string[]): string {
+  return value.join('\n')
+}
+
+function factsToText(facts: ProductFact[]): string {
+  return facts.map((fact) => `${fact.fact_id}: ${fact.text}`).join('\n')
+}
+
+function factsFromText(value: string): ProductFact[] {
+  return listFromText(value).map((line) => {
+    const separator = line.indexOf(':')
+    const factId = line.slice(0, separator).trim()
+    const text = line.slice(separator + 1).trim()
+    if (separator <= 0 || factId === '' || text === '') {
+      throw new Error('Укажите каждый факт в формате F1: текст факта')
+    }
+    return {
+      fact_id: factId,
+      text,
+    }
+  })
+}
+
+function rulesToText(rules: EligibilityRule[]): string {
+  return JSON.stringify(rules, null, 2)
+}
+
+function rulesFromText(value: string): EligibilityRule[] {
+  const parsed: unknown = JSON.parse(value)
+  if (!Array.isArray(parsed)) {
+    throw new Error('Правила соответствия должны быть JSON-массивом')
+  }
+  return parsed as EligibilityRule[]
+}
+
+function areListsEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((item, index) => item === right[index])
 }
 
 export function ProductPage() {
@@ -66,6 +113,15 @@ export function ProductPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState<ProductCategory | ''>('')
+  const [brand, setBrand] = useState('')
+  const [geography, setGeography] = useState('')
+  const [experimentGoal, setExperimentGoal] = useState('')
+  const [targetAction, setTargetAction] = useState('')
+  const [facts, setFacts] = useState('')
+  const [eligibilityRules, setEligibilityRules] = useState('[]')
+  const [allowedChannels, setAllowedChannels] = useState('')
+  const [forbiddenClaims, setForbiddenClaims] = useState('')
+  const [knownConstraints, setKnownConstraints] = useState('')
   const [keywords, setKeywords] = useState('')
   const [price, setPrice] = useState('')
   const [link, setLink] = useState('')
@@ -90,8 +146,17 @@ export function ProductPage() {
   useEffect(() => {
     if (product) {
       setName(product.name)
-      setDescription(product.description ?? '')
+      setDescription(product.description)
       setCategory(product.category)
+      setBrand(product.brand)
+      setGeography(product.geography)
+      setExperimentGoal(product.experiment_goal)
+      setTargetAction(product.target_action)
+      setFacts(factsToText(product.facts))
+      setEligibilityRules(rulesToText(product.eligibility_rules))
+      setAllowedChannels(listToText(product.allowed_channels))
+      setForbiddenClaims(listToText(product.forbidden_claims))
+      setKnownConstraints(listToText(product.known_constraints))
       setKeywords(product.keywords.join(', '))
       setPrice(product.price ?? '')
       setLink(product.link ?? '')
@@ -99,6 +164,15 @@ export function ProductPage() {
       setName('')
       setDescription('')
       setCategory('')
+      setBrand('')
+      setGeography('')
+      setExperimentGoal('')
+      setTargetAction('')
+      setFacts('')
+      setEligibilityRules('[]')
+      setAllowedChannels('')
+      setForbiddenClaims('')
+      setKnownConstraints('')
       setKeywords('')
       setPrice('')
       setLink('')
@@ -144,6 +218,25 @@ export function ProductPage() {
 
     const trimmedName = name.trim()
     const trimmedDescription = description.trim()
+    const trimmedBrand = brand.trim()
+    const trimmedGeography = geography.trim()
+    const trimmedExperimentGoal = experimentGoal.trim()
+    const trimmedTargetAction = targetAction.trim()
+    let parsedFacts: ProductFact[]
+    let parsedEligibilityRules: EligibilityRule[]
+    let parsedAllowedChannels: string[]
+    let parsedForbiddenClaims: string[]
+    let parsedKnownConstraints: string[]
+    try {
+      parsedFacts = factsFromText(facts)
+      parsedEligibilityRules = rulesFromText(eligibilityRules)
+      parsedAllowedChannels = listFromText(allowedChannels)
+      parsedForbiddenClaims = listFromText(forbiddenClaims)
+      parsedKnownConstraints = listFromText(knownConstraints)
+    } catch (err) {
+      setSaveError(rtkErrorMessage(err, 'Проверьте данные продукта'))
+      return
+    }
     const trimmedKeywords = keywords
       .split(',')
       .map((k) => k.trim())
@@ -153,28 +246,45 @@ export function ProductPage() {
 
     try {
       if (product) {
-        const body: {
-          name?: string
-          description?: string
-          category?: ProductCategory
-          keywords?: string[]
-          price?: string
-          link?: string
-        } = {}
+        const body: UpdateProductRequest = {}
 
         if (trimmedName !== product.name) {
           body.name = trimmedName
         }
-        if (trimmedDescription !== (product.description ?? '')) {
+        if (trimmedDescription !== product.description) {
           body.description = trimmedDescription
         }
         if (category !== product.category) {
           body.category = category as ProductCategory
         }
-        const keywordsChanged =
-          trimmedKeywords.length !== product.keywords.length ||
-          trimmedKeywords.some((k, i) => k !== product.keywords[i])
-        if (keywordsChanged) {
+        if (trimmedBrand !== product.brand) {
+          body.brand = trimmedBrand
+        }
+        if (trimmedGeography !== product.geography) {
+          body.geography = trimmedGeography
+        }
+        if (trimmedExperimentGoal !== product.experiment_goal) {
+          body.experiment_goal = trimmedExperimentGoal
+        }
+        if (trimmedTargetAction !== product.target_action) {
+          body.target_action = trimmedTargetAction
+        }
+        if (JSON.stringify(parsedFacts) !== JSON.stringify(product.facts)) {
+          body.facts = parsedFacts
+        }
+        if (JSON.stringify(parsedEligibilityRules) !== JSON.stringify(product.eligibility_rules)) {
+          body.eligibility_rules = parsedEligibilityRules
+        }
+        if (!areListsEqual(parsedAllowedChannels, product.allowed_channels)) {
+          body.allowed_channels = parsedAllowedChannels
+        }
+        if (!areListsEqual(parsedForbiddenClaims, product.forbidden_claims)) {
+          body.forbidden_claims = parsedForbiddenClaims
+        }
+        if (!areListsEqual(parsedKnownConstraints, product.known_constraints)) {
+          body.known_constraints = parsedKnownConstraints
+        }
+        if (!areListsEqual(trimmedKeywords, product.keywords)) {
           body.keywords = trimmedKeywords
         }
         if (trimmedPrice !== (product.price ?? '')) {
@@ -189,8 +299,17 @@ export function ProductPage() {
         await createProduct({
           createProductRequest: {
             name: trimmedName,
-            description: trimmedDescription === '' ? null : trimmedDescription,
+            description: trimmedDescription,
             category: category as ProductCategory,
+            brand: trimmedBrand,
+            geography: trimmedGeography,
+            experiment_goal: trimmedExperimentGoal,
+            target_action: trimmedTargetAction,
+            facts: parsedFacts,
+            eligibility_rules: parsedEligibilityRules,
+            allowed_channels: parsedAllowedChannels,
+            forbidden_claims: parsedForbiddenClaims,
+            known_constraints: parsedKnownConstraints,
             keywords: trimmedKeywords,
             price: trimmedPrice === '' ? null : trimmedPrice,
             link: trimmedLink === '' ? null : trimmedLink,
@@ -296,6 +415,7 @@ export function ProductPage() {
             onChange={(e) => setName(e.target.value)}
             placeholder="Название продукта"
             disabled={saving}
+            required
           />
         </S.Field>
 
@@ -307,6 +427,112 @@ export function ProductPage() {
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Краткое описание продукта"
             disabled={saving}
+            required
+          />
+        </S.Field>
+
+        <S.Field>
+          Бренд
+          <S.Input
+            type="text"
+            value={brand}
+            onChange={(e) => setBrand(e.target.value)}
+            placeholder="Название бренда"
+            disabled={saving}
+            required
+          />
+        </S.Field>
+
+        <S.Field>
+          География
+          <S.Input
+            type="text"
+            value={geography}
+            onChange={(e) => setGeography(e.target.value)}
+            placeholder="Россия"
+            disabled={saving}
+            required
+          />
+        </S.Field>
+
+        <S.Field>
+          Цель эксперимента
+          <S.TextArea
+            rows={3}
+            value={experimentGoal}
+            onChange={(e) => setExperimentGoal(e.target.value)}
+            placeholder="Какую гипотезу или результат нужно проверить"
+            disabled={saving}
+            required
+          />
+        </S.Field>
+
+        <S.Field>
+          Целевое действие
+          <S.TextArea
+            rows={2}
+            value={targetAction}
+            onChange={(e) => setTargetAction(e.target.value)}
+            placeholder="Какое действие должен совершить пользователь"
+            disabled={saving}
+            required
+          />
+        </S.Field>
+
+        <S.Field>
+          Подтвержденные факты (каждый с новой строки: F1: текст)
+          <S.TextArea
+            rows={6}
+            value={facts}
+            onChange={(e) => setFacts(e.target.value)}
+            placeholder={'F1: Первый подтвержденный факт\nF2: Второй подтвержденный факт\nF3: Третий подтвержденный факт'}
+            disabled={saving}
+            required
+          />
+        </S.Field>
+
+        <S.Field>
+          Разрешенные каналы (каждый с новой строки)
+          <S.TextArea
+            rows={3}
+            value={allowedChannels}
+            onChange={(e) => setAllowedChannels(e.target.value)}
+            placeholder={'in_app_banner\npush\nemail'}
+            disabled={saving}
+            required
+          />
+        </S.Field>
+
+        <S.Field>
+          Правила соответствия (JSON-массив, необязательно)
+          <S.TextArea
+            rows={7}
+            value={eligibilityRules}
+            onChange={(e) => setEligibilityRules(e.target.value)}
+            placeholder={'[\n  {\n    "rule_id": "E1",\n    "field": "age",\n    "operator": "between",\n    "value": [21, 70],\n    "description": "Возраст от 21 до 70 лет"\n  }\n]'}
+            disabled={saving}
+          />
+        </S.Field>
+
+        <S.Field>
+          Запрещенные формулировки (каждая с новой строки)
+          <S.TextArea
+            rows={3}
+            value={forbiddenClaims}
+            onChange={(e) => setForbiddenClaims(e.target.value)}
+            placeholder="гарантированное одобрение"
+            disabled={saving}
+          />
+        </S.Field>
+
+        <S.Field>
+          Известные ограничения (каждое с новой строки)
+          <S.TextArea
+            rows={3}
+            value={knownConstraints}
+            onChange={(e) => setKnownConstraints(e.target.value)}
+            placeholder="Условия или ограничения продукта"
+            disabled={saving}
           />
         </S.Field>
 
@@ -316,6 +542,7 @@ export function ProductPage() {
             value={category}
             onChange={(e) => setCategory(e.target.value as ProductCategory)}
             disabled={saving}
+            required
           >
             <option value="" disabled>
               Выберите категорию

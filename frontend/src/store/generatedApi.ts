@@ -331,12 +331,33 @@ export type ProductCategory =
   | "garden"
   | "pets"
   | "music"
+  | "banking_card"
   | "other";
+export type ProductFact = {
+  fact_id: string;
+  text: string;
+};
+export type EligibilityRule = {
+  rule_id: string;
+  field: string;
+  operator: "eq" | "in" | "gte" | "lte" | "between" | "truthy";
+  value: any;
+  description: string;
+};
 export type ProductResponse = {
   id: string;
   name: string;
-  description?: string | null;
+  description: string;
   category: ProductCategory;
+  brand: string;
+  geography: string;
+  experiment_goal: string;
+  target_action: string;
+  facts: ProductFact[];
+  eligibility_rules: EligibilityRule[];
+  allowed_channels: string[];
+  forbidden_claims: string[];
+  known_constraints: string[];
   keywords: string[];
   price?: string | null;
   link?: string | null;
@@ -344,8 +365,17 @@ export type ProductResponse = {
 };
 export type CreateProductRequest = {
   name: string;
-  description?: string | null;
+  description: string;
   category: ProductCategory;
+  brand: string;
+  geography: string;
+  experiment_goal: string;
+  target_action: string;
+  facts: ProductFact[];
+  eligibility_rules: EligibilityRule[];
+  allowed_channels: string[];
+  forbidden_claims: string[];
+  known_constraints: string[];
   keywords?: string[];
   price?: string | null;
   link?: string | null;
@@ -355,6 +385,15 @@ export type UpdateProductRequest = {
   name?: string | null;
   description?: string | null;
   category?: ProductCategory;
+  brand?: string;
+  geography?: string;
+  experiment_goal?: string;
+  target_action?: string;
+  facts?: ProductFact[];
+  eligibility_rules?: EligibilityRule[];
+  allowed_channels?: string[];
+  forbidden_claims?: string[];
+  known_constraints?: string[];
   keywords?: string[] | null;
   price?: string | null;
   link?: string | null;

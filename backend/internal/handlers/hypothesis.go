@@ -109,7 +109,14 @@ func (s *Server) GetHypothesisProduct(ctx context.Context, req api.GetHypothesis
 		}
 	}
 
-	return api.GetHypothesisProduct200JSONResponse(newProductResponse(p)), nil
+	response, err := newProductResponse(p)
+	if err != nil {
+		s.logger.Error("build hypothesis product response", zap.String("id", p.ID), zap.Error(err))
+
+		return api.GetHypothesisProduct500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	return api.GetHypothesisProduct200JSONResponse(response), nil
 }
 
 func (s *Server) LaunchHypothesis(ctx context.Context, req api.LaunchHypothesisRequestObject) (api.LaunchHypothesisResponseObject, error) {
