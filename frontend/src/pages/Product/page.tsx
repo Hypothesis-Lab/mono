@@ -6,13 +6,11 @@ import {
   PRODUCT_CATEGORIES,
   getCategoryLabel,
   getFileTypeLabel,
-  getGenderLabel,
   isApiNotFound,
   rtkErrorMessage,
 } from '../../api/structs'
 import {
   useCreateProductMutation,
-  useDeleteAudienceMutation,
   useDeleteProductFileMutation,
   useDeleteProductMutation,
   useGetHypothesisProductQuery,
@@ -101,14 +99,16 @@ export function ProductPage() {
   const {
     data: audiences,
     isLoading: audiencesLoading,
-  } = useListProductAudiencesQuery(product ? { id: product.id } : skipToken)
+  } = useListProductAudiencesQuery(
+    product ? { id: product.id } : skipToken,
+    { pollingInterval: product ? 3000 : 0 },
+  )
 
   const [createProduct, { isLoading: creating }] = useCreateProductMutation()
   const [updateProduct, { isLoading: updating }] = useUpdateProductMutation()
   const [deleteProduct, { isLoading: deleting }] = useDeleteProductMutation()
   const [uploadProductFile, { isLoading: uploading }] = useUploadProductFileMutation()
   const [deleteProductFile] = useDeleteProductFileMutation()
-  const [deleteAudience] = useDeleteAudienceMutation()
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -137,8 +137,6 @@ export function ProductPage() {
   const [fileDeleteError, setFileDeleteError] = useState<string | null>(null)
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null)
 
-  const [deletingAudienceId, setDeletingAudienceId] = useState<string | null>(null)
-  const [audienceDeleteError, setAudienceDeleteError] = useState<string | null>(null)
 
   const hasBrandbook = (files ?? []).some((file) => file.type === 'brandbook')
   const noProduct = !product && isApiNotFound(productError)
@@ -382,19 +380,6 @@ export function ProductPage() {
     }
   }
 
-  async function handleDeleteAudience(audienceId: string) {
-    setDeletingAudienceId(audienceId)
-    setAudienceDeleteError(null)
-
-    try {
-      await deleteAudience({ id: audienceId }).unwrap()
-    } catch (err) {
-      setAudienceDeleteError(rtkErrorMessage(err, 'Не удалось удалить'))
-    } finally {
-      setDeletingAudienceId(null)
-    }
-  }
-
   const saving = creating || updating
   const filesList = files ?? []
 
@@ -618,50 +603,16 @@ export function ProductPage() {
             {audiences!.map((audience) => (
               <S.AudienceItem key={audience.id}>
                 <S.AudienceInfo>
-                  <S.AudienceDescription>{audience.description}</S.AudienceDescription>
+                  <S.AudienceDescription>{audience.persona.label}</S.AudienceDescription>
                   <S.AudienceMeta>
-                    {getGenderLabel(audience.gender ?? 'all')}
-                    {audience.age_from != null && audience.age_to != null
-                      ? ` · ${audience.age_from}-${audience.age_to} лет`
-                      : null}
+                    Ранг {audience.rank} · Оценка {audience.score}
                   </S.AudienceMeta>
                 </S.AudienceInfo>
-                <S.Button
-                  type="button"
-                  onClick={() =>
-                    navigate(
-                      `/hypothesis/${hid}/product/audiences/${audience.id}`,
-                    )
-                  }
-                >
-                  Редактировать
-                </S.Button>
-                <S.Button
-                  type="button"
-                  $danger
-                  onClick={() => handleDeleteAudience(audience.id)}
-                  disabled={deletingAudienceId === audience.id}
-                >
-                  {deletingAudienceId === audience.id ? 'Удаляем…' : 'Удалить'}
-                </S.Button>
               </S.AudienceItem>
             ))}
           </S.AudienceList>
         )}
 
-        {audienceDeleteError && (
-          <S.ErrorMessage>{audienceDeleteError}</S.ErrorMessage>
-        )}
-
-        {product && (
-          <S.Button
-            type="button"
-            $primary
-            onClick={() => navigate(`/hypothesis/${hid}/product/audiences`)}
-          >
-            Добавить аудиторию
-          </S.Button>
-        )}
       </S.AudiencesSection>
 
       <S.FilesSection>

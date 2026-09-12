@@ -35,12 +35,13 @@ func main() {
 		fx.Provide(user.NewRepository),
 		fx.Provide(services.NewHypothesisService),
 		fx.Provide(services.NewProductService),
+		fx.Provide(services.NewAudienceGenerationWorker),
 		fx.Provide(services.NewUserAuthService),
 		fx.Provide(handlers.NewServer),
 		fx.Provide(handlers.NewServerInterface),
 		fx.Provide(apphttp.NewRouter),
 		fx.Provide(apphttp.NewServer),
 		fx.Provide(seeder.New),
-		fx.Invoke(func(*db.DB, *http.Server, *seeder.Seeder) {}),
+		fx.Invoke(func(*db.DB, *http.Server, *seeder.Seeder, *services.AudienceGenerationWorker) {}),
 	).Run()
 }

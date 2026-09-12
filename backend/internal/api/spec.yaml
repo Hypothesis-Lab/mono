@@ -444,6 +444,77 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrBody"
+  /api/v1/product/{id}/audience-generation:
+    get:
+      operationId: getProductAudienceGenerationStatus
+      tags: [audience]
+      summary: Get audience generation status for a product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: audience generation status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AudienceGenerationStatusResponse"
+        "404":
+          description: product or audience generation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+    post:
+      operationId: queueProductAudienceGeneration
+      tags: [audience]
+      summary: Queue audience generation for a product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: audience generation queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AudienceGenerationStatusResponse"
+        "400":
+          description: product does not contain all generator-required fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "404":
+          description: product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "409":
+          description: product audience generation is already queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
   /api/v1/product/{id}/audiences:
     get:
       operationId: listProductAudiences
@@ -466,143 +537,6 @@ paths:
                   $ref: "#/components/schemas/AudienceResponse"
         "404":
           description: product not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
-        "500":
-          description: internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
-    post:
-      operationId: createProductAudience
-      tags: [audience]
-      summary: Create audience for a product
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateAudienceRequest"
-      responses:
-        "201":
-          description: created audience
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AudienceResponse"
-        "400":
-          description: invalid request body
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
-        "404":
-          description: product not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
-        "500":
-          description: internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
-  /api/v1/audiences/{id}:
-    get:
-      operationId: getAudience
-      tags: [audience]
-      summary: Get audience
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: audience
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AudienceResponse"
-        "404":
-          description: audience not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
-        "500":
-          description: internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
-    patch:
-      operationId: updateAudience
-      tags: [audience]
-      summary: Update audience
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateAudienceRequest"
-      responses:
-        "200":
-          description: updated audience
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AudienceResponse"
-        "400":
-          description: invalid request body
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
-        "404":
-          description: audience not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
-        "500":
-          description: internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
-    delete:
-      operationId: deleteAudience
-      tags: [audience]
-      summary: Delete audience
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "204":
-          description: audience deleted
-        "404":
-          description: audience not found
           content:
             application/json:
               schema:
@@ -869,6 +803,13 @@ components:
           enum: [eq, in, gte, lte, between, truthy]
         value: {}
         description: { type: string, minLength: 1 }
+    AudienceGenerationStatusResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [created, working, failed]
     ProductCategory:
       type: string
       enum:
@@ -891,45 +832,19 @@ components:
         - other
     AudienceResponse:
       type: object
-      required: [id, product_id, description]
+      required: [id, product_id, generator_job_id, persona_id, persona, research, metrics, hypotheses, rank, score, created_at]
       properties:
-        id:                 { type: string }
-        product_id:         { type: string }
-        description:        { type: string }
-        age_from:           { type: integer, nullable: true }
-        age_to:             { type: integer, nullable: true }
-        gender:             { $ref: "#/components/schemas/AudienceGender", nullable: true }
-        interests:          { type: string, nullable: true }
-        geography:          { type: string, nullable: true }
-        pain_points:        { type: string, nullable: true }
-        desires_motivation: { type: string, nullable: true }
-        created_at:         { type: string, format: date-time }
-    CreateAudienceRequest:
-      type: object
-      required: [description]
-      properties:
-        description:        { type: string }
-        age_from:           { type: integer, minimum: 0, maximum: 100, nullable: true }
-        age_to:             { type: integer, minimum: 0, maximum: 100, nullable: true }
-        gender:             { $ref: "#/components/schemas/AudienceGender", nullable: true }
-        interests:          { type: string, maxLength: 1000, nullable: true }
-        geography:          { type: string, maxLength: 255, nullable: true }
-        pain_points:        { type: string, nullable: true }
-        desires_motivation: { type: string, nullable: true }
-    UpdateAudienceRequest:
-      type: object
-      properties:
-        description:        { type: string, nullable: true }
-        age_from:           { type: integer, minimum: 0, maximum: 100, nullable: true }
-        age_to:             { type: integer, minimum: 0, maximum: 100, nullable: true }
-        gender:             { $ref: "#/components/schemas/AudienceGender", nullable: true }
-        interests:          { type: string, maxLength: 1000, nullable: true }
-        geography:          { type: string, maxLength: 255, nullable: true }
-        pain_points:        { type: string, nullable: true }
-        desires_motivation: { type: string, nullable: true }
-    AudienceGender:
-      type: string
-      enum: [men, women, all]
+        id:               { type: string }
+        product_id:       { type: string }
+        generator_job_id: { type: string }
+        persona_id:       { type: string }
+        persona:          {}
+        research:         {}
+        metrics:          {}
+        hypotheses:       {}
+        rank:             { type: integer }
+        score:            { type: number }
+        created_at:       { type: string, format: date-time }
     ProductFileResponse:
       type: object
       required: [id, hypothesis_id, type, filename, content_type, size, created_at]

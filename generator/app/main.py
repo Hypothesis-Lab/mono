@@ -5,17 +5,19 @@ import threading
 from contextlib import asynccontextmanager
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, Response, status
 
 from app.config import Settings
-from app.db import Job, JobRepository
+from app.db import Job, JobAlreadyQueuedError, JobRepository
 from app.llm import LLMClient
 from app.migrations import apply as apply_migrations
 from app.models import (
+    CompletedJobResponse,
     CreateJobRequest,
     CreateJobResponse,
     JobResponse,
     Product,
+    ProductGenerationStatusResponse,
     WorkerStatusResponse,
 )
 from app.workflow import Workflow
@@ -28,6 +30,7 @@ class Worker:
         self.repository = repository
         self.workflow = workflow
         self.current_job_id: str | None = None
+        self.current_product_id: str | None = None
         self._stop = threading.Event()
         self._thread = threading.Thread(
             target=self._run, name="generator-worker", daemon=True
@@ -48,12 +51,14 @@ class Worker:
                     self._stop.wait(0.5)
                     continue
                 self.current_job_id = str(job.id)
+                self.current_product_id = job.product_id
                 self.workflow.process_one_node(job)
             except Exception:
                 logger.exception("generator worker iteration failed")
                 self._stop.wait(1)
             finally:
                 self.current_job_id = None
+                self.current_product_id = None
 
 
 @asynccontextmanager
@@ -84,7 +89,12 @@ def healthz() -> None:
 )
 def create_job(request: Request, body: CreateJobRequest) -> CreateJobResponse:
     repository = _repository(request)
-    job = repository.create(body.product_id, body.input.model_dump(mode="json"))
+    try:
+        job = repository.create(body.product_id, body.input.model_dump(mode="json"))
+    except JobAlreadyQueuedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="product already queued"
+        ) from error
     return CreateJobResponse(id=str(job.id), finished=job.finished)
 
 
@@ -96,6 +106,47 @@ def get_job(request: Request, job_id: UUID) -> JobResponse:
             status_code=status.HTTP_404_NOT_FOUND, detail="job not found"
         )
     return _job_response(job)
+
+
+@app.get(
+    "/products/{product_id}/generation-status",
+    response_model=ProductGenerationStatusResponse,
+)
+def product_generation_status(
+    request: Request, product_id: str
+) -> ProductGenerationStatusResponse:
+    if _worker(request).current_product_id == product_id:
+        return ProductGenerationStatusResponse(status="working")
+
+    generation_status = _repository(request).generation_status(product_id)
+    if generation_status is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="generation job not found"
+        )
+    return ProductGenerationStatusResponse(status=generation_status)
+
+
+@app.get(
+    "/completed-jobs/next",
+    response_model=CompletedJobResponse,
+    responses={status.HTTP_204_NO_CONTENT: {"description": "no completed jobs"}},
+)
+def next_completed_job(request: Request) -> CompletedJobResponse | Response:
+    job = _repository(request).next_completed()
+    if job is None:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return CompletedJobResponse(
+        id=str(job.id), product_id=job.product_id, result=job.result
+    )
+
+
+@app.post("/completed-jobs/{job_id}/persisted", status_code=status.HTTP_204_NO_CONTENT)
+def mark_completed_job_persisted(request: Request, job_id: UUID) -> Response:
+    if not _repository(request).mark_persisted(job_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="completed job not found"
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @app.get("/status", response_model=WorkerStatusResponse)

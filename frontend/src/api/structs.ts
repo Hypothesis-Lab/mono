@@ -125,24 +125,6 @@ export type Product = {
   hypothesis_id: string
 }
 
-export type AudienceGender = 'men' | 'women' | 'all'
-
-export const AUDIENCE_GENDERS: AudienceGender[] = ['men', 'women', 'all']
-
-export type Audience = {
-  id: string
-  product_id: string
-  description: string
-  age_from: number | null
-  age_to: number | null
-  gender: AudienceGender | null
-  interests: string | null
-  geography: string | null
-  pain_points: string | null
-  desires_motivation: string | null
-  created_at: string
-}
-
 export type ProductFileType = 'other' | 'brandbook'
 
 export type ProductFile = {
@@ -186,16 +168,6 @@ const categoryLabels: Record<ProductCategory, string> = {
 
 export function getCategoryLabel(category: string): string {
   return categoryLabels[category as ProductCategory] ?? category
-}
-
-const genderLabels: Record<AudienceGender, string> = {
-  men: 'Мужчины',
-  women: 'Женщины',
-  all: 'Все',
-}
-
-export function getGenderLabel(gender: string): string {
-  return genderLabels[gender as AudienceGender] ?? gender
 }
 
 const fileTypeLabels: Record<ProductFileType, string> = {

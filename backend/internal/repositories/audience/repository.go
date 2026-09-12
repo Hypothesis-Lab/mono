@@ -2,7 +2,7 @@ package audience
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -10,50 +10,32 @@ import (
 
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
-var (
-	ErrNotFound = errors.New("audience not found")
-
-	squirrelPSQL = squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
-)
+var squirrelPSQL = squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 
 type Audience struct {
-	ID                string
-	ProductID         string
-	Description       string
-	AgeFrom           *int32
-	AgeTo             *int32
-	Gender            *string
-	Interests         *string
-	Geography         *string
-	PainPoints        *string
-	DesiresMotivation *string
-	CreatedAt         time.Time
+	ID             string
+	ProductID      string
+	GeneratorJobID string
+	PersonaID      string
+	Persona        json.RawMessage
+	Research       json.RawMessage
+	Metrics        json.RawMessage
+	Hypotheses     json.RawMessage
+	Rank           int
+	Score          float64
+	CreatedAt      time.Time
 }
 
-type CreateInput struct {
-	ProductID         string
-	Description       string
-	AgeFrom           *int32
-	AgeTo             *int32
-	Gender            *string
-	Interests         *string
-	Geography         *string
-	PainPoints        *string
-	DesiresMotivation *string
-}
-
-type UpdateInput struct {
-	Description       *string
-	AgeFrom           *int32
-	AgeTo             *int32
-	Gender            *string
-	Interests         *string
-	Geography         *string
-	PainPoints        *string
-	DesiresMotivation *string
+type GeneratedInput struct {
+	PersonaID  string
+	Persona    json.RawMessage
+	Research   json.RawMessage
+	Metrics    json.RawMessage
+	Hypotheses json.RawMessage
+	Rank       int
+	Score      float64
 }
 
 type Repository struct {
@@ -66,10 +48,10 @@ func NewRepository(db *db.DB) *Repository {
 
 func (r *Repository) ListByProductID(ctx context.Context, productID string) ([]*Audience, error) {
 	sql, args, err := squirrelPSQL.
-		Select("id", "product_id", "description", "age_from", "age_to", "gender", "interests", "geography", "pain_points", "desires_motivation", "created_at").
-		From("target_audience").
+		Select("id", "product_id", "generator_job_id", "persona_id", "persona", "research", "metrics", "hypotheses", "rank", "score", "created_at").
+		From("audience").
 		Where(squirrel.Eq{"product_id": productID}).
-		OrderBy("created_at").
+		OrderBy("rank").
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build list audiences query: %w", err)
@@ -84,13 +66,12 @@ func (r *Repository) ListByProductID(ctx context.Context, productID string) ([]*
 	var result []*Audience
 	for rows.Next() {
 		a := &Audience{}
-		if err := rows.Scan(&a.ID, &a.ProductID, &a.Description, &a.AgeFrom, &a.AgeTo, &a.Gender, &a.Interests, &a.Geography, &a.PainPoints, &a.DesiresMotivation, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.ProductID, &a.GeneratorJobID, &a.PersonaID, &a.Persona, &a.Research, &a.Metrics, &a.Hypotheses, &a.Rank, &a.Score, &a.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan audience: %w", err)
 		}
 
 		result = append(result, a)
 	}
-
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate audiences: %w", err)
 	}
@@ -98,128 +79,25 @@ func (r *Repository) ListByProductID(ctx context.Context, productID string) ([]*
 	return result, nil
 }
 
-func (r *Repository) Create(ctx context.Context, in CreateInput) (*Audience, error) {
-	sql, args, err := squirrelPSQL.
-		Insert("target_audience").
-		Columns("id", "product_id", "description", "age_from", "age_to", "gender", "interests", "geography", "pain_points", "desires_motivation").
-		Values(uuid.NewString(), in.ProductID, in.Description, in.AgeFrom, in.AgeTo, in.Gender, in.Interests, in.Geography, in.PainPoints, in.DesiresMotivation).
-		Suffix("RETURNING id, product_id, description, age_from, age_to, gender, interests, geography, pain_points, desires_motivation, created_at").
-		ToSql()
+func (r *Repository) PersistGenerated(ctx context.Context, generatorJobID, productID string, inputs []GeneratedInput) error {
+	tx, err := r.db.Pool().Begin(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("build create audience query: %w", err)
+		return fmt.Errorf("begin persist generated audiences transaction: %w", err)
 	}
+	defer func() { _ = tx.Rollback(ctx) }()
 
-	a := &Audience{}
-	if err := r.db.Pool().QueryRow(ctx, sql, args...).
-		Scan(&a.ID, &a.ProductID, &a.Description, &a.AgeFrom, &a.AgeTo, &a.Gender, &a.Interests, &a.Geography, &a.PainPoints, &a.DesiresMotivation, &a.CreatedAt); err != nil {
-		return nil, fmt.Errorf("create audience: %w", err)
-	}
-
-	return a, nil
-}
-
-func (r *Repository) Get(ctx context.Context, userID, id string) (*Audience, error) {
-	sql, args, err := squirrelPSQL.
-		Select("id", "product_id", "description", "age_from", "age_to", "gender", "interests", "geography", "pain_points", "desires_motivation", "created_at").
-		From("target_audience").
-		Where(squirrel.Eq{"id": id}).
-		Where("EXISTS (SELECT 1 FROM product JOIN hypothesis ON hypothesis.id = product.hypothesis_id WHERE product.id = target_audience.product_id AND hypothesis.user_id = ?)", userID).
-		ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("build get audience query: %w", err)
-	}
-
-	a := &Audience{}
-	if err := r.db.Pool().QueryRow(ctx, sql, args...).
-		Scan(&a.ID, &a.ProductID, &a.Description, &a.AgeFrom, &a.AgeTo, &a.Gender, &a.Interests, &a.Geography, &a.PainPoints, &a.DesiresMotivation, &a.CreatedAt); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrNotFound
+	for _, in := range inputs {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO audience (id, product_id, generator_job_id, persona_id, persona, research, metrics, hypotheses, rank, score)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (generator_job_id, persona_id) DO NOTHING
+		`, uuid.NewString(), productID, generatorJobID, in.PersonaID, in.Persona, in.Research, in.Metrics, in.Hypotheses, in.Rank, in.Score); err != nil {
+			return fmt.Errorf("insert generated audience %s: %w", in.PersonaID, err)
 		}
-
-		return nil, fmt.Errorf("query audience %s: %w", id, err)
 	}
 
-	return a, nil
-}
-
-func (r *Repository) Update(ctx context.Context, userID, id string, in UpdateInput) (*Audience, error) {
-	if in.Description == nil && in.AgeFrom == nil && in.AgeTo == nil && in.Gender == nil && in.Interests == nil && in.Geography == nil && in.PainPoints == nil && in.DesiresMotivation == nil {
-		return r.Get(ctx, userID, id)
-	}
-
-	builder := squirrelPSQL.
-		Update("target_audience").
-		Where(squirrel.Eq{"id": id}).
-		Where("EXISTS (SELECT 1 FROM product JOIN hypothesis ON hypothesis.id = product.hypothesis_id WHERE product.id = target_audience.product_id AND hypothesis.user_id = ?)", userID).
-		Suffix("RETURNING id, product_id, description, age_from, age_to, gender, interests, geography, pain_points, desires_motivation, created_at")
-
-	if in.Description != nil {
-		builder = builder.Set("description", *in.Description)
-	}
-
-	if in.AgeFrom != nil {
-		builder = builder.Set("age_from", *in.AgeFrom)
-	}
-
-	if in.AgeTo != nil {
-		builder = builder.Set("age_to", *in.AgeTo)
-	}
-
-	if in.Gender != nil {
-		builder = builder.Set("gender", *in.Gender)
-	}
-
-	if in.Interests != nil {
-		builder = builder.Set("interests", *in.Interests)
-	}
-
-	if in.Geography != nil {
-		builder = builder.Set("geography", *in.Geography)
-	}
-
-	if in.PainPoints != nil {
-		builder = builder.Set("pain_points", *in.PainPoints)
-	}
-
-	if in.DesiresMotivation != nil {
-		builder = builder.Set("desires_motivation", *in.DesiresMotivation)
-	}
-
-	sql, args, err := builder.ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("build update audience query: %w", err)
-	}
-
-	a := &Audience{}
-	if err := r.db.Pool().QueryRow(ctx, sql, args...).
-		Scan(&a.ID, &a.ProductID, &a.Description, &a.AgeFrom, &a.AgeTo, &a.Gender, &a.Interests, &a.Geography, &a.PainPoints, &a.DesiresMotivation, &a.CreatedAt); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-
-		return nil, fmt.Errorf("update audience %s: %w", id, err)
-	}
-
-	return a, nil
-}
-
-func (r *Repository) Delete(ctx context.Context, userID, id string) error {
-	sql, args, err := squirrelPSQL.
-		Delete("target_audience").
-		Where(squirrel.Eq{"id": id}).
-		Where("EXISTS (SELECT 1 FROM product JOIN hypothesis ON hypothesis.id = product.hypothesis_id WHERE product.id = target_audience.product_id AND hypothesis.user_id = ?)", userID).
-		ToSql()
-	if err != nil {
-		return fmt.Errorf("build delete audience query: %w", err)
-	}
-
-	cmd, err := r.db.Pool().Exec(ctx, sql, args...)
-	if err != nil {
-		return fmt.Errorf("delete audience %s: %w", id, err)
-	}
-
-	if cmd.RowsAffected() == 0 {
-		return ErrNotFound
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit persist generated audiences transaction: %w", err)
 	}
 
 	return nil

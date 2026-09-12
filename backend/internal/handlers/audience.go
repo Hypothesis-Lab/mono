@@ -2,10 +2,13 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"app/internal/api"
+	"app/internal/clients"
 	"app/internal/http/middlewares"
 	"app/internal/repositories/audience"
 	"app/internal/repositories/product"
@@ -13,12 +16,80 @@ import (
 	"go.uber.org/zap"
 )
 
-func validateAudienceAges(ageFrom, ageTo *int) error {
-	if ageFrom != nil && ageTo != nil && *ageFrom > *ageTo {
-		return errors.New("age_from must be less than or equal to age_to")
+func (s *Server) QueueProductAudienceGeneration(ctx context.Context, req api.QueueProductAudienceGenerationRequestObject) (api.QueueProductAudienceGenerationResponseObject, error) {
+	userID, ok := middlewares.UserIDFromContext(ctx)
+	if !ok {
+		s.logger.Error("missing user id in context")
+
+		return api.QueueProductAudienceGeneration500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
 	}
 
-	return nil
+	p, err := s.products.Get(ctx, userID, req.Id)
+	if err != nil {
+		if errors.Is(err, product.ErrNotFound) {
+			s.logger.Error("get product for audience generation", zap.String("id", req.Id), zap.Error(err))
+
+			return api.QueueProductAudienceGeneration404JSONResponse(errBody(http.StatusNotFound, "product not found")), nil
+		}
+
+		s.logger.Error("get product for audience generation", zap.String("id", req.Id), zap.Error(err))
+
+		return api.QueueProductAudienceGeneration500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	if message := validateProductForGeneration(p); message != "" {
+		return api.QueueProductAudienceGeneration400JSONResponse(errBody(http.StatusBadRequest, message)), nil
+	}
+
+	if _, err := s.generator.QueueProduct(ctx, p); err != nil {
+		if errors.Is(err, clients.ErrProductAlreadyQueued) {
+			s.logger.Error("queue product audience generation", zap.String("id", req.Id), zap.Error(err))
+
+			return api.QueueProductAudienceGeneration409JSONResponse(errBody(http.StatusConflict, "The product is already queued up.")), nil
+		}
+
+		s.logger.Error("queue product audience generation", zap.String("id", req.Id), zap.Error(err))
+
+		return api.QueueProductAudienceGeneration500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	return api.QueueProductAudienceGeneration201JSONResponse(api.AudienceGenerationStatusResponse{Status: api.Created}), nil
+}
+
+func (s *Server) GetProductAudienceGenerationStatus(ctx context.Context, req api.GetProductAudienceGenerationStatusRequestObject) (api.GetProductAudienceGenerationStatusResponseObject, error) {
+	userID, ok := middlewares.UserIDFromContext(ctx)
+	if !ok {
+		s.logger.Error("missing user id in context")
+
+		return api.GetProductAudienceGenerationStatus500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	if _, err := s.products.Get(ctx, userID, req.Id); err != nil {
+		if errors.Is(err, product.ErrNotFound) {
+			s.logger.Error("get product for audience generation status", zap.String("id", req.Id), zap.Error(err))
+
+			return api.GetProductAudienceGenerationStatus404JSONResponse(errBody(http.StatusNotFound, "product not found")), nil
+		}
+
+		s.logger.Error("get product for audience generation status", zap.String("id", req.Id), zap.Error(err))
+
+		return api.GetProductAudienceGenerationStatus500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	generationStatus, err := s.generator.ProductGenerationStatus(ctx, req.Id)
+	if err != nil {
+		if errors.Is(err, clients.ErrProductGenerationNotFound) {
+			s.logger.Error("get product audience generation status", zap.String("id", req.Id), zap.Error(err))
+
+			return api.GetProductAudienceGenerationStatus404JSONResponse(errBody(http.StatusNotFound, "audience generation not found")), nil
+		}
+
+		s.logger.Error("get product audience generation status", zap.String("id", req.Id), zap.Error(err))
+
+		return api.GetProductAudienceGenerationStatus500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	return api.GetProductAudienceGenerationStatus200JSONResponse(api.AudienceGenerationStatusResponse{Status: api.AudienceGenerationStatusResponseStatus(generationStatus)}), nil
 }
 
 func (s *Server) ListProductAudiences(ctx context.Context, req api.ListProductAudiencesRequestObject) (api.ListProductAudiencesResponseObject, error) {
@@ -36,210 +107,87 @@ func (s *Server) ListProductAudiences(ctx context.Context, req api.ListProductAu
 			return api.ListProductAudiences404JSONResponse(errBody(http.StatusNotFound, "product not found")), nil
 		}
 
-		s.logger.Error("get product for audiences", zap.Error(err))
+		s.logger.Error("get product for audiences", zap.String("id", req.Id), zap.Error(err))
 
 		return api.ListProductAudiences500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
 	}
 
 	items, err := s.audiences.ListByProductID(ctx, req.Id)
 	if err != nil {
-		s.logger.Error("list product audiences", zap.Error(err))
+		s.logger.Error("list product audiences", zap.String("id", req.Id), zap.Error(err))
 
 		return api.ListProductAudiences500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
 	}
 
 	resp := make(api.ListProductAudiences200JSONResponse, 0, len(items))
-	for _, a := range items {
-		resp = append(resp, newAudienceResponse(a))
+	for _, item := range items {
+		response, err := newAudienceResponse(item)
+		if err != nil {
+			s.logger.Error("build audience response", zap.String("id", item.ID), zap.Error(err))
+
+			return api.ListProductAudiences500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+		}
+		resp = append(resp, response)
 	}
 
 	return resp, nil
 }
 
-func toInt32Ptr(v *int) *int32 {
-	if v == nil {
-		return nil
+func validateProductForGeneration(p *product.Product) string {
+	var facts []api.ProductFact
+	if err := json.Unmarshal(p.Facts, &facts); err != nil {
+		return "product facts are invalid"
 	}
-	converted := int32(*v)
-	return &converted
-}
-
-func toStringPtr(v *api.AudienceGender) *string {
-	if v == nil {
-		return nil
-	}
-	converted := string(*v)
-	return &converted
-}
-
-func toAudienceGenderPtr(v *string) *api.AudienceGender {
-	if v == nil {
-		return nil
-	}
-	converted := api.AudienceGender(*v)
-	return &converted
-}
-
-func (s *Server) CreateProductAudience(ctx context.Context, req api.CreateProductAudienceRequestObject) (api.CreateProductAudienceResponseObject, error) {
-	userID, ok := middlewares.UserIDFromContext(ctx)
-	if !ok {
-		s.logger.Error("missing user id in context")
-
-		return api.CreateProductAudience500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	var rules []api.EligibilityRule
+	if err := json.Unmarshal(p.EligibilityRules, &rules); err != nil {
+		return "product eligibility rules are invalid"
 	}
 
-	if req.Body.Description == "" {
-		return api.CreateProductAudience400JSONResponse(errBody(http.StatusBadRequest, "description is required")), nil
-	}
-
-	if err := validateAudienceAges(req.Body.AgeFrom, req.Body.AgeTo); err != nil {
-		return api.CreateProductAudience400JSONResponse(errBody(http.StatusBadRequest, err.Error())), nil
-	}
-
-	if _, err := s.products.Get(ctx, userID, req.Id); err != nil {
-		if errors.Is(err, product.ErrNotFound) {
-			s.logger.Error("get product for create audience", zap.String("id", req.Id), zap.Error(err))
-
-			return api.CreateProductAudience404JSONResponse(errBody(http.StatusNotFound, "product not found")), nil
-		}
-
-		s.logger.Error("get product for create audience", zap.Error(err))
-
-		return api.CreateProductAudience500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
-	}
-
-	created, err := s.audiences.Create(ctx, audience.CreateInput{
-		ProductID:         req.Id,
-		Description:       req.Body.Description,
-		AgeFrom:           toInt32Ptr(req.Body.AgeFrom),
-		AgeTo:             toInt32Ptr(req.Body.AgeTo),
-		Gender:            toStringPtr(req.Body.Gender),
-		Interests:         req.Body.Interests,
-		Geography:         req.Body.Geography,
-		PainPoints:        req.Body.PainPoints,
-		DesiresMotivation: req.Body.DesiresMotivation,
+	return validateCreateProduct(api.CreateProductRequest{
+		AllowedChannels:  p.AllowedChannels,
+		Brand:            p.Brand,
+		Category:         api.ProductCategory(p.Category),
+		Description:      p.Description,
+		EligibilityRules: rules,
+		ExperimentGoal:   p.ExperimentGoal,
+		Facts:            facts,
+		ForbiddenClaims:  p.ForbiddenClaims,
+		Geography:        p.Geography,
+		HypothesisId:     p.HypothesisID,
+		KnownConstraints: p.KnownConstraints,
+		Name:             p.Name,
+		TargetAction:     p.TargetAction,
 	})
-	if err != nil {
-		s.logger.Error("create audience", zap.Error(err))
-
-		return api.CreateProductAudience500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
-	}
-
-	return api.CreateProductAudience201JSONResponse(newAudienceResponse(created)), nil
 }
 
-func (s *Server) GetAudience(ctx context.Context, req api.GetAudienceRequestObject) (api.GetAudienceResponseObject, error) {
-	userID, ok := middlewares.UserIDFromContext(ctx)
-	if !ok {
-		s.logger.Error("missing user id in context")
-
-		return api.GetAudience500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
-	}
-
-	a, err := s.audiences.Get(ctx, userID, req.Id)
-	if err != nil {
-		if errors.Is(err, audience.ErrNotFound) {
-			s.logger.Error("get audience", zap.String("id", req.Id), zap.Error(err))
-
-			return api.GetAudience404JSONResponse(errBody(http.StatusNotFound, "audience not found")), nil
+func newAudienceResponse(a *audience.Audience) (api.AudienceResponse, error) {
+	var persona, research, metrics, hypotheses interface{}
+	for _, value := range []struct {
+		name   string
+		raw    json.RawMessage
+		target *interface{}
+	}{
+		{name: "persona", raw: a.Persona, target: &persona},
+		{name: "research", raw: a.Research, target: &research},
+		{name: "metrics", raw: a.Metrics, target: &metrics},
+		{name: "hypotheses", raw: a.Hypotheses, target: &hypotheses},
+	} {
+		if err := json.Unmarshal(value.raw, value.target); err != nil {
+			return api.AudienceResponse{}, fmt.Errorf("unmarshal audience %s: %w", value.name, err)
 		}
-
-		s.logger.Error("get audience", zap.Error(err))
-
-		return api.GetAudience500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
-	}
-
-	return api.GetAudience200JSONResponse(newAudienceResponse(a)), nil
-}
-
-func (s *Server) UpdateAudience(ctx context.Context, req api.UpdateAudienceRequestObject) (api.UpdateAudienceResponseObject, error) {
-	userID, ok := middlewares.UserIDFromContext(ctx)
-	if !ok {
-		s.logger.Error("missing user id in context")
-
-		return api.UpdateAudience500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
-	}
-
-	if req.Body == nil {
-		return api.UpdateAudience400JSONResponse(errBody(http.StatusBadRequest, "invalid request body")), nil
-	}
-
-	if err := validateAudienceAges(req.Body.AgeFrom, req.Body.AgeTo); err != nil {
-		return api.UpdateAudience400JSONResponse(errBody(http.StatusBadRequest, err.Error())), nil
-	}
-
-	updated, err := s.audiences.Update(ctx, userID, req.Id, audience.UpdateInput{
-		Description:       req.Body.Description,
-		AgeFrom:           toInt32Ptr(req.Body.AgeFrom),
-		AgeTo:             toInt32Ptr(req.Body.AgeTo),
-		Gender:            toStringPtr(req.Body.Gender),
-		Interests:         req.Body.Interests,
-		Geography:         req.Body.Geography,
-		PainPoints:        req.Body.PainPoints,
-		DesiresMotivation: req.Body.DesiresMotivation,
-	})
-	if err != nil {
-		if errors.Is(err, audience.ErrNotFound) {
-			s.logger.Error("update audience", zap.String("id", req.Id), zap.Error(err))
-
-			return api.UpdateAudience404JSONResponse(errBody(http.StatusNotFound, "audience not found")), nil
-		}
-
-		s.logger.Error("update audience", zap.Error(err))
-
-		return api.UpdateAudience500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
-	}
-
-	return api.UpdateAudience200JSONResponse(newAudienceResponse(updated)), nil
-}
-
-func (s *Server) DeleteAudience(ctx context.Context, req api.DeleteAudienceRequestObject) (api.DeleteAudienceResponseObject, error) {
-	userID, ok := middlewares.UserIDFromContext(ctx)
-	if !ok {
-		s.logger.Error("missing user id in context")
-
-		return api.DeleteAudience500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
-	}
-
-	if err := s.audiences.Delete(ctx, userID, req.Id); err != nil {
-		if errors.Is(err, audience.ErrNotFound) {
-			s.logger.Error("delete audience", zap.String("id", req.Id), zap.Error(err))
-
-			return api.DeleteAudience404JSONResponse(errBody(http.StatusNotFound, "audience not found")), nil
-		}
-
-		s.logger.Error("delete audience", zap.Error(err))
-
-		return api.DeleteAudience500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
-	}
-
-	return api.DeleteAudience204Response{}, nil
-}
-
-func newAudienceResponse(a *audience.Audience) api.AudienceResponse {
-	ageFrom := (*int)(nil)
-	if a.AgeFrom != nil {
-		converted := int(*a.AgeFrom)
-		ageFrom = &converted
-	}
-
-	ageTo := (*int)(nil)
-	if a.AgeTo != nil {
-		converted := int(*a.AgeTo)
-		ageTo = &converted
 	}
 
 	return api.AudienceResponse{
-		Id:                a.ID,
-		ProductId:         a.ProductID,
-		Description:       a.Description,
-		AgeFrom:           ageFrom,
-		AgeTo:             ageTo,
-		Gender:            toAudienceGenderPtr(a.Gender),
-		Interests:         a.Interests,
-		Geography:         a.Geography,
-		PainPoints:        a.PainPoints,
-		DesiresMotivation: a.DesiresMotivation,
-		CreatedAt:         &a.CreatedAt,
-	}
+		CreatedAt:      a.CreatedAt,
+		GeneratorJobId: a.GeneratorJobID,
+		Hypotheses:     hypotheses,
+		Id:             a.ID,
+		Metrics:        metrics,
+		Persona:        persona,
+		PersonaId:      a.PersonaID,
+		ProductId:      a.ProductID,
+		Rank:           a.Rank,
+		Research:       research,
+		Score:          float32(a.Score),
+	}, nil
 }

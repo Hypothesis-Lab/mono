@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"app/internal/api"
+	"app/internal/clients"
 	"app/internal/repositories/audience"
 	"app/internal/repositories/file"
 	"app/internal/repositories/hypothesis"
@@ -20,6 +21,7 @@ type Server struct {
 	audiences         *audience.Repository
 	files             *file.Repository
 	storage           *storage.S3
+	generator         *clients.GeneratorClient
 	hypothesisService *services.HypothesisService
 	productService    *services.ProductService
 	userAuth          *services.UserAuthService
@@ -32,6 +34,7 @@ func NewServer(
 	audiences *audience.Repository,
 	files *file.Repository,
 	storage *storage.S3,
+	generator *clients.GeneratorClient,
 	hypothesisService *services.HypothesisService,
 	productService *services.ProductService,
 	userAuth *services.UserAuthService,
@@ -43,6 +46,7 @@ func NewServer(
 		audiences:         audiences,
 		files:             files,
 		storage:           storage,
+		generator:         generator,
 		hypothesisService: hypothesisService,
 		productService:    productService,
 		userAuth:          userAuth,

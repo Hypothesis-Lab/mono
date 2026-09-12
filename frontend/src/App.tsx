@@ -6,7 +6,6 @@ import { DashboardMainPage } from './pages/DashboardMain/page'
 import { EditHypothesisPage } from './pages/EditHypothesis/page'
 import { HypothesisPage } from './pages/Hypothesis/page'
 import { LoginPage } from './pages/Login/page'
-import { EditAudiencePage } from './pages/EditAudience/page'
 import { ProductPage } from './pages/Product/page'
 import { RegisterPage } from './pages/Register/page'
 
@@ -54,22 +53,6 @@ function App() {
           element={
             <ProtectedRoute>
               <ProductPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/hypothesis/:hid/product/audiences"
-          element={
-            <ProtectedRoute>
-              <EditAudiencePage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/hypothesis/:hid/product/audiences/:id"
-          element={
-            <ProtectedRoute>
-              <EditAudiencePage />
             </ProtectedRoute>
           }
         />

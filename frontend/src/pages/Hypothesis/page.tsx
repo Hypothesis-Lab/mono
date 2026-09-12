@@ -3,9 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { skipToken } from '@reduxjs/toolkit/query'
 import { getStatusLabel, rtkErrorMessage } from '../../api/structs'
 import {
+  useGetProductAudienceGenerationStatusQuery,
   useGetHypothesisProductQuery,
   useGetHypothesisQuery,
   useLaunchHypothesisMutation,
+  useQueueProductAudienceGenerationMutation,
   useStopHypothesisMutation,
 } from '../../store/generatedApi'
 import * as S from './styles'
@@ -20,12 +22,21 @@ export function HypothesisPage() {
   const { data: product, isLoading: productLoading } = useGetHypothesisProductQuery(
     id ? { id } : skipToken,
   )
+  const {
+    data: audienceGeneration,
+    refetch: refetchAudienceGeneration,
+  } = useGetProductAudienceGenerationStatusQuery(
+    product ? { id: product.id } : skipToken,
+    { pollingInterval: product ? 3000 : 0 },
+  )
 
   const [launchHypothesis, { isLoading: launching }] = useLaunchHypothesisMutation()
   const [stopHypothesis, { isLoading: stopping }] = useStopHypothesisMutation()
+  const [queueAudienceGeneration, { isLoading: queueingAudienceGeneration }] = useQueueProductAudienceGenerationMutation()
 
   const [launchError, setLaunchError] = useState<string | null>(null)
   const [stopError, setStopError] = useState<string | null>(null)
+  const [audienceGenerationError, setAudienceGenerationError] = useState<string | null>(null)
 
   if (!id) {
     return (
@@ -63,6 +74,21 @@ export function HypothesisPage() {
     }
   }
 
+  async function handleQueueAudienceGeneration() {
+    if (!product) {
+      return
+    }
+
+    setAudienceGenerationError(null)
+
+    try {
+      await queueAudienceGeneration({ id: product.id }).unwrap()
+      refetchAudienceGeneration()
+    } catch (err) {
+      setAudienceGenerationError(rtkErrorMessage(err, 'Не удалось поставить генерацию в очередь'))
+    }
+  }
+
   return (
     <S.Page>
       {loading && <S.Message>Загрузка гипотезы…</S.Message>}
@@ -87,6 +113,17 @@ export function HypothesisPage() {
                 {product.description && (
                   <S.Description>{product.description}</S.Description>
                 )}
+                {audienceGeneration && (
+                  <S.Meta>Генерация аудиторий: {getAudienceGenerationStatusLabel(audienceGeneration.status)}</S.Meta>
+                )}
+                <S.AudienceGenerationButton
+                  type="button"
+                  onClick={handleQueueAudienceGeneration}
+                  disabled={queueingAudienceGeneration || audienceGeneration?.status === 'created' || audienceGeneration?.status === 'working'}
+                >
+                  {queueingAudienceGeneration ? 'Добавляем в очередь…' : 'Сгенерировать аудитории'}
+                </S.AudienceGenerationButton>
+                {audienceGenerationError && <S.ErrorMessage>{audienceGenerationError}</S.ErrorMessage>}
               </>
             )}
             {!productLoading && !product && (
@@ -131,4 +168,17 @@ export function HypothesisPage() {
       )}
     </S.Page>
   )
+}
+
+function getAudienceGenerationStatusLabel(status: string): string {
+  if (status === 'created') {
+    return 'в очереди'
+  }
+  if (status === 'working') {
+    return 'в работе'
+  }
+  if (status === 'failed') {
+    return 'не удалось завершить'
+  }
+  return status
 }

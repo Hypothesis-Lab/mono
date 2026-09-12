@@ -55,10 +55,20 @@ class JobResponse(BaseModel):
     finished_at: str | None
 
 
+class CompletedJobResponse(BaseModel):
+    id: str
+    product_id: str
+    result: dict[str, object]
+
+
 class WorkerStatusResponse(BaseModel):
     current_job_id: str | None
     queued_jobs: int
     blocked_jobs: int
+
+
+class ProductGenerationStatusResponse(BaseModel):
+    status: Literal["created", "working", "failed"]
 
 
 class SyntheticPersona(BaseModel):

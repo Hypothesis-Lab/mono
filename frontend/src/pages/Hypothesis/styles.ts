@@ -70,6 +70,26 @@ export const ProductName = styled.p`
   margin-bottom: 8px;
 `
 
+export const AudienceGenerationButton = styled.button`
+  margin-top: 12px;
+  padding: 10px 16px;
+  border: 1px solid #2a8a2a;
+  border-radius: 6px;
+  background: #2a8a2a;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: #237023;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`
+
 export const ButtonGroup = styled.div`
   display: flex;
   gap: 12px;

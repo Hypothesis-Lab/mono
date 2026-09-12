@@ -27,21 +27,21 @@ const (
 	BearerAuthScopes bearerAuthContextKey = "bearerAuth.Scopes"
 )
 
-// Defines values for AudienceGender.
+// Defines values for AudienceGenerationStatusResponseStatus.
 const (
-	All   AudienceGender = "all"
-	Men   AudienceGender = "men"
-	Women AudienceGender = "women"
+	Created AudienceGenerationStatusResponseStatus = "created"
+	Failed  AudienceGenerationStatusResponseStatus = "failed"
+	Working AudienceGenerationStatusResponseStatus = "working"
 )
 
-// Valid indicates whether the value is a known member of the AudienceGender enum.
-func (e AudienceGender) Valid() bool {
+// Valid indicates whether the value is a known member of the AudienceGenerationStatusResponseStatus enum.
+func (e AudienceGenerationStatusResponseStatus) Valid() bool {
 	switch e {
-	case All:
+	case Created:
 		return true
-	case Men:
+	case Failed:
 		return true
-	case Women:
+	case Working:
 		return true
 	default:
 		return false
@@ -189,39 +189,32 @@ func (e UploadProductFileMultipartBodyType) Valid() bool {
 	}
 }
 
-// AudienceGender defines model for AudienceGender.
-type AudienceGender string
+// AudienceGenerationStatusResponse defines model for AudienceGenerationStatusResponse.
+type AudienceGenerationStatusResponse struct {
+	Status AudienceGenerationStatusResponseStatus `json:"status"`
+}
+
+// AudienceGenerationStatusResponseStatus defines model for AudienceGenerationStatusResponse.Status.
+type AudienceGenerationStatusResponseStatus string
 
 // AudienceResponse defines model for AudienceResponse.
 type AudienceResponse struct {
-	AgeFrom           *int            `json:"age_from,omitempty"`
-	AgeTo             *int            `json:"age_to,omitempty"`
-	CreatedAt         *time.Time      `json:"created_at,omitempty"`
-	Description       string          `json:"description"`
-	DesiresMotivation *string         `json:"desires_motivation,omitempty"`
-	Gender            *AudienceGender `json:"gender,omitempty"`
-	Geography         *string         `json:"geography,omitempty"`
-	Id                string          `json:"id"`
-	Interests         *string         `json:"interests,omitempty"`
-	PainPoints        *string         `json:"pain_points,omitempty"`
-	ProductId         string          `json:"product_id"`
+	CreatedAt      time.Time   `json:"created_at"`
+	GeneratorJobId string      `json:"generator_job_id"`
+	Hypotheses     interface{} `json:"hypotheses"`
+	Id             string      `json:"id"`
+	Metrics        interface{} `json:"metrics"`
+	Persona        interface{} `json:"persona"`
+	PersonaId      string      `json:"persona_id"`
+	ProductId      string      `json:"product_id"`
+	Rank           int         `json:"rank"`
+	Research       interface{} `json:"research"`
+	Score          float32     `json:"score"`
 }
 
 // AuthTokenResponse defines model for AuthTokenResponse.
 type AuthTokenResponse struct {
 	Token string `json:"token"`
-}
-
-// CreateAudienceRequest defines model for CreateAudienceRequest.
-type CreateAudienceRequest struct {
-	AgeFrom           *int            `json:"age_from,omitempty"`
-	AgeTo             *int            `json:"age_to,omitempty"`
-	Description       string          `json:"description"`
-	DesiresMotivation *string         `json:"desires_motivation,omitempty"`
-	Gender            *AudienceGender `json:"gender,omitempty"`
-	Geography         *string         `json:"geography,omitempty"`
-	Interests         *string         `json:"interests,omitempty"`
-	PainPoints        *string         `json:"pain_points,omitempty"`
 }
 
 // CreateHypothesisRequest defines model for CreateHypothesisRequest.
@@ -336,18 +329,6 @@ type RegisterUserRequest struct {
 	Password string              `json:"password"`
 }
 
-// UpdateAudienceRequest defines model for UpdateAudienceRequest.
-type UpdateAudienceRequest struct {
-	AgeFrom           *int            `json:"age_from,omitempty"`
-	AgeTo             *int            `json:"age_to,omitempty"`
-	Description       *string         `json:"description,omitempty"`
-	DesiresMotivation *string         `json:"desires_motivation,omitempty"`
-	Gender            *AudienceGender `json:"gender,omitempty"`
-	Geography         *string         `json:"geography,omitempty"`
-	Interests         *string         `json:"interests,omitempty"`
-	PainPoints        *string         `json:"pain_points,omitempty"`
-}
-
 // UpdateHypothesisRequest defines model for UpdateHypothesisRequest.
 type UpdateHypothesisRequest struct {
 	Description *string `json:"description,omitempty"`
@@ -385,9 +366,6 @@ type UploadProductFileMultipartBody struct {
 // UploadProductFileMultipartBodyType defines parameters for UploadProductFile.
 type UploadProductFileMultipartBodyType string
 
-// UpdateAudienceJSONRequestBody defines body for UpdateAudience for application/json ContentType.
-type UpdateAudienceJSONRequestBody = UpdateAudienceRequest
-
 // LoginUserJSONRequestBody defines body for LoginUser for application/json ContentType.
 type LoginUserJSONRequestBody = LoginUserRequest
 
@@ -409,20 +387,8 @@ type CreateProductJSONRequestBody = CreateProductRequest
 // UpdateProductJSONRequestBody defines body for UpdateProduct for application/json ContentType.
 type UpdateProductJSONRequestBody = UpdateProductRequest
 
-// CreateProductAudienceJSONRequestBody defines body for CreateProductAudience for application/json ContentType.
-type CreateProductAudienceJSONRequestBody = CreateAudienceRequest
-
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// Delete audience
-	// (DELETE /api/v1/audiences/{id})
-	DeleteAudience(w http.ResponseWriter, r *http.Request, id string)
-	// Get audience
-	// (GET /api/v1/audiences/{id})
-	GetAudience(w http.ResponseWriter, r *http.Request, id string)
-	// Update audience
-	// (PATCH /api/v1/audiences/{id})
-	UpdateAudience(w http.ResponseWriter, r *http.Request, id string)
 	// Log in an existing user
 	// (POST /api/v1/auth/login)
 	LoginUser(w http.ResponseWriter, r *http.Request)
@@ -471,12 +437,15 @@ type ServerInterface interface {
 	// Update product
 	// (PATCH /api/v1/product/{id})
 	UpdateProduct(w http.ResponseWriter, r *http.Request, id string)
+	// Get audience generation status for a product
+	// (GET /api/v1/product/{id}/audience-generation)
+	GetProductAudienceGenerationStatus(w http.ResponseWriter, r *http.Request, id string)
+	// Queue audience generation for a product
+	// (POST /api/v1/product/{id}/audience-generation)
+	QueueProductAudienceGeneration(w http.ResponseWriter, r *http.Request, id string)
 	// List audiences for a product
 	// (GET /api/v1/product/{id}/audiences)
 	ListProductAudiences(w http.ResponseWriter, r *http.Request, id string)
-	// Create audience for a product
-	// (POST /api/v1/product/{id}/audiences)
-	CreateProductAudience(w http.ResponseWriter, r *http.Request, id string)
 	// Liveness probe
 	// (GET /healthz)
 	Healthz(w http.ResponseWriter, r *http.Request)
@@ -485,24 +454,6 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
-
-// Delete audience
-// (DELETE /api/v1/audiences/{id})
-func (_ Unimplemented) DeleteAudience(w http.ResponseWriter, r *http.Request, id string) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Get audience
-// (GET /api/v1/audiences/{id})
-func (_ Unimplemented) GetAudience(w http.ResponseWriter, r *http.Request, id string) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Update audience
-// (PATCH /api/v1/audiences/{id})
-func (_ Unimplemented) UpdateAudience(w http.ResponseWriter, r *http.Request, id string) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
 
 // Log in an existing user
 // (POST /api/v1/auth/login)
@@ -600,15 +551,21 @@ func (_ Unimplemented) UpdateProduct(w http.ResponseWriter, r *http.Request, id 
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// List audiences for a product
-// (GET /api/v1/product/{id}/audiences)
-func (_ Unimplemented) ListProductAudiences(w http.ResponseWriter, r *http.Request, id string) {
+// Get audience generation status for a product
+// (GET /api/v1/product/{id}/audience-generation)
+func (_ Unimplemented) GetProductAudienceGenerationStatus(w http.ResponseWriter, r *http.Request, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Create audience for a product
-// (POST /api/v1/product/{id}/audiences)
-func (_ Unimplemented) CreateProductAudience(w http.ResponseWriter, r *http.Request, id string) {
+// Queue audience generation for a product
+// (POST /api/v1/product/{id}/audience-generation)
+func (_ Unimplemented) QueueProductAudienceGeneration(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List audiences for a product
+// (GET /api/v1/product/{id}/audiences)
+func (_ Unimplemented) ListProductAudiences(w http.ResponseWriter, r *http.Request, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -626,102 +583,6 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
-
-// DeleteAudience operation middleware
-func (siw *ServerInterfaceWrapper) DeleteAudience(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteAudience(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetAudience operation middleware
-func (siw *ServerInterfaceWrapper) GetAudience(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetAudience(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// UpdateAudience operation middleware
-func (siw *ServerInterfaceWrapper) UpdateAudience(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UpdateAudience(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
 
 // LoginUser operation middleware
 func (siw *ServerInterfaceWrapper) LoginUser(w http.ResponseWriter, r *http.Request) {
@@ -1163,6 +1024,70 @@ func (siw *ServerInterfaceWrapper) UpdateProduct(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// GetProductAudienceGenerationStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetProductAudienceGenerationStatus(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProductAudienceGenerationStatus(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// QueueProductAudienceGeneration operation middleware
+func (siw *ServerInterfaceWrapper) QueueProductAudienceGeneration(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.QueueProductAudienceGeneration(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListProductAudiences operation middleware
 func (siw *ServerInterfaceWrapper) ListProductAudiences(w http.ResponseWriter, r *http.Request) {
 
@@ -1186,38 +1111,6 @@ func (siw *ServerInterfaceWrapper) ListProductAudiences(w http.ResponseWriter, r
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListProductAudiences(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// CreateProductAudience operation middleware
-func (siw *ServerInterfaceWrapper) CreateProductAudience(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateProductAudience(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1355,15 +1248,6 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/api/v1/audiences/{id}", wrapper.DeleteAudience)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v1/audiences/{id}", wrapper.GetAudience)
-	})
-	r.Group(func(r chi.Router) {
-		r.Patch(options.BaseURL+"/api/v1/audiences/{id}", wrapper.UpdateAudience)
-	})
-	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/auth/login", wrapper.LoginUser)
 	})
 	r.Group(func(r chi.Router) {
@@ -1412,175 +1296,19 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Patch(options.BaseURL+"/api/v1/product/{id}", wrapper.UpdateProduct)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v1/product/{id}/audiences", wrapper.ListProductAudiences)
+		r.Get(options.BaseURL+"/api/v1/product/{id}/audience-generation", wrapper.GetProductAudienceGenerationStatus)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/product/{id}/audiences", wrapper.CreateProductAudience)
+		r.Post(options.BaseURL+"/api/v1/product/{id}/audience-generation", wrapper.QueueProductAudienceGeneration)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/product/{id}/audiences", wrapper.ListProductAudiences)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/healthz", wrapper.Healthz)
 	})
 
 	return r
-}
-
-type DeleteAudienceRequestObject struct {
-	Id string `json:"id"`
-}
-
-type DeleteAudienceResponseObject interface {
-	VisitDeleteAudienceResponse(w http.ResponseWriter) error
-}
-
-type DeleteAudience204Response struct {
-}
-
-func (response DeleteAudience204Response) VisitDeleteAudienceResponse(w http.ResponseWriter) error {
-	w.WriteHeader(204)
-	return nil
-}
-
-type DeleteAudience404JSONResponse ErrBody
-
-func (response DeleteAudience404JSONResponse) VisitDeleteAudienceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeleteAudience500JSONResponse ErrBody
-
-func (response DeleteAudience500JSONResponse) VisitDeleteAudienceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetAudienceRequestObject struct {
-	Id string `json:"id"`
-}
-
-type GetAudienceResponseObject interface {
-	VisitGetAudienceResponse(w http.ResponseWriter) error
-}
-
-type GetAudience200JSONResponse AudienceResponse
-
-func (response GetAudience200JSONResponse) VisitGetAudienceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetAudience404JSONResponse ErrBody
-
-func (response GetAudience404JSONResponse) VisitGetAudienceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetAudience500JSONResponse ErrBody
-
-func (response GetAudience500JSONResponse) VisitGetAudienceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateAudienceRequestObject struct {
-	Id   string `json:"id"`
-	Body *UpdateAudienceJSONRequestBody
-}
-
-type UpdateAudienceResponseObject interface {
-	VisitUpdateAudienceResponse(w http.ResponseWriter) error
-}
-
-type UpdateAudience200JSONResponse AudienceResponse
-
-func (response UpdateAudience200JSONResponse) VisitUpdateAudienceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateAudience400JSONResponse ErrBody
-
-func (response UpdateAudience400JSONResponse) VisitUpdateAudienceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateAudience404JSONResponse ErrBody
-
-func (response UpdateAudience404JSONResponse) VisitUpdateAudienceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateAudience500JSONResponse ErrBody
-
-func (response UpdateAudience500JSONResponse) VisitUpdateAudienceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
 }
 
 type LoginUserRequestObject struct {
@@ -2507,6 +2235,134 @@ func (response UpdateProduct500JSONResponse) VisitUpdateProductResponse(w http.R
 	return err
 }
 
+type GetProductAudienceGenerationStatusRequestObject struct {
+	Id string `json:"id"`
+}
+
+type GetProductAudienceGenerationStatusResponseObject interface {
+	VisitGetProductAudienceGenerationStatusResponse(w http.ResponseWriter) error
+}
+
+type GetProductAudienceGenerationStatus200JSONResponse AudienceGenerationStatusResponse
+
+func (response GetProductAudienceGenerationStatus200JSONResponse) VisitGetProductAudienceGenerationStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProductAudienceGenerationStatus404JSONResponse ErrBody
+
+func (response GetProductAudienceGenerationStatus404JSONResponse) VisitGetProductAudienceGenerationStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProductAudienceGenerationStatus500JSONResponse ErrBody
+
+func (response GetProductAudienceGenerationStatus500JSONResponse) VisitGetProductAudienceGenerationStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type QueueProductAudienceGenerationRequestObject struct {
+	Id string `json:"id"`
+}
+
+type QueueProductAudienceGenerationResponseObject interface {
+	VisitQueueProductAudienceGenerationResponse(w http.ResponseWriter) error
+}
+
+type QueueProductAudienceGeneration201JSONResponse AudienceGenerationStatusResponse
+
+func (response QueueProductAudienceGeneration201JSONResponse) VisitQueueProductAudienceGenerationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type QueueProductAudienceGeneration400JSONResponse ErrBody
+
+func (response QueueProductAudienceGeneration400JSONResponse) VisitQueueProductAudienceGenerationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type QueueProductAudienceGeneration404JSONResponse ErrBody
+
+func (response QueueProductAudienceGeneration404JSONResponse) VisitQueueProductAudienceGenerationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type QueueProductAudienceGeneration409JSONResponse ErrBody
+
+func (response QueueProductAudienceGeneration409JSONResponse) VisitQueueProductAudienceGenerationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type QueueProductAudienceGeneration500JSONResponse ErrBody
+
+func (response QueueProductAudienceGeneration500JSONResponse) VisitQueueProductAudienceGenerationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListProductAudiencesRequestObject struct {
 	Id string `json:"id"`
 }
@@ -2557,71 +2413,6 @@ func (response ListProductAudiences500JSONResponse) VisitListProductAudiencesRes
 	return err
 }
 
-type CreateProductAudienceRequestObject struct {
-	Id   string `json:"id"`
-	Body *CreateProductAudienceJSONRequestBody
-}
-
-type CreateProductAudienceResponseObject interface {
-	VisitCreateProductAudienceResponse(w http.ResponseWriter) error
-}
-
-type CreateProductAudience201JSONResponse AudienceResponse
-
-func (response CreateProductAudience201JSONResponse) VisitCreateProductAudienceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(201)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CreateProductAudience400JSONResponse ErrBody
-
-func (response CreateProductAudience400JSONResponse) VisitCreateProductAudienceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CreateProductAudience404JSONResponse ErrBody
-
-func (response CreateProductAudience404JSONResponse) VisitCreateProductAudienceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CreateProductAudience500JSONResponse ErrBody
-
-func (response CreateProductAudience500JSONResponse) VisitCreateProductAudienceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 type HealthzRequestObject struct {
 }
 
@@ -2639,15 +2430,6 @@ func (response Healthz200Response) VisitHealthzResponse(w http.ResponseWriter) e
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
-	// Delete audience
-	// (DELETE /api/v1/audiences/{id})
-	DeleteAudience(ctx context.Context, request DeleteAudienceRequestObject) (DeleteAudienceResponseObject, error)
-	// Get audience
-	// (GET /api/v1/audiences/{id})
-	GetAudience(ctx context.Context, request GetAudienceRequestObject) (GetAudienceResponseObject, error)
-	// Update audience
-	// (PATCH /api/v1/audiences/{id})
-	UpdateAudience(ctx context.Context, request UpdateAudienceRequestObject) (UpdateAudienceResponseObject, error)
 	// Log in an existing user
 	// (POST /api/v1/auth/login)
 	LoginUser(ctx context.Context, request LoginUserRequestObject) (LoginUserResponseObject, error)
@@ -2696,12 +2478,15 @@ type StrictServerInterface interface {
 	// Update product
 	// (PATCH /api/v1/product/{id})
 	UpdateProduct(ctx context.Context, request UpdateProductRequestObject) (UpdateProductResponseObject, error)
+	// Get audience generation status for a product
+	// (GET /api/v1/product/{id}/audience-generation)
+	GetProductAudienceGenerationStatus(ctx context.Context, request GetProductAudienceGenerationStatusRequestObject) (GetProductAudienceGenerationStatusResponseObject, error)
+	// Queue audience generation for a product
+	// (POST /api/v1/product/{id}/audience-generation)
+	QueueProductAudienceGeneration(ctx context.Context, request QueueProductAudienceGenerationRequestObject) (QueueProductAudienceGenerationResponseObject, error)
 	// List audiences for a product
 	// (GET /api/v1/product/{id}/audiences)
 	ListProductAudiences(ctx context.Context, request ListProductAudiencesRequestObject) (ListProductAudiencesResponseObject, error)
-	// Create audience for a product
-	// (POST /api/v1/product/{id}/audiences)
-	CreateProductAudience(ctx context.Context, request CreateProductAudienceRequestObject) (CreateProductAudienceResponseObject, error)
 	// Liveness probe
 	// (GET /healthz)
 	Healthz(ctx context.Context, request HealthzRequestObject) (HealthzResponseObject, error)
@@ -2734,91 +2519,6 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
-}
-
-// DeleteAudience operation middleware
-func (sh *strictHandler) DeleteAudience(w http.ResponseWriter, r *http.Request, id string) {
-	var request DeleteAudienceRequestObject
-
-	request.Id = id
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.DeleteAudience(ctx, request.(DeleteAudienceRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "DeleteAudience")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(DeleteAudienceResponseObject); ok {
-		if err := validResponse.VisitDeleteAudienceResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// GetAudience operation middleware
-func (sh *strictHandler) GetAudience(w http.ResponseWriter, r *http.Request, id string) {
-	var request GetAudienceRequestObject
-
-	request.Id = id
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.GetAudience(ctx, request.(GetAudienceRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetAudience")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(GetAudienceResponseObject); ok {
-		if err := validResponse.VisitGetAudienceResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// UpdateAudience operation middleware
-func (sh *strictHandler) UpdateAudience(w http.ResponseWriter, r *http.Request, id string) {
-	var request UpdateAudienceRequestObject
-
-	request.Id = id
-
-	var body UpdateAudienceJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.UpdateAudience(ctx, request.(UpdateAudienceRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UpdateAudience")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(UpdateAudienceResponseObject); ok {
-		if err := validResponse.VisitUpdateAudienceResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
 }
 
 // LoginUser operation middleware
@@ -3276,6 +2976,58 @@ func (sh *strictHandler) UpdateProduct(w http.ResponseWriter, r *http.Request, i
 	}
 }
 
+// GetProductAudienceGenerationStatus operation middleware
+func (sh *strictHandler) GetProductAudienceGenerationStatus(w http.ResponseWriter, r *http.Request, id string) {
+	var request GetProductAudienceGenerationStatusRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProductAudienceGenerationStatus(ctx, request.(GetProductAudienceGenerationStatusRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProductAudienceGenerationStatus")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProductAudienceGenerationStatusResponseObject); ok {
+		if err := validResponse.VisitGetProductAudienceGenerationStatusResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// QueueProductAudienceGeneration operation middleware
+func (sh *strictHandler) QueueProductAudienceGeneration(w http.ResponseWriter, r *http.Request, id string) {
+	var request QueueProductAudienceGenerationRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.QueueProductAudienceGeneration(ctx, request.(QueueProductAudienceGenerationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "QueueProductAudienceGeneration")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(QueueProductAudienceGenerationResponseObject); ok {
+		if err := validResponse.VisitQueueProductAudienceGenerationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListProductAudiences operation middleware
 func (sh *strictHandler) ListProductAudiences(w http.ResponseWriter, r *http.Request, id string) {
 	var request ListProductAudiencesRequestObject
@@ -3295,39 +3047,6 @@ func (sh *strictHandler) ListProductAudiences(w http.ResponseWriter, r *http.Req
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListProductAudiencesResponseObject); ok {
 		if err := validResponse.VisitListProductAudiencesResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// CreateProductAudience operation middleware
-func (sh *strictHandler) CreateProductAudience(w http.ResponseWriter, r *http.Request, id string) {
-	var request CreateProductAudienceRequestObject
-
-	request.Id = id
-
-	var body CreateProductAudienceJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.CreateProductAudience(ctx, request.(CreateProductAudienceRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "CreateProductAudience")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(CreateProductAudienceResponseObject); ok {
-		if err := validResponse.VisitCreateProductAudienceResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -3364,46 +3083,46 @@ func (sh *strictHandler) Healthz(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
+	"Y5la1k+sex4sQ83ZzZ/bfb7eXG/+NwA=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,
