@@ -80,9 +80,8 @@ func (db *DB) applyMigrations() error {
 	}
 
 	driver, err := pgxmigrate.WithInstance(migrationDB, &pgxmigrate.Config{
-		MigrationsTable:       "schema_migrations",
-		SchemaName:            "public",
-		MultiStatementEnabled: true,
+		MigrationsTable: "schema_migrations",
+		SchemaName:      "public",
 	})
 	if err != nil {
 		return fmt.Errorf("create migration database driver: %w", err)

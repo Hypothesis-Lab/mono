@@ -31,7 +31,6 @@ services:
         condition: service_healthy
       seaweedfs:
         condition: service_started
-    restart: on-failure
 
   generator:
     build:
@@ -42,7 +41,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    restart: on-failure
 
   postgres:
     image: docker.io/library/postgres:18
