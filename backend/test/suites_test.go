@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"app/test/harness"
-	"app/test/suites/audience"
 	"app/test/suites/auth"
 	"app/test/suites/file"
 	"app/test/suites/hypothesis"
@@ -54,10 +53,6 @@ func TestSuites(t *testing.T) {
 
 	t.Run("AuthStateful", func(t *testing.T) {
 		suite.Run(t, auth.NewStatefulSuite())
-	})
-
-	t.Run("AudienceStateful", func(t *testing.T) {
-		suite.Run(t, audience.NewStatefulSuite())
 	})
 
 	t.Run("FileStateful", func(t *testing.T) {

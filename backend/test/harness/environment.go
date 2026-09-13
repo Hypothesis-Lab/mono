@@ -18,18 +18,21 @@ import (
 )
 
 const (
-	testJWTSecret    = "test-jwt-secret"
-	postgresUser     = "postgres"
-	postgresPassword = "postgres"
-	postgresDB       = "app"
-	appPort          = "8000"
-	postgresAlias    = "postgres"
-	appAlias         = "app"
-	s3Alias          = "seaweedfs"
-	s3Bucket         = "my-bucket"
-	s3AccessKeyID    = "admin"
-	s3SecretKey      = "secret"
-	s3Region         = "us-east-1"
+	testJWTSecret      = "test-jwt-secret"
+	postgresUser       = "postgres"
+	postgresPassword   = "postgres"
+	postgresDB         = "app"
+	appPort            = "8000"
+	postgresAlias      = "postgres"
+	appAlias           = "app"
+	s3Alias            = "seaweedfs"
+	s3Bucket           = "my-bucket"
+	s3AccessKeyID      = "admin"
+	s3SecretKey        = "secret"
+	s3Region           = "us-east-1"
+	yandexClientID     = "test-yandex-client-id"
+	yandexClientSecret = "test-yandex-client-secret"
+	generatorURL       = "http://generator:8000"
 )
 
 type Env struct {
@@ -138,7 +141,7 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 			"S3_BUCKET":             s3Bucket,
 		},
 		Cmd:        []string{"server", "-s3"},
-		WaitingFor: wait.ForListeningPort("8333/tcp").WithStartupTimeout(30 * time.Second),
+		WaitingFor: wait.ForLog("Start Seaweed S3 API Server").WithStartupTimeout(2 * time.Minute),
 	})
 	if err != nil {
 		return err
@@ -169,14 +172,17 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 		},
 		ExposedPorts: []string{appPort + "/tcp"},
 		Env: map[string]string{
-			"PORT":                 appPort,
-			"DATABASE_URL":         fmt.Sprintf("postgres://%s:%s@%s:5432/%s?sslmode=disable", postgresUser, postgresPassword, postgresAlias, postgresDB),
-			"JWT_SECRET":           testJWTSecret,
-			"S3_ENDPOINT":          fmt.Sprintf("http://%s:8333", s3Alias),
-			"S3_REGION":            s3Region,
-			"S3_BUCKET":            s3Bucket,
-			"S3_ACCESS_KEY_ID":     s3AccessKeyID,
-			"S3_SECRET_ACCESS_KEY": s3SecretKey,
+			"PORT":                        appPort,
+			"DATABASE_URL":                fmt.Sprintf("postgres://%s:%s@%s:5432/%s?sslmode=disable", postgresUser, postgresPassword, postgresAlias, postgresDB),
+			"JWT_SECRET":                  testJWTSecret,
+			"S3_ENDPOINT":                 fmt.Sprintf("http://%s:8333", s3Alias),
+			"S3_REGION":                   s3Region,
+			"S3_BUCKET":                   s3Bucket,
+			"S3_ACCESS_KEY_ID":            s3AccessKeyID,
+			"S3_SECRET_ACCESS_KEY":        s3SecretKey,
+			"YANDEX_DIRECT_CLIENT_ID":     yandexClientID,
+			"YANDEX_DIRECT_CLIENT_SECRET": yandexClientSecret,
+			"GENERATOR_URL":               generatorURL,
 		},
 		WaitingFor: wait.ForHTTP("/healthz").WithPort(appPort + "/tcp").WithStartupTimeout(10 * time.Second),
 	})

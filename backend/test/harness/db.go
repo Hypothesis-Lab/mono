@@ -24,7 +24,7 @@ func resetDatabase(databaseURL string) error {
 
 	db := &testDB{pool: pool}
 
-	if _, err := db.pool.Exec(ctx, "TRUNCATE TABLE users, hypothesis, product, target_audience, file CASCADE"); err != nil {
+	if _, err := db.pool.Exec(ctx, "TRUNCATE TABLE users, hypothesis, product, audience, file CASCADE"); err != nil {
 		return fmt.Errorf("truncate tables: %w", err)
 	}
 
