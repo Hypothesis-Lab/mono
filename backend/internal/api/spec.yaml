@@ -729,14 +729,15 @@ components:
         description: { type: string, maxLength: 1024, nullable: true }
     ProductResponse:
       type: object
-      required: [id, name, description, category, brand, geography, experiment_goal, target_action, facts, eligibility_rules, allowed_channels, forbidden_claims, known_constraints, hypothesis_id, keywords]
+      required: [id, name, description, category, brand, country, experiment_goal, target_action, facts, eligibility_rules, allowed_channels, forbidden_claims, known_constraints, hypothesis_id, keywords]
       properties:
         id:            { type: string }
         name:          { type: string }
         description:   { type: string, minLength: 1 }
         category:      { $ref: "#/components/schemas/ProductCategory" }
         brand:         { type: string, minLength: 1 }
-        geography:     { type: string, minLength: 1 }
+        country:       { type: string, minLength: 1 }
+        town:          { type: string, nullable: true }
         experiment_goal: { type: string, minLength: 1 }
         target_action: { type: string, minLength: 1 }
         facts:
@@ -762,13 +763,14 @@ components:
         hypothesis_id: { type: string }
     CreateProductRequest:
       type: object
-      required: [name, description, category, brand, geography, experiment_goal, target_action, facts, eligibility_rules, allowed_channels, forbidden_claims, known_constraints, hypothesis_id]
+      required: [name, description, category, brand, country, experiment_goal, target_action, facts, eligibility_rules, allowed_channels, forbidden_claims, known_constraints, hypothesis_id]
       properties:
         name:          { type: string }
         description:   { type: string, minLength: 1 }
         category:      { $ref: "#/components/schemas/ProductCategory" }
         brand:         { type: string, minLength: 1 }
-        geography:     { type: string, minLength: 1 }
+        country:       { type: string, minLength: 1 }
+        town:          { type: string, nullable: true }
         experiment_goal: { type: string, minLength: 1 }
         target_action: { type: string, minLength: 1 }
         facts:
@@ -799,7 +801,8 @@ components:
         description: { type: string, nullable: true }
         category:    { $ref: "#/components/schemas/ProductCategory" }
         brand:       { type: string }
-        geography:   { type: string }
+        country:     { type: string }
+        town:        { type: string, nullable: true }
         experiment_goal: { type: string }
         target_action: { type: string }
         facts:

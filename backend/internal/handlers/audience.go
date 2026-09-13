@@ -187,11 +187,12 @@ func validateProductForGeneration(p *product.Product) string {
 		ExperimentGoal:   p.ExperimentGoal,
 		Facts:            facts,
 		ForbiddenClaims:  p.ForbiddenClaims,
-		Geography:        p.Geography,
+		Country:          p.Country,
 		HypothesisId:     p.HypothesisID,
 		KnownConstraints: p.KnownConstraints,
 		Name:             p.Name,
 		TargetAction:     p.TargetAction,
+		Town:             p.Town,
 	})
 }
 

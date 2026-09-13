@@ -145,8 +145,8 @@ func validateCreateProduct(req api.CreateProductRequest) string {
 	if strings.TrimSpace(req.Brand) == "" {
 		return "brand is required"
 	}
-	if strings.TrimSpace(req.Geography) == "" {
-		return "geography is required"
+	if strings.TrimSpace(req.Country) == "" {
+		return "country is required"
 	}
 	if strings.TrimSpace(req.ExperimentGoal) == "" {
 		return "experiment_goal is required"
@@ -183,8 +183,8 @@ func validateUpdateProduct(req *api.UpdateProductRequest) string {
 	if req.Brand != nil && strings.TrimSpace(*req.Brand) == "" {
 		return "brand must not be empty"
 	}
-	if req.Geography != nil && strings.TrimSpace(*req.Geography) == "" {
-		return "geography must not be empty"
+	if req.Country != nil && strings.TrimSpace(*req.Country) == "" {
+		return "country must not be empty"
 	}
 	if req.ExperimentGoal != nil && strings.TrimSpace(*req.ExperimentGoal) == "" {
 		return "experiment_goal must not be empty"
@@ -296,7 +296,8 @@ func createProductInput(req api.CreateProductRequest) (product.CreateInput, erro
 		Description:      req.Description,
 		Category:         string(req.Category),
 		Brand:            req.Brand,
-		Geography:        req.Geography,
+		Country:          req.Country,
+		Town:             req.Town,
 		ExperimentGoal:   req.ExperimentGoal,
 		TargetAction:     req.TargetAction,
 		Facts:            facts,
@@ -316,7 +317,8 @@ func updateProductInput(req *api.UpdateProductRequest) (product.UpdateInput, err
 		Name:             req.Name,
 		Description:      req.Description,
 		Brand:            req.Brand,
-		Geography:        req.Geography,
+		Country:          req.Country,
+		Town:             req.Town,
 		ExperimentGoal:   req.ExperimentGoal,
 		TargetAction:     req.TargetAction,
 		AllowedChannels:  req.AllowedChannels,
@@ -369,7 +371,7 @@ func newProductResponse(p *product.Product) (api.ProductResponse, error) {
 		ExperimentGoal:   p.ExperimentGoal,
 		Facts:            facts,
 		ForbiddenClaims:  p.ForbiddenClaims,
-		Geography:        p.Geography,
+		Country:          p.Country,
 		HypothesisId:     p.HypothesisID,
 		Id:               p.ID,
 		Keywords:         p.Keywords,
@@ -378,5 +380,6 @@ func newProductResponse(p *product.Product) (api.ProductResponse, error) {
 		Name:             p.Name,
 		Price:            p.Price,
 		TargetAction:     p.TargetAction,
+		Town:             p.Town,
 	}, nil
 }

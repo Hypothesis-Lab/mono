@@ -111,7 +111,8 @@ export type Product = {
   description: string
   category: ProductCategory
   brand: string
-  geography: string
+  country: string
+  town?: string | null
   experiment_goal: string
   target_action: string
   facts: ProductFact[]

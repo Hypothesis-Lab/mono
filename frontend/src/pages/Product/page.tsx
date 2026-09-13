@@ -114,7 +114,8 @@ export function ProductPage() {
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState<ProductCategory | ''>('')
   const [brand, setBrand] = useState('')
-  const [geography, setGeography] = useState('')
+  const [country, setCountry] = useState('')
+  const [town, setTown] = useState('')
   const [experimentGoal, setExperimentGoal] = useState('')
   const [targetAction, setTargetAction] = useState('')
   const [facts, setFacts] = useState('')
@@ -147,7 +148,8 @@ export function ProductPage() {
       setDescription(product.description)
       setCategory(product.category)
       setBrand(product.brand)
-      setGeography(product.geography)
+      setCountry(product.country)
+      setTown(product.town ?? '')
       setExperimentGoal(product.experiment_goal)
       setTargetAction(product.target_action)
       setFacts(factsToText(product.facts))
@@ -163,7 +165,8 @@ export function ProductPage() {
       setDescription('')
       setCategory('')
       setBrand('')
-      setGeography('')
+      setCountry('')
+      setTown('')
       setExperimentGoal('')
       setTargetAction('')
       setFacts('')
@@ -217,7 +220,8 @@ export function ProductPage() {
     const trimmedName = name.trim()
     const trimmedDescription = description.trim()
     const trimmedBrand = brand.trim()
-    const trimmedGeography = geography.trim()
+    const trimmedCountry = country.trim()
+    const trimmedTown = town.trim()
     const trimmedExperimentGoal = experimentGoal.trim()
     const trimmedTargetAction = targetAction.trim()
     let parsedFacts: ProductFact[]
@@ -258,8 +262,11 @@ export function ProductPage() {
         if (trimmedBrand !== product.brand) {
           body.brand = trimmedBrand
         }
-        if (trimmedGeography !== product.geography) {
-          body.geography = trimmedGeography
+        if (trimmedCountry !== product.country) {
+          body.country = trimmedCountry
+        }
+        if (trimmedTown !== (product.town ?? '')) {
+          body.town = trimmedTown
         }
         if (trimmedExperimentGoal !== product.experiment_goal) {
           body.experiment_goal = trimmedExperimentGoal
@@ -300,7 +307,8 @@ export function ProductPage() {
             description: trimmedDescription,
             category: category as ProductCategory,
             brand: trimmedBrand,
-            geography: trimmedGeography,
+            country: trimmedCountry,
+            town: trimmedTown === '' ? null : trimmedTown,
             experiment_goal: trimmedExperimentGoal,
             target_action: trimmedTargetAction,
             facts: parsedFacts,
@@ -429,14 +437,25 @@ export function ProductPage() {
         </S.Field>
 
         <S.Field>
-          География
+          Страна
           <S.Input
             type="text"
-            value={geography}
-            onChange={(e) => setGeography(e.target.value)}
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
             placeholder="Россия"
             disabled={saving}
             required
+          />
+        </S.Field>
+
+        <S.Field>
+          Город
+          <S.Input
+            type="text"
+            value={town}
+            onChange={(e) => setTown(e.target.value)}
+            placeholder="Москва"
+            disabled={saving}
           />
         </S.Field>
 

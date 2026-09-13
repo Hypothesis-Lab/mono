@@ -338,7 +338,8 @@ export type ProductResponse = {
   description: string;
   category: ProductCategory;
   brand: string;
-  geography: string;
+  country: string;
+  town?: string | null;
   experiment_goal: string;
   target_action: string;
   facts: ProductFact[];
@@ -356,7 +357,8 @@ export type CreateProductRequest = {
   description: string;
   category: ProductCategory;
   brand: string;
-  geography: string;
+  country: string;
+  town?: string | null;
   experiment_goal: string;
   target_action: string;
   facts: ProductFact[];
@@ -374,7 +376,8 @@ export type UpdateProductRequest = {
   description?: string | null;
   category?: ProductCategory;
   brand?: string;
-  geography?: string;
+  country?: string;
+  town?: string | null;
   experiment_goal?: string;
   target_action?: string;
   facts?: ProductFact[];

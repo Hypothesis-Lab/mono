@@ -23,7 +23,8 @@ class Product(BaseModel):
     name: str = Field(min_length=1)
     description: str = Field(min_length=1)
     category: str = Field(min_length=1)
-    geography: str = Field(min_length=1)
+    country: str = Field(min_length=1)
+    town: str | None = None
     experiment_goal: str = Field(min_length=1)
     target_action: str = Field(min_length=1)
     source_url: str | None = None
@@ -85,7 +86,8 @@ class SyntheticPersona(BaseModel):
     operating_system: str
     digital_behavior: str
     interests: list[str] = Field(min_length=2)
-    geography: str
+    country: str = Field(min_length=1)
+    town: str | None = None
     cifra_relationship: str
     has_cifra_debit_or_salary_card: bool
     financial_behavior: str

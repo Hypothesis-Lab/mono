@@ -28,8 +28,8 @@ func NewAudienceGenerationWorker(lc fx.Lifecycle, generator *clients.GeneratorCl
 		done:      make(chan struct{}),
 	}
 	lc.Append(fx.Hook{
-		OnStart: func(context.Context) error {
-			workerCtx, cancel := context.WithCancel(context.Background())
+		OnStart: func(ctx context.Context) error {
+			workerCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 			worker.cancel = cancel
 			go worker.run(workerCtx)
 

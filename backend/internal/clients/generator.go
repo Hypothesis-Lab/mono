@@ -17,8 +17,8 @@ import (
 )
 
 var (
-	ErrProductAlreadyQueued      = errors.New("product already queued")
-	ErrProductGenerationNotFound = errors.New("product generation not found")
+	ErrProductAlreadyQueued       = errors.New("product already queued")
+	ErrProductGenerationNotFound  = errors.New("product generation not found")
 	ErrProductGenerationNotFailed = errors.New("product generation is not failed")
 )
 
@@ -37,7 +37,8 @@ type generatorProduct struct {
 	Name             string          `json:"name"`
 	Description      string          `json:"description"`
 	Category         string          `json:"category"`
-	Geography        string          `json:"geography"`
+	Country          string          `json:"country"`
+	Town             *string         `json:"town"`
 	ExperimentGoal   string          `json:"experiment_goal"`
 	TargetAction     string          `json:"target_action"`
 	SourceURL        *string         `json:"source_url"`
@@ -111,7 +112,8 @@ func (c *GeneratorClient) QueueProduct(ctx context.Context, p *product.Product) 
 			Name:             p.Name,
 			Description:      p.Description,
 			Category:         p.Category,
-			Geography:        p.Geography,
+			Country:          p.Country,
+			Town:             p.Town,
 			ExperimentGoal:   p.ExperimentGoal,
 			TargetAction:     p.TargetAction,
 			SourceURL:        p.Link,
