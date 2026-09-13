@@ -182,6 +182,7 @@ func validateProductForGeneration(p *product.Product) string {
 		AllowedChannels:  p.AllowedChannels,
 		Brand:            p.Brand,
 		Category:         api.ProductCategory(p.Category),
+		CustomCategory:   p.CustomCategory,
 		Description:      p.Description,
 		EligibilityRules: rules,
 		ExperimentGoal:   p.ExperimentGoal,

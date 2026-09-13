@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ProductFact(BaseModel):
@@ -23,6 +23,7 @@ class Product(BaseModel):
     name: str = Field(min_length=1)
     description: str = Field(min_length=1)
     category: str = Field(min_length=1)
+    custom_category: str | None = Field(default=None, min_length=1, max_length=64)
     country: str = Field(min_length=1)
     town: str | None = None
     experiment_goal: str = Field(min_length=1)
@@ -33,6 +34,15 @@ class Product(BaseModel):
     allowed_channels: list[str] = Field(min_length=1)
     forbidden_claims: list[str] = Field(default_factory=list)
     known_constraints: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_custom_category(self) -> Self:
+        if self.category == "other" and self.custom_category is None:
+            raise ValueError("custom_category is required when category is other")
+        if self.category != "other" and self.custom_category is not None:
+            raise ValueError("custom_category is only allowed when category is other")
+
+        return self
 
 
 class CreateJobRequest(BaseModel):

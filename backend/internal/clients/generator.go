@@ -37,6 +37,7 @@ type generatorProduct struct {
 	Name             string          `json:"name"`
 	Description      string          `json:"description"`
 	Category         string          `json:"category"`
+	CustomCategory   *string         `json:"custom_category"`
 	Country          string          `json:"country"`
 	Town             *string         `json:"town"`
 	ExperimentGoal   string          `json:"experiment_goal"`
@@ -112,6 +113,7 @@ func (c *GeneratorClient) QueueProduct(ctx context.Context, p *product.Product) 
 			Name:             p.Name,
 			Description:      p.Description,
 			Category:         p.Category,
+			CustomCategory:   p.CustomCategory,
 			Country:          p.Country,
 			Town:             p.Town,
 			ExperimentGoal:   p.ExperimentGoal,

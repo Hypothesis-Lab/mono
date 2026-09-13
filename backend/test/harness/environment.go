@@ -140,8 +140,11 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 			"AWS_SECRET_ACCESS_KEY": s3SecretKey,
 			"S3_BUCKET":             s3Bucket,
 		},
-		Cmd:        []string{"server", "-s3"},
-		WaitingFor: wait.ForLog("Start Seaweed S3 API Server").WithStartupTimeout(2 * time.Minute),
+		Cmd: []string{"server", "-s3"},
+		WaitingFor: wait.ForHTTP("/status").
+			WithPort("8333/tcp").
+			WithForcedIPv4LocalHost().
+			WithStartupTimeout(2 * time.Minute),
 	})
 	if err != nil {
 		return err
@@ -150,6 +153,9 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 	s3Host, err := s3Container.Host(ctx)
 	if err != nil {
 		return fmt.Errorf("get s3 host: %w", err)
+	}
+	if s3Host == "localhost" {
+		s3Host = "127.0.0.1"
 	}
 
 	s3MappedPort, err := s3Container.MappedPort(ctx, "8333/tcp")

@@ -735,6 +735,7 @@ components:
         name:          { type: string }
         description:   { type: string, minLength: 1 }
         category:      { $ref: "#/components/schemas/ProductCategory" }
+        custom_category: { type: string, nullable: true }
         brand:         { type: string, minLength: 1 }
         country:       { type: string, minLength: 1 }
         town:          { type: string, nullable: true }
@@ -768,6 +769,7 @@ components:
         name:          { type: string }
         description:   { type: string, minLength: 1 }
         category:      { $ref: "#/components/schemas/ProductCategory" }
+        custom_category: { type: string, minLength: 1, maxLength: 64 }
         brand:         { type: string, minLength: 1 }
         country:       { type: string, minLength: 1 }
         town:          { type: string, nullable: true }
@@ -800,6 +802,7 @@ components:
         name:        { type: string, nullable: true }
         description: { type: string, nullable: true }
         category:    { $ref: "#/components/schemas/ProductCategory" }
+        custom_category: { type: string, minLength: 1, maxLength: 64 }
         brand:       { type: string }
         country:     { type: string }
         town:        { type: string, nullable: true }

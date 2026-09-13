@@ -50,6 +50,30 @@ func (s *ProductService) Create(ctx context.Context, userID string, in product.C
 }
 
 func (s *ProductService) Update(ctx context.Context, userID, id string, in product.UpdateInput) (*product.Product, error) {
+	existing, err := s.products.Get(ctx, userID, id)
+	if err != nil {
+		if errors.Is(err, product.ErrNotFound) {
+			return nil, product.ErrNotFound
+		}
+
+		return nil, fmt.Errorf("getting product: %w", err)
+	}
+
+	if in.Category == nil {
+		if in.CustomCategory != nil && existing.Category != "other" {
+			return nil, product.ErrCustomCategoryNotAllowed
+		}
+	} else if *in.Category == "other" {
+		if existing.Category != "other" && in.CustomCategory == nil {
+			return nil, product.ErrCustomCategoryRequired
+		}
+	} else {
+		if in.CustomCategory != nil {
+			return nil, product.ErrCustomCategoryNotAllowed
+		}
+		in.ClearCustomCategory = true
+	}
+
 	updated, err := s.products.Update(ctx, userID, id, in)
 	if err != nil {
 		if errors.Is(err, product.ErrNotFound) {

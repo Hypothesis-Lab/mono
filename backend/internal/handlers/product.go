@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"app/internal/api"
 	"app/internal/http/middlewares"
@@ -88,6 +89,9 @@ func (s *Server) UpdateProduct(ctx context.Context, req api.UpdateProductRequest
 
 	updated, err := s.productService.Update(ctx, userID, req.Id, in)
 	if err != nil {
+		if errors.Is(err, product.ErrCustomCategoryRequired) || errors.Is(err, product.ErrCustomCategoryNotAllowed) {
+			return api.UpdateProduct400JSONResponse(errBody(http.StatusBadRequest, err.Error())), nil
+		}
 		if errors.Is(err, product.ErrNotFound) {
 			s.logger.Error("update product", zap.String("id", req.Id), zap.Error(err))
 
@@ -142,6 +146,9 @@ func validateCreateProduct(req api.CreateProductRequest) string {
 	if req.Category == "" || !req.Category.Valid() {
 		return "category is required"
 	}
+	if message := validateCustomCategory(req.Category, req.CustomCategory); message != "" {
+		return message
+	}
 	if strings.TrimSpace(req.Brand) == "" {
 		return "brand is required"
 	}
@@ -179,6 +186,14 @@ func validateUpdateProduct(req *api.UpdateProductRequest) string {
 	}
 	if req.Category != nil && !req.Category.Valid() {
 		return "invalid category"
+	}
+	if req.CustomCategory != nil {
+		if message := validateCustomCategoryValue(*req.CustomCategory); message != "" {
+			return message
+		}
+		if req.Category != nil && *req.Category != api.ProductCategoryOther {
+			return "custom_category is only allowed when category is other"
+		}
 	}
 	if req.Brand != nil && strings.TrimSpace(*req.Brand) == "" {
 		return "brand must not be empty"
@@ -276,6 +291,30 @@ func validateAllowedChannels(channels []string) string {
 	return ""
 }
 
+func validateCustomCategory(category api.ProductCategory, customCategory *string) string {
+	if category != api.ProductCategoryOther {
+		if customCategory != nil {
+			return "custom_category is only allowed when category is other"
+		}
+
+		return ""
+	}
+	if customCategory == nil {
+		return "custom_category is required when category is other"
+	}
+
+	return validateCustomCategoryValue(*customCategory)
+}
+
+func validateCustomCategoryValue(customCategory string) string {
+	length := utf8.RuneCountInString(strings.TrimSpace(customCategory))
+	if length < 1 || length > 64 {
+		return "custom_category must be between 1 and 64 characters"
+	}
+
+	return ""
+}
+
 func createProductInput(req api.CreateProductRequest) (product.CreateInput, error) {
 	facts, err := json.Marshal(req.Facts)
 	if err != nil {
@@ -295,6 +334,7 @@ func createProductInput(req api.CreateProductRequest) (product.CreateInput, erro
 		Name:             req.Name,
 		Description:      req.Description,
 		Category:         string(req.Category),
+		CustomCategory:   normalizedCustomCategory(req.CustomCategory),
 		Brand:            req.Brand,
 		Country:          req.Country,
 		Town:             req.Town,
@@ -316,6 +356,7 @@ func updateProductInput(req *api.UpdateProductRequest) (product.UpdateInput, err
 	in := product.UpdateInput{
 		Name:             req.Name,
 		Description:      req.Description,
+		CustomCategory:   normalizedCustomCategory(req.CustomCategory),
 		Brand:            req.Brand,
 		Country:          req.Country,
 		Town:             req.Town,
@@ -352,6 +393,16 @@ func updateProductInput(req *api.UpdateProductRequest) (product.UpdateInput, err
 	return in, nil
 }
 
+func normalizedCustomCategory(customCategory *string) *string {
+	if customCategory == nil {
+		return nil
+	}
+
+	normalized := strings.TrimSpace(*customCategory)
+
+	return &normalized
+}
+
 func newProductResponse(p *product.Product) (api.ProductResponse, error) {
 	var facts []api.ProductFact
 	if err := json.Unmarshal(p.Facts, &facts); err != nil {
@@ -366,6 +417,7 @@ func newProductResponse(p *product.Product) (api.ProductResponse, error) {
 		AllowedChannels:  p.AllowedChannels,
 		Brand:            p.Brand,
 		Category:         api.ProductCategory(p.Category),
+		CustomCategory:   p.CustomCategory,
 		Description:      p.Description,
 		EligibilityRules: rules,
 		ExperimentGoal:   p.ExperimentGoal,

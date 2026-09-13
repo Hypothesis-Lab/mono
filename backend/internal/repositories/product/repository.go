@@ -14,7 +14,9 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("product not found")
+	ErrCustomCategoryNotAllowed = errors.New("custom_category is only allowed when category is other")
+	ErrCustomCategoryRequired   = errors.New("custom_category is required when category is other")
+	ErrNotFound                 = errors.New("product not found")
 
 	squirrelPSQL = squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 )
@@ -24,6 +26,7 @@ type Product struct {
 	Name             string
 	Description      string
 	Category         string
+	CustomCategory   *string
 	Brand            string
 	Country          string
 	Town             *string
@@ -44,6 +47,7 @@ type CreateInput struct {
 	Name             string
 	Description      string
 	Category         string
+	CustomCategory   *string
 	Brand            string
 	Country          string
 	Town             *string
@@ -61,22 +65,24 @@ type CreateInput struct {
 }
 
 type UpdateInput struct {
-	Name             *string
-	Description      *string
-	Category         *string
-	Brand            *string
-	Country          *string
-	Town             *string
-	ExperimentGoal   *string
-	TargetAction     *string
-	Facts            *json.RawMessage
-	EligibilityRules *json.RawMessage
-	AllowedChannels  *[]string
-	ForbiddenClaims  *[]string
-	KnownConstraints *[]string
-	Keywords         *[]string
-	Price            *string
-	Link             *string
+	Name                *string
+	Description         *string
+	Category            *string
+	CustomCategory      *string
+	ClearCustomCategory bool
+	Brand               *string
+	Country             *string
+	Town                *string
+	ExperimentGoal      *string
+	TargetAction        *string
+	Facts               *json.RawMessage
+	EligibilityRules    *json.RawMessage
+	AllowedChannels     *[]string
+	ForbiddenClaims     *[]string
+	KnownConstraints    *[]string
+	Keywords            *[]string
+	Price               *string
+	Link                *string
 }
 
 type Repository struct {
@@ -94,9 +100,9 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (*Product, erro
 
 	sql, args, err := squirrelPSQL.
 		Insert("product").
-		Columns("id", "name", "description", "category", "brand", "country", "town", "experiment_goal", "target_action", "facts", "eligibility_rules", "allowed_channels", "forbidden_claims", "known_constraints", "keywords", "price", "link", "hypothesis_id").
-		Values(uuid.NewString(), in.Name, in.Description, in.Category, in.Brand, in.Country, in.Town, in.ExperimentGoal, in.TargetAction, in.Facts, in.EligibilityRules, in.AllowedChannels, in.ForbiddenClaims, in.KnownConstraints, in.Keywords, in.Price, in.Link, in.HypothesisID).
-		Suffix("RETURNING id, name, description, category, brand, country, town, experiment_goal, target_action, facts, eligibility_rules, allowed_channels, forbidden_claims, known_constraints, keywords, price, link, hypothesis_id").
+		Columns("id", "name", "description", "category", "custom_category", "brand", "country", "town", "experiment_goal", "target_action", "facts", "eligibility_rules", "allowed_channels", "forbidden_claims", "known_constraints", "keywords", "price", "link", "hypothesis_id").
+		Values(uuid.NewString(), in.Name, in.Description, in.Category, in.CustomCategory, in.Brand, in.Country, in.Town, in.ExperimentGoal, in.TargetAction, in.Facts, in.EligibilityRules, in.AllowedChannels, in.ForbiddenClaims, in.KnownConstraints, in.Keywords, in.Price, in.Link, in.HypothesisID).
+		Suffix("RETURNING id, name, description, category, custom_category, brand, country, town, experiment_goal, target_action, facts, eligibility_rules, allowed_channels, forbidden_claims, known_constraints, keywords, price, link, hypothesis_id").
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build create product query: %w", err)
@@ -104,7 +110,7 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (*Product, erro
 
 	p := &Product{}
 	if err := r.db.Pool().QueryRow(ctx, sql, args...).
-		Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.Brand, &p.Country, &p.Town, &p.ExperimentGoal, &p.TargetAction, &p.Facts, &p.EligibilityRules, &p.AllowedChannels, &p.ForbiddenClaims, &p.KnownConstraints, &p.Keywords, &p.Price, &p.Link, &p.HypothesisID); err != nil {
+		Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.CustomCategory, &p.Brand, &p.Country, &p.Town, &p.ExperimentGoal, &p.TargetAction, &p.Facts, &p.EligibilityRules, &p.AllowedChannels, &p.ForbiddenClaims, &p.KnownConstraints, &p.Keywords, &p.Price, &p.Link, &p.HypothesisID); err != nil {
 		return nil, fmt.Errorf("create product: %w", err)
 	}
 
@@ -113,7 +119,7 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (*Product, erro
 
 func (r *Repository) Get(ctx context.Context, userID, id string) (*Product, error) {
 	sql, args, err := squirrelPSQL.
-		Select("p.id", "p.name", "p.description", "p.category", "p.brand", "p.country", "p.town", "p.experiment_goal", "p.target_action", "p.facts", "p.eligibility_rules", "p.allowed_channels", "p.forbidden_claims", "p.known_constraints", "p.keywords", "p.price", "p.link", "p.hypothesis_id").
+		Select("p.id", "p.name", "p.description", "p.category", "p.custom_category", "p.brand", "p.country", "p.town", "p.experiment_goal", "p.target_action", "p.facts", "p.eligibility_rules", "p.allowed_channels", "p.forbidden_claims", "p.known_constraints", "p.keywords", "p.price", "p.link", "p.hypothesis_id").
 		From("product p").
 		Join("hypothesis h ON h.id = p.hypothesis_id").
 		Where(squirrel.Eq{"p.id": id, "h.user_id": userID}).
@@ -123,7 +129,7 @@ func (r *Repository) Get(ctx context.Context, userID, id string) (*Product, erro
 	}
 
 	p := &Product{}
-	if err := r.db.Pool().QueryRow(ctx, sql, args...).Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.Brand, &p.Country, &p.Town, &p.ExperimentGoal, &p.TargetAction, &p.Facts, &p.EligibilityRules, &p.AllowedChannels, &p.ForbiddenClaims, &p.KnownConstraints, &p.Keywords, &p.Price, &p.Link, &p.HypothesisID); err != nil {
+	if err := r.db.Pool().QueryRow(ctx, sql, args...).Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.CustomCategory, &p.Brand, &p.Country, &p.Town, &p.ExperimentGoal, &p.TargetAction, &p.Facts, &p.EligibilityRules, &p.AllowedChannels, &p.ForbiddenClaims, &p.KnownConstraints, &p.Keywords, &p.Price, &p.Link, &p.HypothesisID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -136,7 +142,7 @@ func (r *Repository) Get(ctx context.Context, userID, id string) (*Product, erro
 
 func (r *Repository) GetByHypothesisID(ctx context.Context, hypothesisID string) (*Product, error) {
 	sql, args, err := squirrelPSQL.
-		Select("id", "name", "description", "category", "brand", "country", "town", "experiment_goal", "target_action", "facts", "eligibility_rules", "allowed_channels", "forbidden_claims", "known_constraints", "keywords", "price", "link", "hypothesis_id").
+		Select("id", "name", "description", "category", "custom_category", "brand", "country", "town", "experiment_goal", "target_action", "facts", "eligibility_rules", "allowed_channels", "forbidden_claims", "known_constraints", "keywords", "price", "link", "hypothesis_id").
 		From("product").
 		Where(squirrel.Eq{"hypothesis_id": hypothesisID}).
 		ToSql()
@@ -145,7 +151,7 @@ func (r *Repository) GetByHypothesisID(ctx context.Context, hypothesisID string)
 	}
 
 	p := &Product{}
-	if err := r.db.Pool().QueryRow(ctx, sql, args...).Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.Brand, &p.Country, &p.Town, &p.ExperimentGoal, &p.TargetAction, &p.Facts, &p.EligibilityRules, &p.AllowedChannels, &p.ForbiddenClaims, &p.KnownConstraints, &p.Keywords, &p.Price, &p.Link, &p.HypothesisID); err != nil {
+	if err := r.db.Pool().QueryRow(ctx, sql, args...).Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.CustomCategory, &p.Brand, &p.Country, &p.Town, &p.ExperimentGoal, &p.TargetAction, &p.Facts, &p.EligibilityRules, &p.AllowedChannels, &p.ForbiddenClaims, &p.KnownConstraints, &p.Keywords, &p.Price, &p.Link, &p.HypothesisID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -157,7 +163,7 @@ func (r *Repository) GetByHypothesisID(ctx context.Context, hypothesisID string)
 }
 
 func (r *Repository) Update(ctx context.Context, userID, id string, in UpdateInput) (*Product, error) {
-	if in.Name == nil && in.Description == nil && in.Category == nil && in.Brand == nil && in.Country == nil && in.Town == nil && in.ExperimentGoal == nil && in.TargetAction == nil && in.Facts == nil && in.EligibilityRules == nil && in.AllowedChannels == nil && in.ForbiddenClaims == nil && in.KnownConstraints == nil && in.Keywords == nil && in.Price == nil && in.Link == nil {
+	if in.Name == nil && in.Description == nil && in.Category == nil && in.CustomCategory == nil && !in.ClearCustomCategory && in.Brand == nil && in.Country == nil && in.Town == nil && in.ExperimentGoal == nil && in.TargetAction == nil && in.Facts == nil && in.EligibilityRules == nil && in.AllowedChannels == nil && in.ForbiddenClaims == nil && in.KnownConstraints == nil && in.Keywords == nil && in.Price == nil && in.Link == nil {
 		return r.Get(ctx, userID, id)
 	}
 
@@ -165,7 +171,7 @@ func (r *Repository) Update(ctx context.Context, userID, id string, in UpdateInp
 		Update("product").
 		Where(squirrel.Eq{"product.id": id}).
 		Where("EXISTS (SELECT 1 FROM hypothesis WHERE hypothesis.id = product.hypothesis_id AND hypothesis.user_id = ?)", userID).
-		Suffix("RETURNING id, name, description, category, brand, country, town, experiment_goal, target_action, facts, eligibility_rules, allowed_channels, forbidden_claims, known_constraints, keywords, price, link, hypothesis_id")
+		Suffix("RETURNING id, name, description, category, custom_category, brand, country, town, experiment_goal, target_action, facts, eligibility_rules, allowed_channels, forbidden_claims, known_constraints, keywords, price, link, hypothesis_id")
 
 	if in.Name != nil {
 		builder = builder.Set("name", *in.Name)
@@ -177,6 +183,12 @@ func (r *Repository) Update(ctx context.Context, userID, id string, in UpdateInp
 
 	if in.Category != nil {
 		builder = builder.Set("category", *in.Category)
+	}
+	if in.CustomCategory != nil {
+		builder = builder.Set("custom_category", *in.CustomCategory)
+	}
+	if in.ClearCustomCategory {
+		builder = builder.Set("custom_category", nil)
 	}
 
 	if in.Brand != nil {
@@ -238,7 +250,7 @@ func (r *Repository) Update(ctx context.Context, userID, id string, in UpdateInp
 
 	p := &Product{}
 	if err := r.db.Pool().QueryRow(ctx, sql, args...).
-		Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.Brand, &p.Country, &p.Town, &p.ExperimentGoal, &p.TargetAction, &p.Facts, &p.EligibilityRules, &p.AllowedChannels, &p.ForbiddenClaims, &p.KnownConstraints, &p.Keywords, &p.Price, &p.Link, &p.HypothesisID); err != nil {
+		Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.CustomCategory, &p.Brand, &p.Country, &p.Town, &p.ExperimentGoal, &p.TargetAction, &p.Facts, &p.EligibilityRules, &p.AllowedChannels, &p.ForbiddenClaims, &p.KnownConstraints, &p.Keywords, &p.Price, &p.Link, &p.HypothesisID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}
