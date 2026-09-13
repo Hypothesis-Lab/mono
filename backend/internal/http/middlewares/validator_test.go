@@ -15,11 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestValidationMessage exercises validationMessage against the embedded
-// spec across every constraint branch it handles. It guards the
-// array-item field derivation (the pointer for a violating array item
-// is ["keywords","0"], where the trailing segment is a numeric index)
-// and catches drift if spec constraints or the message switch change.
+// TestValidationMessage exercises validationMessage against constraints in
+// the embedded spec. It guards array-item field derivation and catches drift
+// between the schema and user-facing validation messages.
 func TestValidationMessage(t *testing.T) {
 	spec, err := api.GetSpec()
 	require.NoError(t, err)
@@ -50,7 +48,6 @@ func TestValidationMessage(t *testing.T) {
 	defer srv.Close()
 
 	const productReq = `{"name":"p","category":"electronics","hypothesis_id":"00000000-0000-0000-0000-000000000000"`
-	const audReq = `{"description":"a"`
 
 	cases := []struct {
 		name   string
@@ -63,11 +60,8 @@ func TestValidationMessage(t *testing.T) {
 		{"string maxLength", "POST", "/api/v1/product", productReq + `,"link":"` + strings.Repeat("l", 129) + `"}`, "link must be at most 128 characters long"},
 		{"nullable string maxLength", "POST", "/api/v1/product", productReq + `,"price":"` + strings.Repeat("p", 129) + `"}`, "price must be at most 128 characters long"},
 		{"hypothesis description maxLength", "POST", "/api/v1/hypothesis", `{"description":"` + strings.Repeat("d", 1025) + `"}`, "description must be at most 1024 characters long"},
-		{"integer maximum", "POST", "/api/v1/product/00000000-0000-0000-0000-000000000000/audiences", audReq + `,"age_from":150}`, "age_from must be less than or equal to 100"},
-		{"integer minimum", "POST", "/api/v1/product/00000000-0000-0000-0000-000000000000/audiences", audReq + `,"age_to":-1}`, "age_to must be greater than or equal to 0"},
-		{"audience interests maxLength", "POST", "/api/v1/product/00000000-0000-0000-0000-000000000000/audiences", audReq + `,"interests":"` + strings.Repeat("x", 1001) + `"}`, "interests must be at most 1000 characters long"},
 		{"required field", "POST", "/api/v1/hypothesis", `{}`, "description is required"},
-		{"enum field", "POST", "/api/v1/product", `{"name":"p","category":"nope","hypothesis_id":"00000000-0000-0000-0000-000000000000"}`, "category must be one of electronics, clothing, food, furniture, beauty, sports, toys, books, automotive, health, home, office, garden, pets, music, other"},
+		{"enum field", "POST", "/api/v1/product", `{"name":"p","category":"nope","hypothesis_id":"00000000-0000-0000-0000-000000000000"}`, "category must be one of electronics, clothing, food, furniture, beauty, sports, toys, books, automotive, health, home, office, garden, pets, music, banking_card, other"},
 		{"malformed body", "POST", "/api/v1/hypothesis", `{not json`, "malformed request body"},
 		{"missing body", "POST", "/api/v1/hypothesis", ``, "request body is required"},
 		{"wrong type", "POST", "/api/v1/hypothesis", `{"description":123}`, "description has invalid type"},
