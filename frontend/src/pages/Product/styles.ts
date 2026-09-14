@@ -77,6 +77,12 @@ export const AudienceList = styled.ul`
   list-style: none;
 `
 
+export const AudienceGenerationStatus = styled.p`
+  margin: 0;
+  font-size: 14px;
+  color: #888;
+`
+
 export const AudienceItem = styled.li`
   border: 1px solid #e2e2e2;
   border-radius: 6px;
@@ -222,19 +228,19 @@ export const ButtonGroup = styled.div`
   gap: 12px;
 `
 
-export const Button = styled.button<{ $primary?: boolean; $danger?: boolean }>`
+export const Button = styled.button<{ $primary?: boolean; $danger?: boolean; $success?: boolean }>`
   padding: 10px 16px;
-  border: 1px solid ${({ $danger }) => ($danger ? '#c00' : '#ccc')};
+  border: 1px solid ${({ $danger, $success }) => ($danger ? '#c00' : $success ? '#2a8a2a' : '#ccc')};
   border-radius: 6px;
-  background: ${({ $primary, $danger }) =>
-    $primary ? '#111' : $danger ? '#c00' : '#fff'};
-  color: ${({ $primary, $danger }) => ($primary || $danger ? '#fff' : '#111')};
+  background: ${({ $primary, $danger, $success }) =>
+    $primary ? '#111' : $danger ? '#c00' : $success ? '#2a8a2a' : '#fff'};
+  color: ${({ $primary, $danger, $success }) => ($primary || $danger || $success ? '#fff' : '#111')};
   font-size: 14px;
   cursor: pointer;
 
   &:hover:not(:disabled) {
-    background: ${({ $primary, $danger }) =>
-      $primary ? '#333' : $danger ? '#a00' : '#f5f5f5'};
+    background: ${({ $primary, $danger, $success }) =>
+      $primary ? '#333' : $danger ? '#a00' : $success ? '#237023' : '#f5f5f5'};
   }
 
   &:disabled {

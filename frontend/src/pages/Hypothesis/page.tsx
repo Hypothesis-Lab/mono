@@ -3,12 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { skipToken } from '@reduxjs/toolkit/query'
 import { getStatusLabel, rtkErrorMessage } from '../../api/structs'
 import {
-  useGetProductAudienceGenerationStatusQuery,
   useGetHypothesisProductQuery,
   useGetHypothesisQuery,
   useLaunchHypothesisMutation,
-  useQueueProductAudienceGenerationMutation,
-  useRetryProductAudienceGenerationMutation,
   useStopHypothesisMutation,
 } from '../../store/generatedApi'
 import * as S from './styles'
@@ -23,22 +20,11 @@ export function HypothesisPage() {
   const { data: product, isLoading: productLoading } = useGetHypothesisProductQuery(
     id ? { id } : skipToken,
   )
-  const {
-    data: audienceGeneration,
-    refetch: refetchAudienceGeneration,
-  } = useGetProductAudienceGenerationStatusQuery(
-    product ? { id: product.id } : skipToken,
-    { pollingInterval: product ? 3000 : 0 },
-  )
-
   const [launchHypothesis, { isLoading: launching }] = useLaunchHypothesisMutation()
   const [stopHypothesis, { isLoading: stopping }] = useStopHypothesisMutation()
-  const [queueAudienceGeneration, { isLoading: queueingAudienceGeneration }] = useQueueProductAudienceGenerationMutation()
-  const [retryAudienceGeneration, { isLoading: retryingAudienceGeneration }] = useRetryProductAudienceGenerationMutation()
 
   const [launchError, setLaunchError] = useState<string | null>(null)
   const [stopError, setStopError] = useState<string | null>(null)
-  const [audienceGenerationError, setAudienceGenerationError] = useState<string | null>(null)
 
   if (!id) {
     return (
@@ -76,36 +62,6 @@ export function HypothesisPage() {
     }
   }
 
-  async function handleQueueAudienceGeneration() {
-    if (!product) {
-      return
-    }
-
-    setAudienceGenerationError(null)
-
-    try {
-      await queueAudienceGeneration({ id: product.id }).unwrap()
-      refetchAudienceGeneration()
-    } catch (err) {
-      setAudienceGenerationError(rtkErrorMessage(err, 'Не удалось поставить генерацию в очередь'))
-    }
-  }
-
-  async function handleRetryAudienceGeneration() {
-    if (!product) {
-      return
-    }
-
-    setAudienceGenerationError(null)
-
-    try {
-      await retryAudienceGeneration({ id: product.id }).unwrap()
-      refetchAudienceGeneration()
-    } catch (err) {
-      setAudienceGenerationError(rtkErrorMessage(err, 'Не удалось повторить генерацию'))
-    }
-  }
-
   return (
     <S.Page>
       {loading && <S.Message>Загрузка гипотезы…</S.Message>}
@@ -130,23 +86,6 @@ export function HypothesisPage() {
                 {product.description && (
                   <S.Description>{product.description}</S.Description>
                 )}
-                {audienceGeneration && (
-                  <S.Meta>Генерация аудиторий: {getAudienceGenerationStatusLabel(audienceGeneration.status)}</S.Meta>
-                )}
-                <S.AudienceGenerationButton
-                  type="button"
-                  onClick={audienceGeneration?.status === 'failed' ? handleRetryAudienceGeneration : handleQueueAudienceGeneration}
-                  disabled={queueingAudienceGeneration || retryingAudienceGeneration || audienceGeneration?.status === 'created' || audienceGeneration?.status === 'working'}
-                >
-                  {retryingAudienceGeneration
-                    ? 'Повторяем генерацию…'
-                    : queueingAudienceGeneration
-                      ? 'Добавляем в очередь…'
-                      : audienceGeneration?.status === 'failed'
-                        ? 'Повторить генерацию'
-                        : 'Сгенерировать аудитории'}
-                </S.AudienceGenerationButton>
-                {audienceGenerationError && <S.ErrorMessage>{audienceGenerationError}</S.ErrorMessage>}
               </>
             )}
             {!productLoading && !product && (
@@ -191,17 +130,4 @@ export function HypothesisPage() {
       )}
     </S.Page>
   )
-}
-
-function getAudienceGenerationStatusLabel(status: string): string {
-  if (status === 'created') {
-    return 'в очереди'
-  }
-  if (status === 'working') {
-    return 'в работе'
-  }
-  if (status === 'failed') {
-    return 'не удалось завершить'
-  }
-  return status
 }

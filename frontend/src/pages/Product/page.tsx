@@ -13,9 +13,12 @@ import {
   useCreateProductMutation,
   useDeleteProductFileMutation,
   useDeleteProductMutation,
+  useGetProductAudienceGenerationStatusQuery,
   useGetHypothesisProductQuery,
   useListProductAudiencesQuery,
   useListProductFilesQuery,
+  useQueueProductAudienceGenerationMutation,
+  useRetryProductAudienceGenerationMutation,
   useUpdateProductMutation,
   useUploadProductFileMutation,
 } from '../../store/generatedApi'
@@ -103,12 +106,21 @@ export function ProductPage() {
     product ? { id: product.id } : skipToken,
     { pollingInterval: product ? 3000 : 0 },
   )
+  const {
+    data: audienceGeneration,
+    refetch: refetchAudienceGeneration,
+  } = useGetProductAudienceGenerationStatusQuery(
+    product ? { id: product.id } : skipToken,
+    { pollingInterval: product ? 3000 : 0 },
+  )
 
   const [createProduct, { isLoading: creating }] = useCreateProductMutation()
   const [updateProduct, { isLoading: updating }] = useUpdateProductMutation()
   const [deleteProduct, { isLoading: deleting }] = useDeleteProductMutation()
   const [uploadProductFile, { isLoading: uploading }] = useUploadProductFileMutation()
   const [deleteProductFile] = useDeleteProductFileMutation()
+  const [queueAudienceGeneration, { isLoading: queueingAudienceGeneration }] = useQueueProductAudienceGenerationMutation()
+  const [retryAudienceGeneration, { isLoading: retryingAudienceGeneration }] = useRetryProductAudienceGenerationMutation()
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -137,6 +149,7 @@ export function ProductPage() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [fileDeleteError, setFileDeleteError] = useState<string | null>(null)
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null)
+  const [audienceGenerationError, setAudienceGenerationError] = useState<string | null>(null)
 
 
   const hasBrandbook = (files ?? []).some((file) => file.type === 'brandbook')
@@ -388,6 +401,36 @@ export function ProductPage() {
     }
   }
 
+  async function handleQueueAudienceGeneration() {
+    if (!product) {
+      return
+    }
+
+    setAudienceGenerationError(null)
+
+    try {
+      await queueAudienceGeneration({ id: product.id }).unwrap()
+      refetchAudienceGeneration()
+    } catch (err) {
+      setAudienceGenerationError(rtkErrorMessage(err, 'Не удалось поставить генерацию в очередь'))
+    }
+  }
+
+  async function handleRetryAudienceGeneration() {
+    if (!product) {
+      return
+    }
+
+    setAudienceGenerationError(null)
+
+    try {
+      await retryAudienceGeneration({ id: product.id }).unwrap()
+      refetchAudienceGeneration()
+    } catch (err) {
+      setAudienceGenerationError(rtkErrorMessage(err, 'Не удалось повторить генерацию'))
+    }
+  }
+
   const saving = creating || updating
   const filesList = files ?? []
 
@@ -610,7 +653,11 @@ export function ProductPage() {
 
       <S.AudiencesSection>
         <S.SectionTitle>Аудитории</S.SectionTitle>
-
+        {audienceGeneration && (
+          <S.AudienceGenerationStatus>
+            Генерация аудиторий: {getAudienceGenerationStatusLabel(audienceGeneration.status)}
+          </S.AudienceGenerationStatus>
+        )}
         {audiencesLoading && <S.Message>Загрузка…</S.Message>}
 
         {!audiencesLoading && (audiences ?? []).length === 0 && (
@@ -619,9 +666,9 @@ export function ProductPage() {
 
         {!audiencesLoading && (audiences ?? []).length > 0 && (
           <S.AudienceList>
-            {audiences!.map((audience) => (
-              <S.AudienceItem key={audience.id}>
-                <S.AudienceDetails open>
+              {audiences!.map((audience) => (
+                <S.AudienceItem key={audience.id}>
+                  <S.AudienceDetails>
                   <S.AudienceSummary>
                     <S.AudienceInfo>
                       <S.AudienceDescription>{audience.persona.label}</S.AudienceDescription>
@@ -636,6 +683,22 @@ export function ProductPage() {
             ))}
           </S.AudienceList>
         )}
+
+        <S.Button
+          type="button"
+          $success
+          onClick={audienceGeneration?.status === 'failed' ? handleRetryAudienceGeneration : handleQueueAudienceGeneration}
+          disabled={queueingAudienceGeneration || retryingAudienceGeneration || audienceGeneration?.status === 'created' || audienceGeneration?.status === 'working'}
+        >
+          {retryingAudienceGeneration
+            ? 'Повторяем генерацию…'
+            : queueingAudienceGeneration
+              ? 'Добавляем в очередь…'
+              : audienceGeneration?.status === 'failed'
+                ? 'Повторить генерацию'
+                : 'Сгенерировать аудитории'}
+        </S.Button>
+        {audienceGenerationError && <S.ErrorMessage>{audienceGenerationError}</S.ErrorMessage>}
 
       </S.AudiencesSection>
 
@@ -709,4 +772,17 @@ export function ProductPage() {
       </S.FilesSection>
     </S.Page>
   )
+}
+
+function getAudienceGenerationStatusLabel(status: string): string {
+  if (status === 'created') {
+    return 'в очереди'
+  }
+  if (status === 'working') {
+    return 'в работе'
+  }
+  if (status === 'failed') {
+    return 'не удалось завершить'
+  }
+  return status
 }
