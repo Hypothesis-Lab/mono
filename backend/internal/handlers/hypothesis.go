@@ -167,10 +167,6 @@ func (s *Server) StopHypothesis(ctx context.Context, req api.StopHypothesisReque
 			s.logger.Error("stop hypothesis", zap.String("id", req.Id), zap.Error(err))
 
 			return api.StopHypothesis404JSONResponse(errBody(http.StatusNotFound, "hypothesis not found")), nil
-		case errors.Is(err, services.ErrNotInProgress):
-			s.logger.Error("stop hypothesis", zap.String("id", req.Id), zap.Error(err))
-
-			return api.StopHypothesis400JSONResponse(errBody(http.StatusBadRequest, "hypothesis not in progress")), nil
 		default:
 			s.logger.Error("stop hypothesis", zap.String("id", req.Id), zap.Error(err))
 

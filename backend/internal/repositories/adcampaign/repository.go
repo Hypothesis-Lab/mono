@@ -1,0 +1,94 @@
+package adcampaign
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"app/internal/db"
+
+	"github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+)
+
+var (
+	ErrNotFound = errors.New("ad campaign not found")
+
+	squirrelPSQL = squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
+)
+
+const ProviderYandex = "yandex"
+
+type Campaign struct {
+	HypothesisID string
+	Provider     string
+	ExternalID   int64
+}
+
+type Repository struct {
+	db *db.DB
+}
+
+func NewRepository(db *db.DB) *Repository {
+	return &Repository{db: db}
+}
+
+func (r *Repository) Create(ctx context.Context, campaign Campaign) error {
+	sql, args, err := squirrelPSQL.
+		Insert("ad_campaign").
+		Columns("id", "hypothesis_id", "provider", "external_id").
+		Values(uuid.NewString(), campaign.HypothesisID, campaign.Provider, campaign.ExternalID).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build create ad campaign query: %w", err)
+	}
+
+	if _, err := r.db.Pool().Exec(ctx, sql, args...); err != nil {
+		return fmt.Errorf("create ad campaign: %w", err)
+	}
+
+	return nil
+}
+
+func (r *Repository) GetByHypothesisID(ctx context.Context, hypothesisID, provider string) (*Campaign, error) {
+	sql, args, err := squirrelPSQL.
+		Select("hypothesis_id", "provider", "external_id").
+		From("ad_campaign").
+		Where(squirrel.Eq{"hypothesis_id": hypothesisID, "provider": provider}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build get ad campaign query: %w", err)
+	}
+
+	campaign := &Campaign{}
+	if err := r.db.Pool().QueryRow(ctx, sql, args...).Scan(&campaign.HypothesisID, &campaign.Provider, &campaign.ExternalID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+
+		return nil, fmt.Errorf("query ad campaign for hypothesis %s: %w", hypothesisID, err)
+	}
+
+	return campaign, nil
+}
+
+func (r *Repository) Delete(ctx context.Context, hypothesisID, provider string) error {
+	sql, args, err := squirrelPSQL.
+		Delete("ad_campaign").
+		Where(squirrel.Eq{"hypothesis_id": hypothesisID, "provider": provider}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build delete ad campaign query: %w", err)
+	}
+
+	result, err := r.db.Pool().Exec(ctx, sql, args...)
+	if err != nil {
+		return fmt.Errorf("delete ad campaign for hypothesis %s: %w", hypothesisID, err)
+	}
+	if result.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}

@@ -32,6 +32,7 @@ const (
 	s3Region           = "us-east-1"
 	yandexClientID     = "test-yandex-client-id"
 	yandexClientSecret = "test-yandex-client-secret"
+	yandexToken        = "test-yandex-token"
 	generatorURL       = "http://generator:8000"
 )
 
@@ -188,6 +189,7 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 			"S3_SECRET_ACCESS_KEY":        s3SecretKey,
 			"YANDEX_DIRECT_CLIENT_ID":     yandexClientID,
 			"YANDEX_DIRECT_CLIENT_SECRET": yandexClientSecret,
+			"YANDEX_DIRECT_TOKEN":         yandexToken,
 			"GENERATOR_URL":               generatorURL,
 		},
 		WaitingFor: wait.ForHTTP("/healthz").WithPort(appPort + "/tcp").WithStartupTimeout(10 * time.Second),

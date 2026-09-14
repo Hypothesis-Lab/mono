@@ -18,6 +18,7 @@ type Config struct {
 	S3SecretAccessKey        string
 	YandexDirectClientID     string
 	YandexDirectClientSecret string
+	YandexDirectToken        string
 	GeneratorURL             string
 	IsDevLogger              bool
 
@@ -83,6 +84,11 @@ func New() (*Config, error) {
 		return nil, errors.New("YANDEX_DIRECT_CLIENT_SECRET is required")
 	}
 
+	yandexDirectToken := os.Getenv("YANDEX_DIRECT_TOKEN")
+	if yandexDirectToken == "" {
+		return nil, errors.New("YANDEX_DIRECT_TOKEN is required")
+	}
+
 	generatorURL := os.Getenv("GENERATOR_URL")
 	if generatorURL == "" {
 		return nil, errors.New("GENERATOR_URL is required")
@@ -101,6 +107,7 @@ func New() (*Config, error) {
 		S3SecretAccessKey:        s3SecretAccessKey,
 		YandexDirectClientID:     yandexDirectClientID,
 		YandexDirectClientSecret: yandexDirectClientSecret,
+		YandexDirectToken:        yandexDirectToken,
 		GeneratorURL:             generatorURL,
 		IsDevLogger:              devLogger == "true",
 		ReadHeaderTimeout:        envDuration("READ_HEADER_TIMEOUT", 10*time.Second),

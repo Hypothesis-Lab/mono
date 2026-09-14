@@ -9,6 +9,7 @@ import (
 	"app/internal/handlers"
 	apphttp "app/internal/http"
 	"app/internal/logger"
+	"app/internal/repositories/adcampaign"
 	"app/internal/repositories/audience"
 	"app/internal/repositories/file"
 	"app/internal/repositories/hypothesis"
@@ -25,11 +26,13 @@ func main() {
 		fx.Provide(logger.New),
 		fx.Provide(config.New),
 		fx.Provide(clients.NewGeneratorClient),
+		fx.Provide(clients.NewYandexDirectClientFromConfig),
 		fx.Provide(db.NewDB),
 		fx.Provide(storage.NewS3),
 		fx.Provide(hypothesis.NewRepository),
 		fx.Provide(product.NewRepository),
 		fx.Provide(audience.NewRepository),
+		fx.Provide(adcampaign.NewRepository),
 		fx.Provide(file.NewRepository),
 		fx.Provide(user.NewRepository),
 		fx.Provide(services.NewHypothesisService),

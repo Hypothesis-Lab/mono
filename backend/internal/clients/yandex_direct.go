@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"app/internal/config"
 )
 
 const (
@@ -61,6 +63,29 @@ type yandexCampaignAddResponse struct {
 	Error *yandexRequestError `json:"error"`
 }
 
+type yandexCampaignDeleteRequest struct {
+	Method string `json:"method"`
+	Params struct {
+		SelectionCriteria struct {
+			IDs []int64 `json:"Ids"`
+		} `json:"SelectionCriteria"`
+	} `json:"params"`
+}
+
+type yandexCampaignDeleteResponse struct {
+	Result struct {
+		DeleteResults []struct {
+			ID     int64 `json:"Id"`
+			Errors []struct {
+				Code    int    `json:"Code"`
+				Message string `json:"Message"`
+				Details string `json:"Details"`
+			} `json:"Errors"`
+		} `json:"DeleteResults"`
+	} `json:"result"`
+	Error *yandexRequestError `json:"error"`
+}
+
 type yandexRequestError struct {
 	RequestID   string `json:"request_id"`
 	ErrorCode   int    `json:"error_code"`
@@ -89,6 +114,10 @@ func NewYandexDirectClient(token string, sandbox bool) *YandexDirectClient {
 		endpoint:   endpoint,
 		httpClient: http.DefaultClient,
 	}
+}
+
+func NewYandexDirectClientFromConfig(cfg *config.Config) *YandexDirectClient {
+	return NewYandexDirectClient(cfg.YandexDirectToken, false)
 }
 
 func (c *YandexDirectClient) CreateCampaign(ctx context.Context, name, startDate string) (int64, error) {
@@ -164,4 +193,67 @@ func (c *YandexDirectClient) CreateCampaign(ctx context.Context, name, startDate
 	}
 
 	return result.Result.AddResults[0].ID, nil
+}
+
+func (c *YandexDirectClient) DeleteCampaign(ctx context.Context, id int64) error {
+	if c.token == "" {
+		return errors.New("yandex direct token is required")
+	}
+	if id == 0 {
+		return errors.New("yandex direct campaign id is required")
+	}
+
+	requestBody := yandexCampaignDeleteRequest{Method: "delete"}
+	requestBody.Params.SelectionCriteria.IDs = []int64{id}
+
+	body, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("marshal yandex direct campaign deletion request: %w", err)
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create yandex direct campaign deletion request: %w", err)
+	}
+
+	request.Header.Set("Authorization", "Bearer "+c.token)
+	request.Header.Set("Accept-Language", "en")
+	request.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return fmt.Errorf("send yandex direct campaign deletion request: %w", err)
+	}
+	defer response.Body.Close()
+
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		return fmt.Errorf("read yandex direct campaign deletion response: %w", err)
+	}
+
+	var result yandexCampaignDeleteResponse
+	if err := json.Unmarshal(responseBody, &result); err != nil {
+		return fmt.Errorf("decode yandex direct campaign deletion response: %w", err)
+	}
+
+	if result.Error != nil {
+		return result.Error
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("yandex direct campaign deletion request returned HTTP status %d", response.StatusCode)
+	}
+	if len(result.Result.DeleteResults) != 1 {
+		return fmt.Errorf("yandex direct campaign deletion response contained %d results", len(result.Result.DeleteResults))
+	}
+	if len(result.Result.DeleteResults[0].Errors) > 0 {
+		itemError := result.Result.DeleteResults[0].Errors[0]
+		return fmt.Errorf(
+			"yandex direct campaign deletion failed: code=%d message=%q details=%q",
+			itemError.Code,
+			itemError.Message,
+			itemError.Details,
+		)
+	}
+
+	return nil
 }

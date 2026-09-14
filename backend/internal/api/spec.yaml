@@ -293,12 +293,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HypothesisResponse"
-        "400":
-          description: hypothesis not in progress
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
         "404":
           description: hypothesis not found
           content:

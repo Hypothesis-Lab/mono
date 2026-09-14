@@ -337,6 +337,7 @@ export type ProductResponse = {
   name: string;
   description: string;
   category: ProductCategory;
+  custom_category?: string | null;
   brand: string;
   country: string;
   town?: string | null;
@@ -356,6 +357,7 @@ export type CreateProductRequest = {
   name: string;
   description: string;
   category: ProductCategory;
+  custom_category?: string;
   brand: string;
   country: string;
   town?: string | null;
@@ -375,6 +377,7 @@ export type UpdateProductRequest = {
   name?: string | null;
   description?: string | null;
   category?: ProductCategory;
+  custom_category?: string;
   brand?: string;
   country?: string;
   town?: string | null;
