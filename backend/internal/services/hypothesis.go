@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"app/internal/clients"
+	"app/internal/clients/yandex_direct"
 	"app/internal/repositories/adcampaign"
 	"app/internal/repositories/audience"
 	"app/internal/repositories/file"
@@ -30,7 +30,7 @@ type HypothesisService struct {
 	files      *file.Repository
 	storage    *storage.S3
 	campaigns  *adcampaign.Repository
-	yandex     *clients.YandexDirectClient
+	yandex     *yandexdirect.Client
 }
 
 type createdAudienceTargeting struct {
@@ -46,7 +46,7 @@ func NewHypothesisService(
 	files *file.Repository,
 	storage *storage.S3,
 	campaigns *adcampaign.Repository,
-	yandex *clients.YandexDirectClient,
+	yandex *yandexdirect.Client,
 ) *HypothesisService {
 	return &HypothesisService{
 		hypotheses: hypotheses,
@@ -352,7 +352,7 @@ func (s *HypothesisService) rollbackLaunch(ctx context.Context, userID, hypothes
 	return launchErr
 }
 
-func deleteAudienceTargeting(ctx context.Context, yandex *clients.YandexDirectClient, targeting createdAudienceTargeting, launchErr error) error {
+func deleteAudienceTargeting(ctx context.Context, yandex *yandexdirect.Client, targeting createdAudienceTargeting, launchErr error) error {
 	if targeting.audienceTargetID != 0 {
 		if err := yandex.DeleteAudienceTarget(ctx, targeting.audienceTargetID); err != nil {
 			launchErr = fmt.Errorf("%w; delete audience target: %w", launchErr, err)

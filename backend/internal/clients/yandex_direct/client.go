@@ -1,4 +1,4 @@
-package clients
+package yandexdirect
 
 import (
 	"bytes"
@@ -200,6 +200,28 @@ type yandexDictionariesGetResponse struct {
 	Error *yandexRequestError `json:"error"`
 }
 
+type yandexListResponse struct {
+	Result map[string]json.RawMessage `json:"result"`
+	Error  *yandexRequestError        `json:"error"`
+}
+
+type Page struct {
+	Limit  int
+	Offset int
+}
+
+type GetOptions struct {
+	SelectionCriteria map[string]any
+	FieldNames        []string
+	AdditionalFields  map[string][]string
+	Page              Page
+}
+
+type GetResult struct {
+	Objects   []json.RawMessage
+	LimitedBy *int
+}
+
 type yandexDemographicProfile struct {
 	ID          int64  `json:"Id"`
 	Type        string `json:"Type"`
@@ -219,22 +241,22 @@ type yandexRequestError struct {
 	ErrorDetail string `json:"error_detail"`
 }
 
-type YandexDirectClient struct {
+type Client struct {
 	token      string
 	endpoint   string
 	httpClient *http.Client
 }
 
-func NewYandexDirectClient(token string) *YandexDirectClient {
-	return &YandexDirectClient{
+func New(token string) *Client {
+	return &Client{
 		token:      token,
 		endpoint:   yandexDirectURL,
 		httpClient: http.DefaultClient,
 	}
 }
 
-func NewYandexDirectClientFromConfig(cfg *config.Config) *YandexDirectClient {
-	return NewYandexDirectClient(cfg.YandexDirectToken)
+func NewFromConfig(cfg *config.Config) *Client {
+	return New(cfg.YandexDirectToken)
 }
 
 func (e *yandexRequestError) Error() string {
@@ -247,7 +269,7 @@ func (e *yandexRequestError) Error() string {
 	)
 }
 
-func (c *YandexDirectClient) CreateCampaign(ctx context.Context, name, startDate string) (int64, error) {
+func (c *Client) CreateCampaign(ctx context.Context, name, startDate string) (int64, error) {
 	if c.token == "" {
 		return 0, errors.New("yandex direct token is required")
 	}
@@ -294,7 +316,7 @@ func (c *YandexDirectClient) CreateCampaign(ctx context.Context, name, startDate
 	return result.Result.AddResults[0].ID, nil
 }
 
-func (c *YandexDirectClient) DeleteCampaign(ctx context.Context, id int64) error {
+func (c *Client) DeleteCampaign(ctx context.Context, id int64) error {
 	if c.token == "" {
 		return errors.New("yandex direct token is required")
 	}
@@ -328,7 +350,7 @@ func (c *YandexDirectClient) DeleteCampaign(ctx context.Context, id int64) error
 	return nil
 }
 
-func (c *YandexDirectClient) CreateUserProfileAdGroup(ctx context.Context, campaignID int64, name string) (int64, error) {
+func (c *Client) CreateUserProfileAdGroup(ctx context.Context, campaignID int64, name string) (int64, error) {
 	requestBody := yandexAdGroupAddRequest{Method: "add"}
 	requestBody.Params.AdGroups = []yandexAdGroup{{Name: name, CampaignID: campaignID, RegionIDs: []int64{0}}}
 
@@ -340,7 +362,7 @@ func (c *YandexDirectClient) CreateUserProfileAdGroup(ctx context.Context, campa
 	return addResultID(result, "ad group")
 }
 
-func (c *YandexDirectClient) CreateDemographicRetargetingList(ctx context.Context, name, gender string, age int) (int64, error) {
+func (c *Client) CreateDemographicRetargetingList(ctx context.Context, name, gender string, age int) (int64, error) {
 	dictionariesRequest := yandexDictionariesGetRequest{Method: "get"}
 	dictionariesRequest.Params.DictionaryNames = []string{"AudienceCriteriaTypes", "AudienceDemographicProfiles"}
 
@@ -376,7 +398,7 @@ func (c *YandexDirectClient) CreateDemographicRetargetingList(ctx context.Contex
 	return addResultID(result, "retargeting list")
 }
 
-func (c *YandexDirectClient) CreateAudienceTarget(ctx context.Context, adGroupID, retargetingListID int64) (int64, error) {
+func (c *Client) CreateAudienceTarget(ctx context.Context, adGroupID, retargetingListID int64) (int64, error) {
 	requestBody := yandexAudienceTargetAddRequest{Method: "add"}
 	requestBody.Params.AudienceTargets = []yandexAudienceTarget{{AdGroupID: adGroupID, RetargetingListID: retargetingListID}}
 
@@ -388,25 +410,62 @@ func (c *YandexDirectClient) CreateAudienceTarget(ctx context.Context, adGroupID
 	return addResultID(result, "audience target")
 }
 
-func (c *YandexDirectClient) DeleteAdGroup(ctx context.Context, id int64) error {
+func (c *Client) DeleteAdGroup(ctx context.Context, id int64) error {
 	requestBody := yandexAdGroupDeleteRequest{Method: "delete"}
 	requestBody.Params.SelectionCriteria.IDs = []int64{id}
 	return c.delete(ctx, "adgroups", requestBody, "ad group")
 }
 
-func (c *YandexDirectClient) DeleteRetargetingList(ctx context.Context, id int64) error {
+func (c *Client) DeleteRetargetingList(ctx context.Context, id int64) error {
 	requestBody := yandexRetargetingListDeleteRequest{Method: "delete"}
 	requestBody.Params.SelectionCriteria.IDs = []int64{id}
 	return c.delete(ctx, "retargetinglists", requestBody, "retargeting list")
 }
 
-func (c *YandexDirectClient) DeleteAudienceTarget(ctx context.Context, id int64) error {
+func (c *Client) DeleteAudienceTarget(ctx context.Context, id int64) error {
 	requestBody := yandexAudienceTargetDeleteRequest{Method: "delete"}
 	requestBody.Params.SelectionCriteria.IDs = []int64{id}
 	return c.delete(ctx, "audiencetargets", requestBody, "audience target")
 }
 
-func (c *YandexDirectClient) delete(ctx context.Context, service string, requestBody any, name string) error {
+func (c *Client) Get(ctx context.Context, service, objectName string, options GetOptions) (GetResult, error) {
+	params := map[string]any{
+		"SelectionCriteria": options.SelectionCriteria,
+		"FieldNames":        options.FieldNames,
+		"Page": map[string]int{
+			"Limit":  options.Page.Limit,
+			"Offset": options.Page.Offset,
+		},
+	}
+	for name, fields := range options.AdditionalFields {
+		params[name] = fields
+	}
+
+	var response yandexListResponse
+	if err := c.post(ctx, service, map[string]any{"method": "get", "params": params}, &response); err != nil {
+		return GetResult{}, fmt.Errorf("get yandex direct %s: %w", service, err)
+	}
+
+	result := GetResult{}
+	if rawObjects, ok := response.Result[objectName]; ok {
+		if err := json.Unmarshal(rawObjects, &result.Objects); err != nil {
+			return GetResult{}, fmt.Errorf("decode yandex direct %s objects: %w", service, err)
+		}
+	}
+
+	if rawLimitedBy, ok := response.Result["LimitedBy"]; ok {
+		var limitedBy int
+		if err := json.Unmarshal(rawLimitedBy, &limitedBy); err != nil {
+			return GetResult{}, fmt.Errorf("decode yandex direct %s page limit: %w", service, err)
+		}
+
+		result.LimitedBy = &limitedBy
+	}
+
+	return result, nil
+}
+
+func (c *Client) delete(ctx context.Context, service string, requestBody any, name string) error {
 	if c.token == "" {
 		return errors.New("yandex direct token is required")
 	}
@@ -442,7 +501,7 @@ func addResultID(result yandexAddResponse, name string) (int64, error) {
 	return item.ID, nil
 }
 
-func (c *YandexDirectClient) post(ctx context.Context, service string, requestBody, result any) error {
+func (c *Client) post(ctx context.Context, service string, requestBody, result any) error {
 	if c.token == "" {
 		return errors.New("yandex direct token is required")
 	}
@@ -546,6 +605,8 @@ func responseError(result any) *yandexRequestError {
 	case *yandexDeleteResponse:
 		return response.Error
 	case *yandexDictionariesGetResponse:
+		return response.Error
+	case *yandexListResponse:
 		return response.Error
 	default:
 		return nil

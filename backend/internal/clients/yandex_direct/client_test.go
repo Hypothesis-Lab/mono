@@ -1,4 +1,4 @@
-package clients
+package yandexdirect
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestYandexDirectClientCreateCampaign(t *testing.T) {
+func TestClientCreateCampaign(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "Bearer token", r.Header.Get("Authorization"))
@@ -38,7 +38,7 @@ func TestYandexDirectClientCreateCampaign(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewYandexDirectClient("token")
+	client := New("token")
 	client.endpoint = server.URL
 
 	id, err := client.CreateCampaign(context.Background(), "PoC campaign", "2026-09-10")
@@ -46,13 +46,13 @@ func TestYandexDirectClientCreateCampaign(t *testing.T) {
 	assert.Equal(t, int64(12345), id)
 }
 
-func TestYandexDirectClientCreateCampaignReturnsItemError(t *testing.T) {
+func TestClientCreateCampaignReturnsItemError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"result":{"AddResults":[{"Errors":[{"Code":8800,"Message":"Object not found","Details":"Invalid account"}]}]}}`))
 	}))
 	defer server.Close()
 
-	client := NewYandexDirectClient("token")
+	client := New("token")
 	client.endpoint = server.URL
 
 	_, err := client.CreateCampaign(context.Background(), "PoC campaign", "2026-09-10")
