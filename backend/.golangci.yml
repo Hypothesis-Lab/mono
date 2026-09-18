@@ -12,15 +12,24 @@ linters:
     - staticcheck
     - revive
     - errcheck
+    - errchkjson
     - errorlint
+    - exhaustive
     - funcorder
     - bodyclose
     - contextcheck
+    - gosec
+    - loggercheck
+    - nilerr
+    - nilnesserr
+    - nilnil
     - decorder
     - misspell
     - nolintlint
     - rowserrcheck
     - sqlclosecheck
+    - testifylint
+    - thelper
     - unconvert
     - usestdlibvars
     - wastedassign
@@ -36,6 +45,9 @@ linters:
       - path: _test\.go
         linters:
           - errcheck
+      - path: ^test/
+        linters:
+          - gosec
 
   settings:
     funcorder:

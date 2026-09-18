@@ -44,6 +44,8 @@ func CurrentEnv() *Env {
 }
 
 func resetIntegrationState(t *testing.T) {
+	t.Helper()
+
 	env := CurrentEnv()
 	require.NotNil(t, env)
 

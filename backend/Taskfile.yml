@@ -4,7 +4,12 @@ tasks:
   lint:
     cmds:
       - >-
-        bash -o pipefail -c "go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest run ./... 2>&1 | sed '/^go: downloading /d'"
+        bash -o pipefail -c "go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run ./... 2>&1 | sed '/^go: downloading /d'"
+
+  vulncheck:
+    cmds:
+      - >-
+        bash -o pipefail -c "go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./... 2>&1 | sed '/^go: downloading /d'"
 
   test:unit:
     cmds:
@@ -22,6 +27,7 @@ tasks:
   check:
     cmds:
       - task: lint
+      - task: vulncheck
       - task: test
 
   gen:

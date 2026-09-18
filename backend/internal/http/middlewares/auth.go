@@ -11,8 +11,8 @@ import (
 	"app/internal/api"
 
 	"github.com/getkin/kin-openapi/openapi3filter"
-	middleware "github.com/oapi-codegen/nethttp-middleware"
 	"github.com/golang-jwt/jwt/v5"
+	middleware "github.com/oapi-codegen/nethttp-middleware"
 	"go.uber.org/zap"
 )
 
@@ -144,5 +144,7 @@ func authErrorHandler(_ context.Context, err error, w http.ResponseWriter, _ *ht
 	}
 	w.WriteHeader(status)
 
-	_ = json.NewEncoder(w).Encode(api.ErrBody{Error: api.ErrDetail{Code: status, Description: validationMessage(err, status)}})
+	if encodeErr := json.NewEncoder(w).Encode(api.ErrBody{Error: api.ErrDetail{Code: status, Description: validationMessage(err, status)}}); encodeErr != nil {
+		logger.Error("encode auth error response", zap.Error(encodeErr))
+	}
 }

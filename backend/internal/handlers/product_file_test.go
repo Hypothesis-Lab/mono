@@ -12,10 +12,10 @@ import (
 )
 
 var (
-	pdfContent = []byte("%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n>>\nendobj\n")
+	pdfContent  = []byte("%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n>>\nendobj\n")
 	docxContent = []byte{0x50, 0x4B, 0x03, 0x04, 0x14, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00}
-	docContent = []byte{0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1, 0x00, 0x00, 0x00, 0x00}
-	txtContent = []byte("hello world")
+	docContent  = []byte{0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1, 0x00, 0x00, 0x00, 0x00}
+	txtContent  = []byte("hello world")
 )
 
 func TestParseMultipartUpload(t *testing.T) {
@@ -29,6 +29,8 @@ func TestParseMultipartUpload(t *testing.T) {
 		{
 			name: "file and type fields pdf",
 			build: func(t *testing.T, w *multipart.Writer) {
+				t.Helper()
+
 				writeFilePart(t, w, "test.pdf", "application/pdf", pdfContent)
 				require.NoError(t, w.WriteField("type", "brandbook"))
 			},
@@ -43,6 +45,8 @@ func TestParseMultipartUpload(t *testing.T) {
 		{
 			name: "file and type fields docx",
 			build: func(t *testing.T, w *multipart.Writer) {
+				t.Helper()
+
 				writeFilePart(t, w, "test.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", docxContent)
 				require.NoError(t, w.WriteField("type", "product"))
 			},
@@ -57,6 +61,8 @@ func TestParseMultipartUpload(t *testing.T) {
 		{
 			name: "file and type fields doc",
 			build: func(t *testing.T, w *multipart.Writer) {
+				t.Helper()
+
 				writeFilePart(t, w, "test.doc", "application/msword", docContent)
 				require.NoError(t, w.WriteField("type", "reference"))
 			},
@@ -71,6 +77,8 @@ func TestParseMultipartUpload(t *testing.T) {
 		{
 			name: "file and type fields txt",
 			build: func(t *testing.T, w *multipart.Writer) {
+				t.Helper()
+
 				writeFilePart(t, w, "test.txt", "text/plain", txtContent)
 				require.NoError(t, w.WriteField("type", "other"))
 			},
@@ -90,6 +98,8 @@ func TestParseMultipartUpload(t *testing.T) {
 		{
 			name: "type only, invalid value",
 			build: func(t *testing.T, w *multipart.Writer) {
+				t.Helper()
+
 				require.NoError(t, w.WriteField("type", "invalid"))
 			},
 			wantErr: "type must be one of product, brandbook, reference, other",
@@ -97,6 +107,8 @@ func TestParseMultipartUpload(t *testing.T) {
 		{
 			name: "type only, valid brandbook",
 			build: func(t *testing.T, w *multipart.Writer) {
+				t.Helper()
+
 				require.NoError(t, w.WriteField("type", "brandbook"))
 			},
 			wantErr: "file is required",
@@ -104,6 +116,8 @@ func TestParseMultipartUpload(t *testing.T) {
 		{
 			name: "file only, pdf",
 			build: func(t *testing.T, w *multipart.Writer) {
+				t.Helper()
+
 				writeFilePart(t, w, "test.pdf", "application/pdf", pdfContent)
 			},
 			wantErr: "file type is required",
@@ -111,6 +125,8 @@ func TestParseMultipartUpload(t *testing.T) {
 		{
 			name: "invalid file extension",
 			build: func(t *testing.T, w *multipart.Writer) {
+				t.Helper()
+
 				writeFilePart(t, w, "test.png", "image/png", txtContent)
 				require.NoError(t, w.WriteField("type", "other"))
 			},
@@ -119,6 +135,8 @@ func TestParseMultipartUpload(t *testing.T) {
 		{
 			name: "invalid declared content type",
 			build: func(t *testing.T, w *multipart.Writer) {
+				t.Helper()
+
 				writeFilePart(t, w, "test.pdf", "image/png", pdfContent)
 				require.NoError(t, w.WriteField("type", "other"))
 			},
@@ -127,6 +145,8 @@ func TestParseMultipartUpload(t *testing.T) {
 		{
 			name: "invalid detected content type",
 			build: func(t *testing.T, w *multipart.Writer) {
+				t.Helper()
+
 				writeFilePart(t, w, "test.pdf", "application/pdf", txtContent)
 				require.NoError(t, w.WriteField("type", "other"))
 			},
@@ -135,6 +155,8 @@ func TestParseMultipartUpload(t *testing.T) {
 		{
 			name: "uppercase file extension is normalized",
 			build: func(t *testing.T, w *multipart.Writer) {
+				t.Helper()
+
 				writeFilePart(t, w, "test.PDF", "application/pdf", pdfContent)
 				require.NoError(t, w.WriteField("type", "other"))
 			},
@@ -149,6 +171,8 @@ func TestParseMultipartUpload(t *testing.T) {
 		{
 			name: "unexpected part name",
 			build: func(t *testing.T, w *multipart.Writer) {
+				t.Helper()
+
 				writeFilePart(t, w, "test.pdf", "application/pdf", pdfContent)
 				require.NoError(t, w.WriteField("type", "other"))
 				require.NoError(t, w.WriteField("unexpected", "value"))
@@ -158,6 +182,8 @@ func TestParseMultipartUpload(t *testing.T) {
 		{
 			name: "multiple type parts",
 			build: func(t *testing.T, w *multipart.Writer) {
+				t.Helper()
+
 				writeFilePart(t, w, "test.pdf", "application/pdf", pdfContent)
 				require.NoError(t, w.WriteField("type", "other"))
 				require.NoError(t, w.WriteField("type", "brandbook"))

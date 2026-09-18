@@ -284,7 +284,7 @@ func (c *GeneratorClient) NextCompletedAudienceGeneration(ctx context.Context) (
 	defer response.Body.Close()
 
 	if response.StatusCode == http.StatusNoContent {
-		return nil, nil
+		return nil, nil //nolint:nilnil // no completed job is a valid result
 	}
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {

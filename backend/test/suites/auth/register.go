@@ -35,7 +35,7 @@ func (s *StatefulSuite) TestRegisterValid() {
 	require.NotEmpty(s.T(), token)
 
 	delete(body, "token")
-	require.Len(s.T(), body, 0)
+	require.Empty(s.T(), body)
 }
 
 func (s *StatefulSuite) TestRegisterValidation() {

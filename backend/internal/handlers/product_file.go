@@ -339,6 +339,8 @@ func newProductFileResponse(f *file.File) api.ProductFileResponse {
 		fileType = api.ProductFileResponseTypeProduct
 	case file.TypeReference:
 		fileType = api.ProductFileResponseTypeReference
+	case file.TypeOther:
+		fileType = api.ProductFileResponseTypeOther
 	default:
 		fileType = api.ProductFileResponseTypeOther
 	}

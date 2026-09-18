@@ -18,9 +18,13 @@ func TestYandexDirectClientCreateCampaign(t *testing.T) {
 		assert.Equal(t, "en", r.Header.Get("Accept-Language"))
 
 		var request yandexCampaignAddRequest
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&request)) {
+			return
+		}
 		assert.Equal(t, "add", request.Method)
-		require.Len(t, request.Params.Campaigns, 1)
+		if !assert.Len(t, request.Params.Campaigns, 1) {
+			return
+		}
 
 		campaign := request.Params.Campaigns[0]
 		assert.Equal(t, "PoC campaign", campaign.Name)
