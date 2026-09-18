@@ -21,9 +21,9 @@ var (
 const ProviderYandex = "yandex"
 
 type Campaign struct {
-	HypothesisID string
-	Provider     string
-	ExternalID   int64
+	ProductID  string
+	Provider   string
+	ExternalID int64
 }
 
 type Repository struct {
@@ -37,8 +37,8 @@ func NewRepository(db *db.DB) *Repository {
 func (r *Repository) Create(ctx context.Context, campaign Campaign) error {
 	sql, args, err := squirrelPSQL.
 		Insert("ad_campaign").
-		Columns("id", "hypothesis_id", "provider", "external_id").
-		Values(uuid.NewString(), campaign.HypothesisID, campaign.Provider, campaign.ExternalID).
+		Columns("id", "product_id", "provider", "external_id").
+		Values(uuid.NewString(), campaign.ProductID, campaign.Provider, campaign.ExternalID).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("build create ad campaign query: %w", err)
@@ -51,32 +51,32 @@ func (r *Repository) Create(ctx context.Context, campaign Campaign) error {
 	return nil
 }
 
-func (r *Repository) GetByHypothesisID(ctx context.Context, hypothesisID, provider string) (*Campaign, error) {
+func (r *Repository) GetByProductID(ctx context.Context, productID, provider string) (*Campaign, error) {
 	sql, args, err := squirrelPSQL.
-		Select("hypothesis_id", "provider", "external_id").
+		Select("product_id", "provider", "external_id").
 		From("ad_campaign").
-		Where(squirrel.Eq{"hypothesis_id": hypothesisID, "provider": provider}).
+		Where(squirrel.Eq{"product_id": productID, "provider": provider}).
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build get ad campaign query: %w", err)
 	}
 
 	campaign := &Campaign{}
-	if err := r.db.Pool().QueryRow(ctx, sql, args...).Scan(&campaign.HypothesisID, &campaign.Provider, &campaign.ExternalID); err != nil {
+	if err := r.db.Pool().QueryRow(ctx, sql, args...).Scan(&campaign.ProductID, &campaign.Provider, &campaign.ExternalID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 
-		return nil, fmt.Errorf("query ad campaign for hypothesis %s: %w", hypothesisID, err)
+		return nil, fmt.Errorf("query ad campaign for product %s: %w", productID, err)
 	}
 
 	return campaign, nil
 }
 
-func (r *Repository) Delete(ctx context.Context, hypothesisID, provider string) error {
+func (r *Repository) Delete(ctx context.Context, productID, provider string) error {
 	sql, args, err := squirrelPSQL.
 		Delete("ad_campaign").
-		Where(squirrel.Eq{"hypothesis_id": hypothesisID, "provider": provider}).
+		Where(squirrel.Eq{"product_id": productID, "provider": provider}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("build delete ad campaign query: %w", err)
@@ -84,7 +84,7 @@ func (r *Repository) Delete(ctx context.Context, hypothesisID, provider string) 
 
 	result, err := r.db.Pool().Exec(ctx, sql, args...)
 	if err != nil {
-		return fmt.Errorf("delete ad campaign for hypothesis %s: %w", hypothesisID, err)
+		return fmt.Errorf("delete ad campaign for product %s: %w", productID, err)
 	}
 	if result.RowsAffected() == 0 {
 		return ErrNotFound

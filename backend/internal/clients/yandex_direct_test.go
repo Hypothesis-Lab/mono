@@ -25,15 +25,15 @@ func TestYandexDirectClientCreateCampaign(t *testing.T) {
 		campaign := request.Params.Campaigns[0]
 		assert.Equal(t, "PoC campaign", campaign.Name)
 		assert.Equal(t, "2026-09-10", campaign.StartDate)
-		assert.Equal(t, "HIGHEST_POSITION", campaign.TextCampaign.BiddingStrategy.Search.BiddingStrategyType)
-		assert.Equal(t, "SERVING_OFF", campaign.TextCampaign.BiddingStrategy.Network.BiddingStrategyType)
+		assert.Equal(t, "SERVING_OFF", campaign.CpmBannerCampaign.BiddingStrategy.Search.BiddingStrategyType)
+		assert.Equal(t, "MANUAL_CPM", campaign.CpmBannerCampaign.BiddingStrategy.Network.BiddingStrategyType)
 
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"result":{"AddResults":[{"Id":12345}]}}`))
 	}))
 	defer server.Close()
 
-	client := NewYandexDirectClient("token", false)
+	client := NewYandexDirectClient("token")
 	client.endpoint = server.URL
 
 	id, err := client.CreateCampaign(context.Background(), "PoC campaign", "2026-09-10")
@@ -47,7 +47,7 @@ func TestYandexDirectClientCreateCampaignReturnsItemError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewYandexDirectClient("token", false)
+	client := NewYandexDirectClient("token")
 	client.endpoint = server.URL
 
 	_, err := client.CreateCampaign(context.Background(), "PoC campaign", "2026-09-10")
