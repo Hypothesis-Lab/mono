@@ -22,7 +22,7 @@ import {
   useUpdateProductMutation,
   useUploadProductFileMutation,
 } from '../../store/generatedApi'
-import type { EligibilityRule, ProductFact, UpdateProductRequest } from '../../store/generatedApi'
+import type { EligibilityRule, ProductFact, ProductPrice, UpdateProductRequest } from '../../store/generatedApi'
 import * as S from './styles'
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024
@@ -129,14 +129,27 @@ export function ProductPage() {
   const [country, setCountry] = useState('')
   const [town, setTown] = useState('')
   const [experimentGoal, setExperimentGoal] = useState('')
+  const [goalOrigin, setGoalOrigin] = useState<'demo_assumption' | 'user_provided'>('user_provided')
   const [targetAction, setTargetAction] = useState('')
+  const [primaryMetric, setPrimaryMetric] = useState('')
+  const [metricDirection, setMetricDirection] = useState<'increase' | 'decrease'>('increase')
+  const [metricNumerator, setMetricNumerator] = useState('')
+  const [metricDenominator, setMetricDenominator] = useState('')
+  const [successCriterion, setSuccessCriterion] = useState('')
   const [facts, setFacts] = useState('')
+  const [keyFactIds, setKeyFactIds] = useState('')
+  const [factsCheckedAt, setFactsCheckedAt] = useState('')
   const [eligibilityRules, setEligibilityRules] = useState('[]')
   const [allowedChannels, setAllowedChannels] = useState('')
+  const [contactablePersonaIds, setContactablePersonaIds] = useState('')
+  const [campaignNote, setCampaignNote] = useState('Channels are not used for research or ranking.')
   const [forbiddenClaims, setForbiddenClaims] = useState('')
   const [knownConstraints, setKnownConstraints] = useState('')
+  const [unknowns, setUnknowns] = useState('')
   const [keywords, setKeywords] = useState('')
-  const [price, setPrice] = useState('')
+  const [priceStatus, setPriceStatus] = useState<ProductPrice['status']>('unknown')
+  const [priceDescription, setPriceDescription] = useState('Стоимость не указана; не считать продукт бесплатным.')
+  const [priceSourceFactIds, setPriceSourceFactIds] = useState('')
   const [link, setLink] = useState('')
 
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -164,14 +177,27 @@ export function ProductPage() {
       setCountry(product.country)
       setTown(product.town ?? '')
       setExperimentGoal(product.experiment_goal)
+      setGoalOrigin(product.goal_origin)
       setTargetAction(product.target_action)
+      setPrimaryMetric(product.primary_metric)
+      setMetricDirection(product.metric_direction)
+      setMetricNumerator(product.metric_numerator)
+      setMetricDenominator(product.metric_denominator)
+      setSuccessCriterion(product.success_criterion ?? '')
       setFacts(factsToText(product.facts))
+      setKeyFactIds(listToText(product.key_fact_ids))
+      setFactsCheckedAt(product.facts_checked_at ?? '')
       setEligibilityRules(rulesToText(product.eligibility_rules))
       setAllowedChannels(listToText(product.allowed_channels))
+      setContactablePersonaIds(listToText(product.contactable_persona_ids))
+      setCampaignNote(product.campaign_note)
       setForbiddenClaims(listToText(product.forbidden_claims))
       setKnownConstraints(listToText(product.known_constraints))
+      setUnknowns(listToText(product.unknowns))
       setKeywords(product.keywords.join(', '))
-      setPrice(product.price ?? '')
+      setPriceStatus(product.price.status)
+      setPriceDescription(product.price.description)
+      setPriceSourceFactIds(listToText(product.price.source_fact_ids))
       setLink(product.link ?? '')
     } else if (noProduct) {
       setName('')
@@ -181,14 +207,27 @@ export function ProductPage() {
       setCountry('')
       setTown('')
       setExperimentGoal('')
+      setGoalOrigin('user_provided')
       setTargetAction('')
+      setPrimaryMetric('')
+      setMetricDirection('increase')
+      setMetricNumerator('')
+      setMetricDenominator('')
+      setSuccessCriterion('')
       setFacts('')
+      setKeyFactIds('')
+      setFactsCheckedAt('')
       setEligibilityRules('[]')
       setAllowedChannels('')
+      setContactablePersonaIds('')
+      setCampaignNote('Channels are not used for research or ranking.')
       setForbiddenClaims('')
       setKnownConstraints('')
+      setUnknowns('')
       setKeywords('')
-      setPrice('')
+      setPriceStatus('unknown')
+      setPriceDescription('Стоимость не указана; не считать продукт бесплатным.')
+      setPriceSourceFactIds('')
       setLink('')
     }
   }, [product, noProduct])
@@ -237,17 +276,31 @@ export function ProductPage() {
     const trimmedTown = town.trim()
     const trimmedExperimentGoal = experimentGoal.trim()
     const trimmedTargetAction = targetAction.trim()
+    const trimmedPrimaryMetric = primaryMetric.trim()
+    const trimmedMetricNumerator = metricNumerator.trim()
+    const trimmedMetricDenominator = metricDenominator.trim()
+    const trimmedSuccessCriterion = successCriterion.trim()
+    const trimmedFactsCheckedAt = factsCheckedAt.trim()
+    const trimmedCampaignNote = campaignNote.trim()
     let parsedFacts: ProductFact[]
     let parsedEligibilityRules: EligibilityRule[]
     let parsedAllowedChannels: string[]
     let parsedForbiddenClaims: string[]
     let parsedKnownConstraints: string[]
+    let parsedKeyFactIds: string[]
+    let parsedPriceSourceFactIds: string[]
+    let parsedContactablePersonaIds: string[]
+    let parsedUnknowns: string[]
     try {
       parsedFacts = factsFromText(facts)
       parsedEligibilityRules = rulesFromText(eligibilityRules)
       parsedAllowedChannels = listFromText(allowedChannels)
       parsedForbiddenClaims = listFromText(forbiddenClaims)
       parsedKnownConstraints = listFromText(knownConstraints)
+      parsedKeyFactIds = listFromText(keyFactIds)
+      parsedPriceSourceFactIds = listFromText(priceSourceFactIds)
+      parsedContactablePersonaIds = listFromText(contactablePersonaIds)
+      parsedUnknowns = listFromText(unknowns)
     } catch (err) {
       setSaveError(rtkErrorMessage(err, 'Проверьте данные продукта'))
       return
@@ -256,7 +309,11 @@ export function ProductPage() {
       .split(',')
       .map((k) => k.trim())
       .filter((k) => k !== '')
-    const trimmedPrice = price.trim()
+    const parsedPrice: ProductPrice = {
+      status: priceStatus,
+      description: priceDescription.trim(),
+      source_fact_ids: parsedPriceSourceFactIds,
+    }
     const trimmedLink = link.trim()
 
     try {
@@ -287,26 +344,35 @@ export function ProductPage() {
         if (trimmedTargetAction !== product.target_action) {
           body.target_action = trimmedTargetAction
         }
+        if (goalOrigin !== product.goal_origin) body.goal_origin = goalOrigin
+        if (trimmedPrimaryMetric !== product.primary_metric) body.primary_metric = trimmedPrimaryMetric
+        if (metricDirection !== product.metric_direction) body.metric_direction = metricDirection
+        if (trimmedMetricNumerator !== product.metric_numerator) body.metric_numerator = trimmedMetricNumerator
+        if (trimmedMetricDenominator !== product.metric_denominator) body.metric_denominator = trimmedMetricDenominator
+        if (trimmedSuccessCriterion !== (product.success_criterion ?? '')) body.success_criterion = trimmedSuccessCriterion || null
         if (JSON.stringify(parsedFacts) !== JSON.stringify(product.facts)) {
           body.facts = parsedFacts
         }
+        if (!areListsEqual(parsedKeyFactIds, product.key_fact_ids)) body.key_fact_ids = parsedKeyFactIds
+        if (JSON.stringify(parsedPrice) !== JSON.stringify(product.price)) body.price = parsedPrice
+        if (trimmedFactsCheckedAt !== (product.facts_checked_at ?? '')) body.facts_checked_at = trimmedFactsCheckedAt || null
         if (JSON.stringify(parsedEligibilityRules) !== JSON.stringify(product.eligibility_rules)) {
           body.eligibility_rules = parsedEligibilityRules
         }
         if (!areListsEqual(parsedAllowedChannels, product.allowed_channels)) {
           body.allowed_channels = parsedAllowedChannels
         }
+        if (!areListsEqual(parsedContactablePersonaIds, product.contactable_persona_ids)) body.contactable_persona_ids = parsedContactablePersonaIds
+        if (trimmedCampaignNote !== product.campaign_note) body.campaign_note = trimmedCampaignNote
         if (!areListsEqual(parsedForbiddenClaims, product.forbidden_claims)) {
           body.forbidden_claims = parsedForbiddenClaims
         }
         if (!areListsEqual(parsedKnownConstraints, product.known_constraints)) {
           body.known_constraints = parsedKnownConstraints
         }
+        if (!areListsEqual(parsedUnknowns, product.unknowns)) body.unknowns = parsedUnknowns
         if (!areListsEqual(trimmedKeywords, product.keywords)) {
           body.keywords = trimmedKeywords
-        }
-        if (trimmedPrice !== (product.price ?? '')) {
-          body.price = trimmedPrice
         }
         if (trimmedLink !== (product.link ?? '')) {
           body.link = trimmedLink
@@ -323,14 +389,25 @@ export function ProductPage() {
             country: trimmedCountry,
             town: trimmedTown === '' ? null : trimmedTown,
             experiment_goal: trimmedExperimentGoal,
+            goal_origin: goalOrigin,
             target_action: trimmedTargetAction,
+            primary_metric: trimmedPrimaryMetric,
+            metric_direction: metricDirection,
+            metric_numerator: trimmedMetricNumerator,
+            metric_denominator: trimmedMetricDenominator,
+            success_criterion: trimmedSuccessCriterion || null,
             facts: parsedFacts,
+            key_fact_ids: parsedKeyFactIds,
+            price: parsedPrice,
+            facts_checked_at: trimmedFactsCheckedAt || null,
             eligibility_rules: parsedEligibilityRules,
             allowed_channels: parsedAllowedChannels,
+            contactable_persona_ids: parsedContactablePersonaIds,
+            campaign_note: trimmedCampaignNote,
             forbidden_claims: parsedForbiddenClaims,
             known_constraints: parsedKnownConstraints,
+            unknowns: parsedUnknowns,
             keywords: trimmedKeywords,
-            price: trimmedPrice === '' ? null : trimmedPrice,
             link: trimmedLink === '' ? null : trimmedLink,
             hypothesis_id: hid!,
           },
@@ -515,6 +592,14 @@ export function ProductPage() {
         </S.Field>
 
         <S.Field>
+          Происхождение цели
+          <S.Select value={goalOrigin} onChange={(e) => setGoalOrigin(e.target.value as 'demo_assumption' | 'user_provided')} disabled={saving}>
+            <option value="user_provided">Цель пользователя</option>
+            <option value="demo_assumption">Демонстрационное допущение</option>
+          </S.Select>
+        </S.Field>
+
+        <S.Field>
           Целевое действие
           <S.TextArea
             rows={2}
@@ -524,6 +609,34 @@ export function ProductPage() {
             disabled={saving}
             required
           />
+        </S.Field>
+
+        <S.Field>
+          Основная метрика
+          <S.Input type="text" value={primaryMetric} onChange={(e) => setPrimaryMetric(e.target.value)} placeholder="application_submit_rate" disabled={saving} required />
+        </S.Field>
+
+        <S.Field>
+          Направление метрики
+          <S.Select value={metricDirection} onChange={(e) => setMetricDirection(e.target.value as 'increase' | 'decrease')} disabled={saving}>
+            <option value="increase">Увеличить</option>
+            <option value="decrease">Уменьшить</option>
+          </S.Select>
+        </S.Field>
+
+        <S.Field>
+          Числитель метрики
+          <S.TextArea rows={2} value={metricNumerator} onChange={(e) => setMetricNumerator(e.target.value)} placeholder="Число уникальных пользователей, совершивших действие" disabled={saving} required />
+        </S.Field>
+
+        <S.Field>
+          Знаменатель метрики
+          <S.TextArea rows={2} value={metricDenominator} onChange={(e) => setMetricDenominator(e.target.value)} placeholder="Число уникальных пользователей, включенных в эксперимент" disabled={saving} required />
+        </S.Field>
+
+        <S.Field>
+          Критерий успеха (необязательно)
+          <S.TextArea rows={2} value={successCriterion} onChange={(e) => setSuccessCriterion(e.target.value)} placeholder="Определите после baseline и расчета выборки" disabled={saving} />
         </S.Field>
 
         <S.Field>
@@ -539,6 +652,16 @@ export function ProductPage() {
         </S.Field>
 
         <S.Field>
+          Ключевые факты (ID, каждый с новой строки)
+          <S.TextArea rows={3} value={keyFactIds} onChange={(e) => setKeyFactIds(e.target.value)} placeholder={'F1\nF2'} disabled={saving} required />
+        </S.Field>
+
+        <S.Field>
+          Дата проверки фактов (необязательно)
+          <S.Input type="text" value={factsCheckedAt} onChange={(e) => setFactsCheckedAt(e.target.value)} placeholder="2026-09-18" disabled={saving} />
+        </S.Field>
+
+        <S.Field>
           Разрешенные каналы (каждый с новой строки)
           <S.TextArea
             rows={3}
@@ -546,8 +669,17 @@ export function ProductPage() {
             onChange={(e) => setAllowedChannels(e.target.value)}
             placeholder={'in_app_banner\npush\nemail'}
             disabled={saving}
-            required
           />
+        </S.Field>
+
+        <S.Field>
+          Персоны с согласием на контакт (ID, каждый с новой строки)
+          <S.TextArea rows={3} value={contactablePersonaIds} onChange={(e) => setContactablePersonaIds(e.target.value)} placeholder={'persona_001\npersona_002'} disabled={saving} />
+        </S.Field>
+
+        <S.Field>
+          Примечание к кампании
+          <S.TextArea rows={2} value={campaignNote} onChange={(e) => setCampaignNote(e.target.value)} disabled={saving} />
         </S.Field>
 
         <S.Field>
@@ -584,6 +716,11 @@ export function ProductPage() {
         </S.Field>
 
         <S.Field>
+          Неизвестные условия и ограничения (каждое с новой строки)
+          <S.TextArea rows={3} value={unknowns} onChange={(e) => setUnknowns(e.target.value)} placeholder="Тарифы требуют проверки" disabled={saving} />
+        </S.Field>
+
+        <S.Field>
           Категория
           <S.Select
             value={category}
@@ -614,14 +751,21 @@ export function ProductPage() {
         </S.Field>
 
         <S.Field>
-          Цена
-          <S.Input
-            type="text"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            placeholder="$9.99"
-            disabled={saving}
-          />
+          Статус стоимости
+          <S.Select value={priceStatus} onChange={(e) => setPriceStatus(e.target.value as ProductPrice['status'])} disabled={saving}>
+            <option value="unknown">Неизвестна</option>
+            <option value="known">Подтверждена</option>
+          </S.Select>
+        </S.Field>
+
+        <S.Field>
+          Описание стоимости
+          <S.TextArea rows={2} value={priceDescription} onChange={(e) => setPriceDescription(e.target.value)} disabled={saving} required />
+        </S.Field>
+
+        <S.Field>
+          Факты, подтверждающие стоимость (ID, каждый с новой строки)
+          <S.TextArea rows={2} value={priceSourceFactIds} onChange={(e) => setPriceSourceFactIds(e.target.value)} placeholder="F3" disabled={saving} required={priceStatus === 'known'} />
         </S.Field>
 
         <S.Field>

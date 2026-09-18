@@ -48,6 +48,42 @@ func (e AudienceGenerationStatusResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for CreateProductRequestGoalOrigin.
+const (
+	CreateProductRequestGoalOriginDemoAssumption CreateProductRequestGoalOrigin = "demo_assumption"
+	CreateProductRequestGoalOriginUserProvided   CreateProductRequestGoalOrigin = "user_provided"
+)
+
+// Valid indicates whether the value is a known member of the CreateProductRequestGoalOrigin enum.
+func (e CreateProductRequestGoalOrigin) Valid() bool {
+	switch e {
+	case CreateProductRequestGoalOriginDemoAssumption:
+		return true
+	case CreateProductRequestGoalOriginUserProvided:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateProductRequestMetricDirection.
+const (
+	CreateProductRequestMetricDirectionDecrease CreateProductRequestMetricDirection = "decrease"
+	CreateProductRequestMetricDirectionIncrease CreateProductRequestMetricDirection = "increase"
+)
+
+// Valid indicates whether the value is a known member of the CreateProductRequestMetricDirection enum.
+func (e CreateProductRequestMetricDirection) Valid() bool {
+	switch e {
+	case CreateProductRequestMetricDirectionDecrease:
+		return true
+	case CreateProductRequestMetricDirectionIncrease:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for EligibilityRuleOperator.
 const (
 	Between EligibilityRuleOperator = "between"
@@ -165,6 +201,96 @@ func (e ProductFileResponseType) Valid() bool {
 	}
 }
 
+// Defines values for ProductPriceStatus.
+const (
+	Known   ProductPriceStatus = "known"
+	Unknown ProductPriceStatus = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the ProductPriceStatus enum.
+func (e ProductPriceStatus) Valid() bool {
+	switch e {
+	case Known:
+		return true
+	case Unknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProductResponseGoalOrigin.
+const (
+	ProductResponseGoalOriginDemoAssumption ProductResponseGoalOrigin = "demo_assumption"
+	ProductResponseGoalOriginUserProvided   ProductResponseGoalOrigin = "user_provided"
+)
+
+// Valid indicates whether the value is a known member of the ProductResponseGoalOrigin enum.
+func (e ProductResponseGoalOrigin) Valid() bool {
+	switch e {
+	case ProductResponseGoalOriginDemoAssumption:
+		return true
+	case ProductResponseGoalOriginUserProvided:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProductResponseMetricDirection.
+const (
+	ProductResponseMetricDirectionDecrease ProductResponseMetricDirection = "decrease"
+	ProductResponseMetricDirectionIncrease ProductResponseMetricDirection = "increase"
+)
+
+// Valid indicates whether the value is a known member of the ProductResponseMetricDirection enum.
+func (e ProductResponseMetricDirection) Valid() bool {
+	switch e {
+	case ProductResponseMetricDirectionDecrease:
+		return true
+	case ProductResponseMetricDirectionIncrease:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateProductRequestGoalOrigin.
+const (
+	DemoAssumption UpdateProductRequestGoalOrigin = "demo_assumption"
+	UserProvided   UpdateProductRequestGoalOrigin = "user_provided"
+)
+
+// Valid indicates whether the value is a known member of the UpdateProductRequestGoalOrigin enum.
+func (e UpdateProductRequestGoalOrigin) Valid() bool {
+	switch e {
+	case DemoAssumption:
+		return true
+	case UserProvided:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateProductRequestMetricDirection.
+const (
+	Decrease UpdateProductRequestMetricDirection = "decrease"
+	Increase UpdateProductRequestMetricDirection = "increase"
+)
+
+// Valid indicates whether the value is a known member of the UpdateProductRequestMetricDirection enum.
+func (e UpdateProductRequestMetricDirection) Valid() bool {
+	switch e {
+	case Decrease:
+		return true
+	case Increase:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UploadProductFileMultipartBodyType.
 const (
 	Brandbook UploadProductFileMultipartBodyType = "brandbook"
@@ -224,25 +350,42 @@ type CreateHypothesisRequest struct {
 
 // CreateProductRequest defines model for CreateProductRequest.
 type CreateProductRequest struct {
-	AllowedChannels  []string          `json:"allowed_channels"`
-	Brand            string            `json:"brand"`
-	Category         ProductCategory   `json:"category"`
-	Country          string            `json:"country"`
-	CustomCategory   *string           `json:"custom_category,omitempty"`
-	Description      string            `json:"description"`
-	EligibilityRules []EligibilityRule `json:"eligibility_rules"`
-	ExperimentGoal   string            `json:"experiment_goal"`
-	Facts            []ProductFact     `json:"facts"`
-	ForbiddenClaims  []string          `json:"forbidden_claims"`
-	HypothesisId     string            `json:"hypothesis_id"`
-	Keywords         *[]string         `json:"keywords,omitempty"`
-	KnownConstraints []string          `json:"known_constraints"`
-	Link             *string           `json:"link,omitempty"`
-	Name             string            `json:"name"`
-	Price            *string           `json:"price,omitempty"`
-	TargetAction     string            `json:"target_action"`
-	Town             *string           `json:"town,omitempty"`
+	AllowedChannels       []string                            `json:"allowed_channels"`
+	Brand                 string                              `json:"brand"`
+	CampaignNote          string                              `json:"campaign_note"`
+	Category              ProductCategory                     `json:"category"`
+	ContactablePersonaIds []string                            `json:"contactable_persona_ids"`
+	Country               string                              `json:"country"`
+	CustomCategory        *string                             `json:"custom_category,omitempty"`
+	Description           string                              `json:"description"`
+	EligibilityRules      []EligibilityRule                   `json:"eligibility_rules"`
+	ExperimentGoal        string                              `json:"experiment_goal"`
+	Facts                 []ProductFact                       `json:"facts"`
+	FactsCheckedAt        *string                             `json:"facts_checked_at,omitempty"`
+	ForbiddenClaims       []string                            `json:"forbidden_claims"`
+	GoalOrigin            CreateProductRequestGoalOrigin      `json:"goal_origin"`
+	HypothesisId          string                              `json:"hypothesis_id"`
+	KeyFactIds            []string                            `json:"key_fact_ids"`
+	Keywords              *[]string                           `json:"keywords,omitempty"`
+	KnownConstraints      []string                            `json:"known_constraints"`
+	Link                  *string                             `json:"link,omitempty"`
+	MetricDenominator     string                              `json:"metric_denominator"`
+	MetricDirection       CreateProductRequestMetricDirection `json:"metric_direction"`
+	MetricNumerator       string                              `json:"metric_numerator"`
+	Name                  string                              `json:"name"`
+	Price                 ProductPrice                        `json:"price"`
+	PrimaryMetric         string                              `json:"primary_metric"`
+	SuccessCriterion      *string                             `json:"success_criterion,omitempty"`
+	TargetAction          string                              `json:"target_action"`
+	Town                  *string                             `json:"town,omitempty"`
+	Unknowns              []string                            `json:"unknowns"`
 }
+
+// CreateProductRequestGoalOrigin defines model for CreateProductRequest.GoalOrigin.
+type CreateProductRequestGoalOrigin string
+
+// CreateProductRequestMetricDirection defines model for CreateProductRequest.MetricDirection.
+type CreateProductRequestMetricDirection string
 
 // EligibilityRule defines model for EligibilityRule.
 type EligibilityRule struct {
@@ -304,28 +447,55 @@ type ProductFileResponse struct {
 // ProductFileResponseType defines model for ProductFileResponse.Type.
 type ProductFileResponseType string
 
+// ProductPrice defines model for ProductPrice.
+type ProductPrice struct {
+	Description   string             `json:"description"`
+	SourceFactIds []string           `json:"source_fact_ids"`
+	Status        ProductPriceStatus `json:"status"`
+}
+
+// ProductPriceStatus defines model for ProductPrice.Status.
+type ProductPriceStatus string
+
 // ProductResponse defines model for ProductResponse.
 type ProductResponse struct {
-	AllowedChannels  []string          `json:"allowed_channels"`
-	Brand            string            `json:"brand"`
-	Category         ProductCategory   `json:"category"`
-	Country          string            `json:"country"`
-	CustomCategory   *string           `json:"custom_category,omitempty"`
-	Description      string            `json:"description"`
-	EligibilityRules []EligibilityRule `json:"eligibility_rules"`
-	ExperimentGoal   string            `json:"experiment_goal"`
-	Facts            []ProductFact     `json:"facts"`
-	ForbiddenClaims  []string          `json:"forbidden_claims"`
-	HypothesisId     string            `json:"hypothesis_id"`
-	Id               string            `json:"id"`
-	Keywords         []string          `json:"keywords"`
-	KnownConstraints []string          `json:"known_constraints"`
-	Link             *string           `json:"link,omitempty"`
-	Name             string            `json:"name"`
-	Price            *string           `json:"price,omitempty"`
-	TargetAction     string            `json:"target_action"`
-	Town             *string           `json:"town,omitempty"`
+	AllowedChannels       []string                       `json:"allowed_channels"`
+	Brand                 string                         `json:"brand"`
+	CampaignNote          string                         `json:"campaign_note"`
+	Category              ProductCategory                `json:"category"`
+	ContactablePersonaIds []string                       `json:"contactable_persona_ids"`
+	Country               string                         `json:"country"`
+	CustomCategory        *string                        `json:"custom_category,omitempty"`
+	Description           string                         `json:"description"`
+	EligibilityRules      []EligibilityRule              `json:"eligibility_rules"`
+	ExperimentGoal        string                         `json:"experiment_goal"`
+	Facts                 []ProductFact                  `json:"facts"`
+	FactsCheckedAt        *string                        `json:"facts_checked_at,omitempty"`
+	ForbiddenClaims       []string                       `json:"forbidden_claims"`
+	GoalOrigin            ProductResponseGoalOrigin      `json:"goal_origin"`
+	HypothesisId          string                         `json:"hypothesis_id"`
+	Id                    string                         `json:"id"`
+	KeyFactIds            []string                       `json:"key_fact_ids"`
+	Keywords              []string                       `json:"keywords"`
+	KnownConstraints      []string                       `json:"known_constraints"`
+	Link                  *string                        `json:"link,omitempty"`
+	MetricDenominator     string                         `json:"metric_denominator"`
+	MetricDirection       ProductResponseMetricDirection `json:"metric_direction"`
+	MetricNumerator       string                         `json:"metric_numerator"`
+	Name                  string                         `json:"name"`
+	Price                 ProductPrice                   `json:"price"`
+	PrimaryMetric         string                         `json:"primary_metric"`
+	SuccessCriterion      *string                        `json:"success_criterion,omitempty"`
+	TargetAction          string                         `json:"target_action"`
+	Town                  *string                        `json:"town,omitempty"`
+	Unknowns              []string                       `json:"unknowns"`
 }
+
+// ProductResponseGoalOrigin defines model for ProductResponse.GoalOrigin.
+type ProductResponseGoalOrigin string
+
+// ProductResponseMetricDirection defines model for ProductResponse.MetricDirection.
+type ProductResponseMetricDirection string
 
 // RegisterUserRequest defines model for RegisterUserRequest.
 type RegisterUserRequest struct {
@@ -340,24 +510,41 @@ type UpdateHypothesisRequest struct {
 
 // UpdateProductRequest defines model for UpdateProductRequest.
 type UpdateProductRequest struct {
-	AllowedChannels  *[]string          `json:"allowed_channels,omitempty"`
-	Brand            *string            `json:"brand,omitempty"`
-	Category         *ProductCategory   `json:"category,omitempty"`
-	Country          *string            `json:"country,omitempty"`
-	CustomCategory   *string            `json:"custom_category,omitempty"`
-	Description      *string            `json:"description,omitempty"`
-	EligibilityRules *[]EligibilityRule `json:"eligibility_rules,omitempty"`
-	ExperimentGoal   *string            `json:"experiment_goal,omitempty"`
-	Facts            *[]ProductFact     `json:"facts,omitempty"`
-	ForbiddenClaims  *[]string          `json:"forbidden_claims,omitempty"`
-	Keywords         *[]string          `json:"keywords,omitempty"`
-	KnownConstraints *[]string          `json:"known_constraints,omitempty"`
-	Link             *string            `json:"link,omitempty"`
-	Name             *string            `json:"name,omitempty"`
-	Price            *string            `json:"price,omitempty"`
-	TargetAction     *string            `json:"target_action,omitempty"`
-	Town             *string            `json:"town,omitempty"`
+	AllowedChannels       *[]string                            `json:"allowed_channels,omitempty"`
+	Brand                 *string                              `json:"brand,omitempty"`
+	CampaignNote          *string                              `json:"campaign_note,omitempty"`
+	Category              *ProductCategory                     `json:"category,omitempty"`
+	ContactablePersonaIds *[]string                            `json:"contactable_persona_ids,omitempty"`
+	Country               *string                              `json:"country,omitempty"`
+	CustomCategory        *string                              `json:"custom_category,omitempty"`
+	Description           *string                              `json:"description,omitempty"`
+	EligibilityRules      *[]EligibilityRule                   `json:"eligibility_rules,omitempty"`
+	ExperimentGoal        *string                              `json:"experiment_goal,omitempty"`
+	Facts                 *[]ProductFact                       `json:"facts,omitempty"`
+	FactsCheckedAt        *string                              `json:"facts_checked_at,omitempty"`
+	ForbiddenClaims       *[]string                            `json:"forbidden_claims,omitempty"`
+	GoalOrigin            *UpdateProductRequestGoalOrigin      `json:"goal_origin,omitempty"`
+	KeyFactIds            *[]string                            `json:"key_fact_ids,omitempty"`
+	Keywords              *[]string                            `json:"keywords,omitempty"`
+	KnownConstraints      *[]string                            `json:"known_constraints,omitempty"`
+	Link                  *string                              `json:"link,omitempty"`
+	MetricDenominator     *string                              `json:"metric_denominator,omitempty"`
+	MetricDirection       *UpdateProductRequestMetricDirection `json:"metric_direction,omitempty"`
+	MetricNumerator       *string                              `json:"metric_numerator,omitempty"`
+	Name                  *string                              `json:"name,omitempty"`
+	Price                 *ProductPrice                        `json:"price,omitempty"`
+	PrimaryMetric         *string                              `json:"primary_metric,omitempty"`
+	SuccessCriterion      *string                              `json:"success_criterion,omitempty"`
+	TargetAction          *string                              `json:"target_action,omitempty"`
+	Town                  *string                              `json:"town,omitempty"`
+	Unknowns              *[]string                            `json:"unknowns,omitempty"`
 }
+
+// UpdateProductRequestGoalOrigin defines model for UpdateProductRequest.GoalOrigin.
+type UpdateProductRequestGoalOrigin string
+
+// UpdateProductRequestMetricDirection defines model for UpdateProductRequest.MetricDirection.
+type UpdateProductRequestMetricDirection string
 
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
@@ -3212,47 +3399,51 @@ func (sh *strictHandler) Healthz(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"BQK0Nkwtqy9cOB4MQ/Xe9bdFv11sL7Z/DAA=",
+	"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",
+	"bf83AA==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

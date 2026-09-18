@@ -1,5 +1,6 @@
 # yandex
-https://yandex.com/dev/direct/doc/ru/objects/objects
+https://yandex.com/dev/direct/doc/ru/objects/objects just a diagram
+https://yandex.ru/dev/direct/doc/ru/concepts/about ROOT, start here to discover objects
 
 flowchart TB
     Campaign["Campaign"]

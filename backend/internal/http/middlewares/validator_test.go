@@ -58,7 +58,7 @@ func TestValidationMessage(t *testing.T) {
 	}{
 		{"array item maxLength yields parent field, not index", "POST", "/api/v1/product", productReq + `,"keywords":["` + strings.Repeat("k", 65) + `"]}`, "keywords must be at most 64 characters long"},
 		{"string maxLength", "POST", "/api/v1/product", productReq + `,"link":"` + strings.Repeat("l", 129) + `"}`, "link must be at most 128 characters long"},
-		{"nullable string maxLength", "POST", "/api/v1/product", productReq + `,"price":"` + strings.Repeat("p", 129) + `"}`, "price must be at most 128 characters long"},
+		{"structured price rejects a string", "POST", "/api/v1/product", productReq + `,"price":"invalid"}`, "price has invalid type"},
 		{"hypothesis description maxLength", "POST", "/api/v1/hypothesis", `{"description":"` + strings.Repeat("d", 1025) + `"}`, "description must be at most 1024 characters long"},
 		{"required field", "POST", "/api/v1/hypothesis", `{}`, "description is required"},
 		{"enum field", "POST", "/api/v1/product", `{"name":"p","category":"nope","hypothesis_id":"00000000-0000-0000-0000-000000000000"}`, "category must be one of electronics, clothing, food, furniture, beauty, sports, toys, books, automotive, health, home, office, garden, pets, music, banking_card, other"},

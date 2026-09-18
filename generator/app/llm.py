@@ -21,9 +21,7 @@ class LLMClient:
         response_schema: dict[str, Any],
     ) -> str:
         if not self.base_url or not self.api_key or not self.model:
-            raise RuntimeError(
-                "OPENAI_BASE_URL, OPENAI_API_KEY, and OPENAI_MODEL are required"
-            )
+            raise RuntimeError("OPENAI_BASE_URL, OPENAI_API_KEY, and OPENAI_MODEL are required")
 
         response = httpx.post(
             f"{self.base_url.rstrip('/')}/v1/chat/completions",
@@ -60,9 +58,7 @@ class LLMClient:
         try:
             content = body["choices"][0]["message"]["content"]
         except (IndexError, KeyError, TypeError) as error:
-            raise ValueError(
-                "OpenAI-compatible response did not contain message content"
-            ) from error
+            raise ValueError("OpenAI-compatible response did not contain message content") from error
 
         if not isinstance(content, str):
             raise ValueError("OpenAI-compatible response content was not a string")

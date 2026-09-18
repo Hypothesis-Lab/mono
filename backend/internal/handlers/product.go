@@ -158,16 +158,25 @@ func validateCreateProduct(req api.CreateProductRequest) string {
 	if strings.TrimSpace(req.ExperimentGoal) == "" {
 		return "experiment_goal is required"
 	}
+	if !req.GoalOrigin.Valid() {
+		return "goal_origin is required"
+	}
 	if strings.TrimSpace(req.TargetAction) == "" {
 		return "target_action is required"
 	}
+	if strings.TrimSpace(req.PrimaryMetric) == "" || !req.MetricDirection.Valid() || strings.TrimSpace(req.MetricNumerator) == "" || strings.TrimSpace(req.MetricDenominator) == "" {
+		return "primary_metric, metric_direction, metric_numerator, and metric_denominator are required"
+	}
 	if message := validateFacts(req.Facts); message != "" {
+		return message
+	}
+	if message := validateFactReferences(req.Facts, req.KeyFactIds, req.Price); message != "" {
 		return message
 	}
 	if message := validateEligibilityRules(req.EligibilityRules); message != "" {
 		return message
 	}
-	if message := validateAllowedChannels(req.AllowedChannels); message != "" {
+	if message := validateChannels(req.AllowedChannels); message != "" {
 		return message
 	}
 	if strings.TrimSpace(req.HypothesisId) == "" {
@@ -207,6 +216,21 @@ func validateUpdateProduct(req *api.UpdateProductRequest) string {
 	if req.TargetAction != nil && strings.TrimSpace(*req.TargetAction) == "" {
 		return "target_action must not be empty"
 	}
+	if req.PrimaryMetric != nil && strings.TrimSpace(*req.PrimaryMetric) == "" {
+		return "primary_metric must not be empty"
+	}
+	if req.MetricDirection != nil && !req.MetricDirection.Valid() {
+		return "invalid metric_direction"
+	}
+	if req.MetricNumerator != nil && strings.TrimSpace(*req.MetricNumerator) == "" {
+		return "metric_numerator must not be empty"
+	}
+	if req.MetricDenominator != nil && strings.TrimSpace(*req.MetricDenominator) == "" {
+		return "metric_denominator must not be empty"
+	}
+	if req.GoalOrigin != nil && !req.GoalOrigin.Valid() {
+		return "invalid goal_origin"
+	}
 	if req.Facts != nil {
 		if message := validateFacts(*req.Facts); message != "" {
 			return message
@@ -218,9 +242,12 @@ func validateUpdateProduct(req *api.UpdateProductRequest) string {
 		}
 	}
 	if req.AllowedChannels != nil {
-		if message := validateAllowedChannels(*req.AllowedChannels); message != "" {
+		if message := validateChannels(*req.AllowedChannels); message != "" {
 			return message
 		}
+	}
+	if req.Price != nil && (!req.Price.Status.Valid() || strings.TrimSpace(req.Price.Description) == "") {
+		return "price status and description are required"
 	}
 
 	return ""
@@ -278,16 +305,35 @@ func validEligibilityValue(value interface{}) bool {
 	}
 }
 
-func validateAllowedChannels(channels []string) string {
-	if len(channels) == 0 {
-		return "at least one allowed channel is required"
-	}
+func validateChannels(channels []string) string {
 	for _, channel := range channels {
 		if strings.TrimSpace(channel) == "" {
 			return "allowed channels must not be empty"
 		}
 	}
 
+	return ""
+}
+
+func validateFactReferences(facts []api.ProductFact, keyFactIDs []string, price api.ProductPrice) string {
+	if len(keyFactIDs) == 0 {
+		return "at least one key fact is required"
+	}
+	known := make(map[string]struct{}, len(facts))
+	for _, fact := range facts {
+		known[fact.FactId] = struct{}{}
+	}
+	for _, factID := range append(keyFactIDs, price.SourceFactIds...) {
+		if _, ok := known[factID]; !ok {
+			return "key facts and price sources must reference confirmed facts"
+		}
+	}
+	if price.Status == api.Known && len(price.SourceFactIds) == 0 {
+		return "known price requires source fact ids"
+	}
+	if !price.Status.Valid() || strings.TrimSpace(price.Description) == "" {
+		return "price status and description are required"
+	}
 	return ""
 }
 
@@ -324,6 +370,10 @@ func createProductInput(req api.CreateProductRequest) (product.CreateInput, erro
 	if err != nil {
 		return product.CreateInput{}, fmt.Errorf("marshal eligibility rules: %w", err)
 	}
+	price, err := json.Marshal(req.Price)
+	if err != nil {
+		return product.CreateInput{}, fmt.Errorf("marshal product price: %w", err)
+	}
 
 	keywords := []string{}
 	if req.Keywords != nil {
@@ -331,47 +381,74 @@ func createProductInput(req api.CreateProductRequest) (product.CreateInput, erro
 	}
 
 	return product.CreateInput{
-		Name:             req.Name,
-		Description:      req.Description,
-		Category:         string(req.Category),
-		CustomCategory:   normalizedCustomCategory(req.CustomCategory),
-		Brand:            req.Brand,
-		Country:          req.Country,
-		Town:             req.Town,
-		ExperimentGoal:   req.ExperimentGoal,
-		TargetAction:     req.TargetAction,
-		Facts:            facts,
-		EligibilityRules: rules,
-		AllowedChannels:  req.AllowedChannels,
-		ForbiddenClaims:  req.ForbiddenClaims,
-		KnownConstraints: req.KnownConstraints,
-		Keywords:         keywords,
-		Price:            req.Price,
-		Link:             req.Link,
-		HypothesisID:     req.HypothesisId,
+		Name:                  req.Name,
+		Description:           req.Description,
+		Category:              string(req.Category),
+		CustomCategory:        normalizedCustomCategory(req.CustomCategory),
+		Brand:                 req.Brand,
+		Country:               req.Country,
+		Town:                  req.Town,
+		ExperimentGoal:        req.ExperimentGoal,
+		GoalOrigin:            string(req.GoalOrigin),
+		TargetAction:          req.TargetAction,
+		PrimaryMetric:         req.PrimaryMetric,
+		MetricDirection:       string(req.MetricDirection),
+		MetricNumerator:       req.MetricNumerator,
+		MetricDenominator:     req.MetricDenominator,
+		SuccessCriterion:      req.SuccessCriterion,
+		Facts:                 facts,
+		KeyFactIDs:            req.KeyFactIds,
+		Price:                 price,
+		FactsCheckedAt:        req.FactsCheckedAt,
+		EligibilityRules:      rules,
+		AllowedChannels:       req.AllowedChannels,
+		ContactablePersonaIDs: req.ContactablePersonaIds,
+		CampaignNote:          req.CampaignNote,
+		ForbiddenClaims:       req.ForbiddenClaims,
+		KnownConstraints:      req.KnownConstraints,
+		Keywords:              keywords,
+		Unknowns:              req.Unknowns,
+		Link:                  req.Link,
+		HypothesisID:          req.HypothesisId,
 	}, nil
 }
 
 func updateProductInput(req *api.UpdateProductRequest) (product.UpdateInput, error) {
 	in := product.UpdateInput{
-		Name:             req.Name,
-		Description:      req.Description,
-		CustomCategory:   normalizedCustomCategory(req.CustomCategory),
-		Brand:            req.Brand,
-		Country:          req.Country,
-		Town:             req.Town,
-		ExperimentGoal:   req.ExperimentGoal,
-		TargetAction:     req.TargetAction,
-		AllowedChannels:  req.AllowedChannels,
-		ForbiddenClaims:  req.ForbiddenClaims,
-		KnownConstraints: req.KnownConstraints,
-		Keywords:         req.Keywords,
-		Price:            req.Price,
-		Link:             req.Link,
+		Name:                  req.Name,
+		Description:           req.Description,
+		CustomCategory:        normalizedCustomCategory(req.CustomCategory),
+		Brand:                 req.Brand,
+		Country:               req.Country,
+		Town:                  req.Town,
+		ExperimentGoal:        req.ExperimentGoal,
+		TargetAction:          req.TargetAction,
+		PrimaryMetric:         req.PrimaryMetric,
+		MetricNumerator:       req.MetricNumerator,
+		MetricDenominator:     req.MetricDenominator,
+		AllowedChannels:       req.AllowedChannels,
+		KeyFactIDs:            req.KeyFactIds,
+		FactsCheckedAt:        req.FactsCheckedAt,
+		ContactablePersonaIDs: req.ContactablePersonaIds,
+		CampaignNote:          req.CampaignNote,
+		ForbiddenClaims:       req.ForbiddenClaims,
+		KnownConstraints:      req.KnownConstraints,
+		Keywords:              req.Keywords,
+		SuccessCriterion:      req.SuccessCriterion,
+		Unknowns:              req.Unknowns,
+		Link:                  req.Link,
 	}
 	if req.Category != nil {
 		category := string(*req.Category)
 		in.Category = &category
+	}
+	if req.GoalOrigin != nil {
+		value := string(*req.GoalOrigin)
+		in.GoalOrigin = &value
+	}
+	if req.MetricDirection != nil {
+		value := string(*req.MetricDirection)
+		in.MetricDirection = &value
 	}
 	if req.Facts != nil {
 		facts, err := json.Marshal(*req.Facts)
@@ -388,6 +465,14 @@ func updateProductInput(req *api.UpdateProductRequest) (product.UpdateInput, err
 		}
 		rawRules := json.RawMessage(rules)
 		in.EligibilityRules = &rawRules
+	}
+	if req.Price != nil {
+		price, err := json.Marshal(*req.Price)
+		if err != nil {
+			return product.UpdateInput{}, fmt.Errorf("marshal product price: %w", err)
+		}
+		rawPrice := json.RawMessage(price)
+		in.Price = &rawPrice
 	}
 
 	return in, nil
@@ -412,26 +497,41 @@ func newProductResponse(p *product.Product) (api.ProductResponse, error) {
 	if err := json.Unmarshal(p.EligibilityRules, &rules); err != nil {
 		return api.ProductResponse{}, fmt.Errorf("unmarshal eligibility rules: %w", err)
 	}
+	var price api.ProductPrice
+	if err := json.Unmarshal(p.Price, &price); err != nil {
+		return api.ProductResponse{}, fmt.Errorf("unmarshal product price: %w", err)
+	}
 
 	return api.ProductResponse{
-		AllowedChannels:  p.AllowedChannels,
-		Brand:            p.Brand,
-		Category:         api.ProductCategory(p.Category),
-		CustomCategory:   p.CustomCategory,
-		Description:      p.Description,
-		EligibilityRules: rules,
-		ExperimentGoal:   p.ExperimentGoal,
-		Facts:            facts,
-		ForbiddenClaims:  p.ForbiddenClaims,
-		Country:          p.Country,
-		HypothesisId:     p.HypothesisID,
-		Id:               p.ID,
-		Keywords:         p.Keywords,
-		KnownConstraints: p.KnownConstraints,
-		Link:             p.Link,
-		Name:             p.Name,
-		Price:            p.Price,
-		TargetAction:     p.TargetAction,
-		Town:             p.Town,
+		AllowedChannels:       p.AllowedChannels,
+		Brand:                 p.Brand,
+		CampaignNote:          p.CampaignNote,
+		Category:              api.ProductCategory(p.Category),
+		ContactablePersonaIds: p.ContactablePersonaIDs,
+		Country:               p.Country,
+		CustomCategory:        p.CustomCategory,
+		Description:           p.Description,
+		EligibilityRules:      rules,
+		ExperimentGoal:        p.ExperimentGoal,
+		Facts:                 facts,
+		FactsCheckedAt:        p.FactsCheckedAt,
+		ForbiddenClaims:       p.ForbiddenClaims,
+		GoalOrigin:            api.ProductResponseGoalOrigin(p.GoalOrigin),
+		HypothesisId:          p.HypothesisID,
+		Id:                    p.ID,
+		KeyFactIds:            p.KeyFactIDs,
+		Keywords:              p.Keywords,
+		KnownConstraints:      p.KnownConstraints,
+		Link:                  p.Link,
+		MetricDenominator:     p.MetricDenominator,
+		MetricDirection:       api.ProductResponseMetricDirection(p.MetricDirection),
+		MetricNumerator:       p.MetricNumerator,
+		Name:                  p.Name,
+		Price:                 price,
+		PrimaryMetric:         p.PrimaryMetric,
+		SuccessCriterion:      p.SuccessCriterion,
+		TargetAction:          p.TargetAction,
+		Town:                  p.Town,
+		Unknowns:              p.Unknowns,
 	}, nil
 }

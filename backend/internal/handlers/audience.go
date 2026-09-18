@@ -177,23 +177,39 @@ func validateProductForGeneration(p *product.Product) string {
 	if err := json.Unmarshal(p.EligibilityRules, &rules); err != nil {
 		return "product eligibility rules are invalid"
 	}
+	var price api.ProductPrice
+	if err := json.Unmarshal(p.Price, &price); err != nil {
+		return "product price is invalid"
+	}
 
 	return validateCreateProduct(api.CreateProductRequest{
-		AllowedChannels:  p.AllowedChannels,
-		Brand:            p.Brand,
-		Category:         api.ProductCategory(p.Category),
-		CustomCategory:   p.CustomCategory,
-		Description:      p.Description,
-		EligibilityRules: rules,
-		ExperimentGoal:   p.ExperimentGoal,
-		Facts:            facts,
-		ForbiddenClaims:  p.ForbiddenClaims,
-		Country:          p.Country,
-		HypothesisId:     p.HypothesisID,
-		KnownConstraints: p.KnownConstraints,
-		Name:             p.Name,
-		TargetAction:     p.TargetAction,
-		Town:             p.Town,
+		AllowedChannels:       p.AllowedChannels,
+		Brand:                 p.Brand,
+		CampaignNote:          p.CampaignNote,
+		Category:              api.ProductCategory(p.Category),
+		ContactablePersonaIds: p.ContactablePersonaIDs,
+		Country:               p.Country,
+		CustomCategory:        p.CustomCategory,
+		Description:           p.Description,
+		EligibilityRules:      rules,
+		ExperimentGoal:        p.ExperimentGoal,
+		Facts:                 facts,
+		FactsCheckedAt:        p.FactsCheckedAt,
+		ForbiddenClaims:       p.ForbiddenClaims,
+		GoalOrigin:            api.CreateProductRequestGoalOrigin(p.GoalOrigin),
+		HypothesisId:          p.HypothesisID,
+		KeyFactIds:            p.KeyFactIDs,
+		KnownConstraints:      p.KnownConstraints,
+		MetricDenominator:     p.MetricDenominator,
+		MetricDirection:       api.CreateProductRequestMetricDirection(p.MetricDirection),
+		MetricNumerator:       p.MetricNumerator,
+		Name:                  p.Name,
+		Price:                 price,
+		PrimaryMetric:         p.PrimaryMetric,
+		SuccessCriterion:      p.SuccessCriterion,
+		TargetAction:          p.TargetAction,
+		Town:                  p.Town,
+		Unknowns:              p.Unknowns,
 	})
 }
 

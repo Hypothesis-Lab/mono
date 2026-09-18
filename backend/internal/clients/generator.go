@@ -28,8 +28,14 @@ type GeneratorClient struct {
 }
 
 type generatorJobRequest struct {
-	ProductID string           `json:"product_id"`
-	Input     generatorProduct `json:"input"`
+	ProductID string         `json:"product_id"`
+	Input     generatorInput `json:"input"`
+}
+
+type generatorInput struct {
+	Product    generatorProduct    `json:"product"`
+	Experiment generatorExperiment `json:"experiment"`
+	Campaign   generatorCampaign   `json:"campaign"`
 }
 
 type generatorProduct struct {
@@ -40,14 +46,33 @@ type generatorProduct struct {
 	CustomCategory   *string         `json:"custom_category"`
 	Country          string          `json:"country"`
 	Town             *string         `json:"town"`
-	ExperimentGoal   string          `json:"experiment_goal"`
-	TargetAction     string          `json:"target_action"`
 	SourceURL        *string         `json:"source_url"`
 	Facts            json.RawMessage `json:"facts"`
+	KeyFactIDs       []string        `json:"key_fact_ids"`
+	Price            json.RawMessage `json:"price"`
+	FactsCheckedAt   *string         `json:"facts_checked_at"`
 	EligibilityRules json.RawMessage `json:"eligibility_rules"`
-	AllowedChannels  []string        `json:"allowed_channels"`
+	Keywords         []string        `json:"keywords"`
 	ForbiddenClaims  []string        `json:"forbidden_claims"`
 	KnownConstraints []string        `json:"known_constraints"`
+	Unknowns         []string        `json:"unknowns"`
+}
+
+type generatorExperiment struct {
+	BusinessGoal      string  `json:"business_goal"`
+	GoalOrigin        string  `json:"goal_origin"`
+	TargetAction      string  `json:"target_action"`
+	PrimaryMetric     string  `json:"primary_metric"`
+	MetricDirection   string  `json:"metric_direction"`
+	MetricNumerator   string  `json:"metric_numerator"`
+	MetricDenominator string  `json:"metric_denominator"`
+	SuccessCriterion  *string `json:"success_criterion"`
+}
+
+type generatorCampaign struct {
+	AllowedChannels       []string `json:"allowed_channels"`
+	ContactablePersonaIDs []string `json:"contactable_persona_ids"`
+	Note                  string   `json:"note"`
 }
 
 type generatorJobResponse struct {
@@ -67,15 +92,15 @@ type completedJobResponse struct {
 type completedJobResult struct {
 	Personas            []json.RawMessage          `json:"personas"`
 	PersonaResearch     []json.RawMessage          `json:"persona_research"`
-	Ranking             []completedJobRanking      `json:"ranking"`
+	Top3                []completedJobRanking      `json:"top_3"`
 	HypothesesByPersona map[string]json.RawMessage `json:"hypotheses_by_persona"`
 }
 
 type completedJobRanking struct {
-	PersonaID  string          `json:"persona_id"`
-	Metrics    json.RawMessage `json:"metrics"`
-	Rank       *int            `json:"rank"`
-	FinalScore float64         `json:"final_score"`
+	PersonaID      string          `json:"persona_id"`
+	Metrics        json.RawMessage `json:"metrics"`
+	SelectionOrder int             `json:"selection_order"`
+	FinalScore     float64         `json:"final_score"`
 }
 
 type generatorPersonaReference struct {
@@ -108,22 +133,41 @@ func NewGeneratorClient(cfg *config.Config) *GeneratorClient {
 func (c *GeneratorClient) QueueProduct(ctx context.Context, p *product.Product) (string, error) {
 	requestBody, err := json.Marshal(generatorJobRequest{
 		ProductID: p.ID,
-		Input: generatorProduct{
-			Brand:            p.Brand,
-			Name:             p.Name,
-			Description:      p.Description,
-			Category:         p.Category,
-			CustomCategory:   p.CustomCategory,
-			Country:          p.Country,
-			Town:             p.Town,
-			ExperimentGoal:   p.ExperimentGoal,
-			TargetAction:     p.TargetAction,
-			SourceURL:        p.Link,
-			Facts:            p.Facts,
-			EligibilityRules: p.EligibilityRules,
-			AllowedChannels:  p.AllowedChannels,
-			ForbiddenClaims:  p.ForbiddenClaims,
-			KnownConstraints: p.KnownConstraints,
+		Input: generatorInput{
+			Product: generatorProduct{
+				Brand:            p.Brand,
+				Name:             p.Name,
+				Description:      p.Description,
+				Category:         p.Category,
+				CustomCategory:   p.CustomCategory,
+				Country:          p.Country,
+				Town:             p.Town,
+				SourceURL:        p.Link,
+				Facts:            p.Facts,
+				KeyFactIDs:       p.KeyFactIDs,
+				Price:            p.Price,
+				FactsCheckedAt:   p.FactsCheckedAt,
+				EligibilityRules: p.EligibilityRules,
+				Keywords:         p.Keywords,
+				ForbiddenClaims:  p.ForbiddenClaims,
+				KnownConstraints: p.KnownConstraints,
+				Unknowns:         p.Unknowns,
+			},
+			Experiment: generatorExperiment{
+				BusinessGoal:      p.ExperimentGoal,
+				GoalOrigin:        p.GoalOrigin,
+				TargetAction:      p.TargetAction,
+				PrimaryMetric:     p.PrimaryMetric,
+				MetricDirection:   p.MetricDirection,
+				MetricNumerator:   p.MetricNumerator,
+				MetricDenominator: p.MetricDenominator,
+				SuccessCriterion:  p.SuccessCriterion,
+			},
+			Campaign: generatorCampaign{
+				AllowedChannels:       p.AllowedChannels,
+				ContactablePersonaIDs: p.ContactablePersonaIDs,
+				Note:                  p.CampaignNote,
+			},
 		},
 	})
 	if err != nil {
@@ -310,9 +354,9 @@ func completedJobAudiences(result json.RawMessage) ([]GeneratedAudience, error) 
 	}
 
 	audiences := make([]GeneratedAudience, 0, 3)
-	for _, ranking := range parsed.Ranking {
-		if ranking.Rank == nil || *ranking.Rank < 1 || *ranking.Rank > 3 {
-			continue
+	for _, ranking := range parsed.Top3 {
+		if ranking.SelectionOrder < 1 || ranking.SelectionOrder > 3 {
+			return nil, fmt.Errorf("completed generator result has invalid selection order for persona %q", ranking.PersonaID)
 		}
 		persona, ok := personas[ranking.PersonaID]
 		if !ok {
@@ -336,14 +380,10 @@ func completedJobAudiences(result json.RawMessage) ([]GeneratedAudience, error) 
 			Research:   personaResearch,
 			Metrics:    ranking.Metrics,
 			Hypotheses: hypotheses,
-			Rank:       *ranking.Rank,
+			Rank:       ranking.SelectionOrder,
 			Score:      ranking.FinalScore,
 		})
 	}
-	if len(audiences) != 3 {
-		return nil, fmt.Errorf("completed generator result contains %d ranked audiences", len(audiences))
-	}
-
 	sort.Slice(audiences, func(i, j int) bool { return audiences[i].Rank < audiences[j].Rank })
 	for index, audience := range audiences {
 		if audience.Rank != index+1 {

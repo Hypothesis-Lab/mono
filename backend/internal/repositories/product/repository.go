@@ -22,67 +22,100 @@ var (
 )
 
 type Product struct {
-	ID               string
-	Name             string
-	Description      string
-	Category         string
-	CustomCategory   *string
-	Brand            string
-	Country          string
-	Town             *string
-	ExperimentGoal   string
-	TargetAction     string
-	Facts            json.RawMessage
-	EligibilityRules json.RawMessage
-	AllowedChannels  []string
-	ForbiddenClaims  []string
-	KnownConstraints []string
-	Keywords         []string
-	Price            *string
-	Link             *string
-	HypothesisID     string
+	ID                    string
+	Name                  string
+	Description           string
+	Category              string
+	CustomCategory        *string
+	Brand                 string
+	Country               string
+	Town                  *string
+	ExperimentGoal        string
+	GoalOrigin            string
+	TargetAction          string
+	PrimaryMetric         string
+	MetricDirection       string
+	MetricNumerator       string
+	MetricDenominator     string
+	SuccessCriterion      *string
+	Facts                 json.RawMessage
+	KeyFactIDs            []string
+	Price                 json.RawMessage
+	FactsCheckedAt        *string
+	EligibilityRules      json.RawMessage
+	AllowedChannels       []string
+	ContactablePersonaIDs []string
+	CampaignNote          string
+	ForbiddenClaims       []string
+	KnownConstraints      []string
+	Keywords              []string
+	Unknowns              []string
+	Link                  *string
+	HypothesisID          string
 }
 
 type CreateInput struct {
-	Name             string
-	Description      string
-	Category         string
-	CustomCategory   *string
-	Brand            string
-	Country          string
-	Town             *string
-	ExperimentGoal   string
-	TargetAction     string
-	Facts            json.RawMessage
-	EligibilityRules json.RawMessage
-	AllowedChannels  []string
-	ForbiddenClaims  []string
-	KnownConstraints []string
-	Keywords         []string
-	Price            *string
-	Link             *string
-	HypothesisID     string
+	Name                  string
+	Description           string
+	Category              string
+	CustomCategory        *string
+	Brand                 string
+	Country               string
+	Town                  *string
+	ExperimentGoal        string
+	GoalOrigin            string
+	TargetAction          string
+	PrimaryMetric         string
+	MetricDirection       string
+	MetricNumerator       string
+	MetricDenominator     string
+	SuccessCriterion      *string
+	Facts                 json.RawMessage
+	KeyFactIDs            []string
+	Price                 json.RawMessage
+	FactsCheckedAt        *string
+	EligibilityRules      json.RawMessage
+	AllowedChannels       []string
+	ContactablePersonaIDs []string
+	CampaignNote          string
+	ForbiddenClaims       []string
+	KnownConstraints      []string
+	Keywords              []string
+	Unknowns              []string
+	Link                  *string
+	HypothesisID          string
 }
 
 type UpdateInput struct {
-	Name                *string
-	Description         *string
-	Category            *string
-	CustomCategory      *string
-	ClearCustomCategory bool
-	Brand               *string
-	Country             *string
-	Town                *string
-	ExperimentGoal      *string
-	TargetAction        *string
-	Facts               *json.RawMessage
-	EligibilityRules    *json.RawMessage
-	AllowedChannels     *[]string
-	ForbiddenClaims     *[]string
-	KnownConstraints    *[]string
-	Keywords            *[]string
-	Price               *string
-	Link                *string
+	Name                  *string
+	Description           *string
+	Category              *string
+	CustomCategory        *string
+	ClearCustomCategory   bool
+	Brand                 *string
+	Country               *string
+	Town                  *string
+	ExperimentGoal        *string
+	GoalOrigin            *string
+	TargetAction          *string
+	PrimaryMetric         *string
+	MetricDirection       *string
+	MetricNumerator       *string
+	MetricDenominator     *string
+	SuccessCriterion      *string
+	Facts                 *json.RawMessage
+	KeyFactIDs            *[]string
+	Price                 *json.RawMessage
+	FactsCheckedAt        *string
+	EligibilityRules      *json.RawMessage
+	AllowedChannels       *[]string
+	ContactablePersonaIDs *[]string
+	CampaignNote          *string
+	ForbiddenClaims       *[]string
+	KnownConstraints      *[]string
+	Keywords              *[]string
+	Unknowns              *[]string
+	Link                  *string
 }
 
 type Repository struct {
@@ -100,9 +133,9 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (*Product, erro
 
 	sql, args, err := squirrelPSQL.
 		Insert("product").
-		Columns("id", "name", "description", "category", "custom_category", "brand", "country", "town", "experiment_goal", "target_action", "facts", "eligibility_rules", "allowed_channels", "forbidden_claims", "known_constraints", "keywords", "price", "link", "hypothesis_id").
-		Values(uuid.NewString(), in.Name, in.Description, in.Category, in.CustomCategory, in.Brand, in.Country, in.Town, in.ExperimentGoal, in.TargetAction, in.Facts, in.EligibilityRules, in.AllowedChannels, in.ForbiddenClaims, in.KnownConstraints, in.Keywords, in.Price, in.Link, in.HypothesisID).
-		Suffix("RETURNING id, name, description, category, custom_category, brand, country, town, experiment_goal, target_action, facts, eligibility_rules, allowed_channels, forbidden_claims, known_constraints, keywords, price, link, hypothesis_id").
+		Columns("id", "name", "description", "category", "custom_category", "brand", "country", "town", "experiment_goal", "goal_origin", "target_action", "primary_metric", "metric_direction", "metric_numerator", "metric_denominator", "success_criterion", "facts", "key_fact_ids", "price", "facts_checked_at", "eligibility_rules", "allowed_channels", "contactable_persona_ids", "campaign_note", "forbidden_claims", "known_constraints", "keywords", "unknowns", "link", "hypothesis_id").
+		Values(uuid.NewString(), in.Name, in.Description, in.Category, in.CustomCategory, in.Brand, in.Country, in.Town, in.ExperimentGoal, in.GoalOrigin, in.TargetAction, in.PrimaryMetric, in.MetricDirection, in.MetricNumerator, in.MetricDenominator, in.SuccessCriterion, in.Facts, in.KeyFactIDs, in.Price, in.FactsCheckedAt, in.EligibilityRules, in.AllowedChannels, in.ContactablePersonaIDs, in.CampaignNote, in.ForbiddenClaims, in.KnownConstraints, in.Keywords, in.Unknowns, in.Link, in.HypothesisID).
+		Suffix("RETURNING id, name, description, category, custom_category, brand, country, town, experiment_goal, goal_origin, target_action, primary_metric, metric_direction, metric_numerator, metric_denominator, success_criterion, facts, key_fact_ids, price, facts_checked_at, eligibility_rules, allowed_channels, contactable_persona_ids, campaign_note, forbidden_claims, known_constraints, keywords, unknowns, link, hypothesis_id").
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build create product query: %w", err)
@@ -110,7 +143,7 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (*Product, erro
 
 	p := &Product{}
 	if err := r.db.Pool().QueryRow(ctx, sql, args...).
-		Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.CustomCategory, &p.Brand, &p.Country, &p.Town, &p.ExperimentGoal, &p.TargetAction, &p.Facts, &p.EligibilityRules, &p.AllowedChannels, &p.ForbiddenClaims, &p.KnownConstraints, &p.Keywords, &p.Price, &p.Link, &p.HypothesisID); err != nil {
+		Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.CustomCategory, &p.Brand, &p.Country, &p.Town, &p.ExperimentGoal, &p.GoalOrigin, &p.TargetAction, &p.PrimaryMetric, &p.MetricDirection, &p.MetricNumerator, &p.MetricDenominator, &p.SuccessCriterion, &p.Facts, &p.KeyFactIDs, &p.Price, &p.FactsCheckedAt, &p.EligibilityRules, &p.AllowedChannels, &p.ContactablePersonaIDs, &p.CampaignNote, &p.ForbiddenClaims, &p.KnownConstraints, &p.Keywords, &p.Unknowns, &p.Link, &p.HypothesisID); err != nil {
 		return nil, fmt.Errorf("create product: %w", err)
 	}
 
@@ -119,7 +152,7 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (*Product, erro
 
 func (r *Repository) Get(ctx context.Context, userID, id string) (*Product, error) {
 	sql, args, err := squirrelPSQL.
-		Select("p.id", "p.name", "p.description", "p.category", "p.custom_category", "p.brand", "p.country", "p.town", "p.experiment_goal", "p.target_action", "p.facts", "p.eligibility_rules", "p.allowed_channels", "p.forbidden_claims", "p.known_constraints", "p.keywords", "p.price", "p.link", "p.hypothesis_id").
+		Select("p.id", "p.name", "p.description", "p.category", "p.custom_category", "p.brand", "p.country", "p.town", "p.experiment_goal", "p.goal_origin", "p.target_action", "p.primary_metric", "p.metric_direction", "p.metric_numerator", "p.metric_denominator", "p.success_criterion", "p.facts", "p.key_fact_ids", "p.price", "p.facts_checked_at", "p.eligibility_rules", "p.allowed_channels", "p.contactable_persona_ids", "p.campaign_note", "p.forbidden_claims", "p.known_constraints", "p.keywords", "p.unknowns", "p.link", "p.hypothesis_id").
 		From("product p").
 		Join("hypothesis h ON h.id = p.hypothesis_id").
 		Where(squirrel.Eq{"p.id": id, "h.user_id": userID}).
@@ -129,7 +162,7 @@ func (r *Repository) Get(ctx context.Context, userID, id string) (*Product, erro
 	}
 
 	p := &Product{}
-	if err := r.db.Pool().QueryRow(ctx, sql, args...).Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.CustomCategory, &p.Brand, &p.Country, &p.Town, &p.ExperimentGoal, &p.TargetAction, &p.Facts, &p.EligibilityRules, &p.AllowedChannels, &p.ForbiddenClaims, &p.KnownConstraints, &p.Keywords, &p.Price, &p.Link, &p.HypothesisID); err != nil {
+	if err := r.db.Pool().QueryRow(ctx, sql, args...).Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.CustomCategory, &p.Brand, &p.Country, &p.Town, &p.ExperimentGoal, &p.GoalOrigin, &p.TargetAction, &p.PrimaryMetric, &p.MetricDirection, &p.MetricNumerator, &p.MetricDenominator, &p.SuccessCriterion, &p.Facts, &p.KeyFactIDs, &p.Price, &p.FactsCheckedAt, &p.EligibilityRules, &p.AllowedChannels, &p.ContactablePersonaIDs, &p.CampaignNote, &p.ForbiddenClaims, &p.KnownConstraints, &p.Keywords, &p.Unknowns, &p.Link, &p.HypothesisID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -142,7 +175,7 @@ func (r *Repository) Get(ctx context.Context, userID, id string) (*Product, erro
 
 func (r *Repository) GetByHypothesisID(ctx context.Context, hypothesisID string) (*Product, error) {
 	sql, args, err := squirrelPSQL.
-		Select("id", "name", "description", "category", "custom_category", "brand", "country", "town", "experiment_goal", "target_action", "facts", "eligibility_rules", "allowed_channels", "forbidden_claims", "known_constraints", "keywords", "price", "link", "hypothesis_id").
+		Select("id", "name", "description", "category", "custom_category", "brand", "country", "town", "experiment_goal", "goal_origin", "target_action", "primary_metric", "metric_direction", "metric_numerator", "metric_denominator", "success_criterion", "facts", "key_fact_ids", "price", "facts_checked_at", "eligibility_rules", "allowed_channels", "contactable_persona_ids", "campaign_note", "forbidden_claims", "known_constraints", "keywords", "unknowns", "link", "hypothesis_id").
 		From("product").
 		Where(squirrel.Eq{"hypothesis_id": hypothesisID}).
 		ToSql()
@@ -151,7 +184,7 @@ func (r *Repository) GetByHypothesisID(ctx context.Context, hypothesisID string)
 	}
 
 	p := &Product{}
-	if err := r.db.Pool().QueryRow(ctx, sql, args...).Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.CustomCategory, &p.Brand, &p.Country, &p.Town, &p.ExperimentGoal, &p.TargetAction, &p.Facts, &p.EligibilityRules, &p.AllowedChannels, &p.ForbiddenClaims, &p.KnownConstraints, &p.Keywords, &p.Price, &p.Link, &p.HypothesisID); err != nil {
+	if err := r.db.Pool().QueryRow(ctx, sql, args...).Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.CustomCategory, &p.Brand, &p.Country, &p.Town, &p.ExperimentGoal, &p.GoalOrigin, &p.TargetAction, &p.PrimaryMetric, &p.MetricDirection, &p.MetricNumerator, &p.MetricDenominator, &p.SuccessCriterion, &p.Facts, &p.KeyFactIDs, &p.Price, &p.FactsCheckedAt, &p.EligibilityRules, &p.AllowedChannels, &p.ContactablePersonaIDs, &p.CampaignNote, &p.ForbiddenClaims, &p.KnownConstraints, &p.Keywords, &p.Unknowns, &p.Link, &p.HypothesisID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -163,7 +196,7 @@ func (r *Repository) GetByHypothesisID(ctx context.Context, hypothesisID string)
 }
 
 func (r *Repository) Update(ctx context.Context, userID, id string, in UpdateInput) (*Product, error) {
-	if in.Name == nil && in.Description == nil && in.Category == nil && in.CustomCategory == nil && !in.ClearCustomCategory && in.Brand == nil && in.Country == nil && in.Town == nil && in.ExperimentGoal == nil && in.TargetAction == nil && in.Facts == nil && in.EligibilityRules == nil && in.AllowedChannels == nil && in.ForbiddenClaims == nil && in.KnownConstraints == nil && in.Keywords == nil && in.Price == nil && in.Link == nil {
+	if in.Name == nil && in.Description == nil && in.Category == nil && in.CustomCategory == nil && !in.ClearCustomCategory && in.Brand == nil && in.Country == nil && in.Town == nil && in.ExperimentGoal == nil && in.GoalOrigin == nil && in.TargetAction == nil && in.PrimaryMetric == nil && in.MetricDirection == nil && in.MetricNumerator == nil && in.MetricDenominator == nil && in.SuccessCriterion == nil && in.Facts == nil && in.KeyFactIDs == nil && in.Price == nil && in.FactsCheckedAt == nil && in.EligibilityRules == nil && in.AllowedChannels == nil && in.ContactablePersonaIDs == nil && in.CampaignNote == nil && in.ForbiddenClaims == nil && in.KnownConstraints == nil && in.Keywords == nil && in.Unknowns == nil && in.Link == nil {
 		return r.Get(ctx, userID, id)
 	}
 
@@ -171,7 +204,7 @@ func (r *Repository) Update(ctx context.Context, userID, id string, in UpdateInp
 		Update("product").
 		Where(squirrel.Eq{"product.id": id}).
 		Where("EXISTS (SELECT 1 FROM hypothesis WHERE hypothesis.id = product.hypothesis_id AND hypothesis.user_id = ?)", userID).
-		Suffix("RETURNING id, name, description, category, custom_category, brand, country, town, experiment_goal, target_action, facts, eligibility_rules, allowed_channels, forbidden_claims, known_constraints, keywords, price, link, hypothesis_id")
+		Suffix("RETURNING id, name, description, category, custom_category, brand, country, town, experiment_goal, goal_origin, target_action, primary_metric, metric_direction, metric_numerator, metric_denominator, success_criterion, facts, key_fact_ids, price, facts_checked_at, eligibility_rules, allowed_channels, contactable_persona_ids, campaign_note, forbidden_claims, known_constraints, keywords, unknowns, link, hypothesis_id")
 
 	if in.Name != nil {
 		builder = builder.Set("name", *in.Name)
@@ -206,13 +239,40 @@ func (r *Repository) Update(ctx context.Context, userID, id string, in UpdateInp
 	if in.ExperimentGoal != nil {
 		builder = builder.Set("experiment_goal", *in.ExperimentGoal)
 	}
+	if in.GoalOrigin != nil {
+		builder = builder.Set("goal_origin", *in.GoalOrigin)
+	}
 
 	if in.TargetAction != nil {
 		builder = builder.Set("target_action", *in.TargetAction)
 	}
+	if in.PrimaryMetric != nil {
+		builder = builder.Set("primary_metric", *in.PrimaryMetric)
+	}
+	if in.MetricDirection != nil {
+		builder = builder.Set("metric_direction", *in.MetricDirection)
+	}
+	if in.MetricNumerator != nil {
+		builder = builder.Set("metric_numerator", *in.MetricNumerator)
+	}
+	if in.MetricDenominator != nil {
+		builder = builder.Set("metric_denominator", *in.MetricDenominator)
+	}
+	if in.SuccessCriterion != nil {
+		builder = builder.Set("success_criterion", *in.SuccessCriterion)
+	}
 
 	if in.Facts != nil {
 		builder = builder.Set("facts", *in.Facts)
+	}
+	if in.KeyFactIDs != nil {
+		builder = builder.Set("key_fact_ids", *in.KeyFactIDs)
+	}
+	if in.Price != nil {
+		builder = builder.Set("price", *in.Price)
+	}
+	if in.FactsCheckedAt != nil {
+		builder = builder.Set("facts_checked_at", *in.FactsCheckedAt)
 	}
 
 	if in.EligibilityRules != nil {
@@ -221,6 +281,12 @@ func (r *Repository) Update(ctx context.Context, userID, id string, in UpdateInp
 
 	if in.AllowedChannels != nil {
 		builder = builder.Set("allowed_channels", *in.AllowedChannels)
+	}
+	if in.ContactablePersonaIDs != nil {
+		builder = builder.Set("contactable_persona_ids", *in.ContactablePersonaIDs)
+	}
+	if in.CampaignNote != nil {
+		builder = builder.Set("campaign_note", *in.CampaignNote)
 	}
 
 	if in.ForbiddenClaims != nil {
@@ -235,8 +301,8 @@ func (r *Repository) Update(ctx context.Context, userID, id string, in UpdateInp
 		builder = builder.Set("keywords", *in.Keywords)
 	}
 
-	if in.Price != nil {
-		builder = builder.Set("price", *in.Price)
+	if in.Unknowns != nil {
+		builder = builder.Set("unknowns", *in.Unknowns)
 	}
 
 	if in.Link != nil {
@@ -250,7 +316,7 @@ func (r *Repository) Update(ctx context.Context, userID, id string, in UpdateInp
 
 	p := &Product{}
 	if err := r.db.Pool().QueryRow(ctx, sql, args...).
-		Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.CustomCategory, &p.Brand, &p.Country, &p.Town, &p.ExperimentGoal, &p.TargetAction, &p.Facts, &p.EligibilityRules, &p.AllowedChannels, &p.ForbiddenClaims, &p.KnownConstraints, &p.Keywords, &p.Price, &p.Link, &p.HypothesisID); err != nil {
+		Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.CustomCategory, &p.Brand, &p.Country, &p.Town, &p.ExperimentGoal, &p.GoalOrigin, &p.TargetAction, &p.PrimaryMetric, &p.MetricDirection, &p.MetricNumerator, &p.MetricDenominator, &p.SuccessCriterion, &p.Facts, &p.KeyFactIDs, &p.Price, &p.FactsCheckedAt, &p.EligibilityRules, &p.AllowedChannels, &p.ContactablePersonaIDs, &p.CampaignNote, &p.ForbiddenClaims, &p.KnownConstraints, &p.Keywords, &p.Unknowns, &p.Link, &p.HypothesisID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}
