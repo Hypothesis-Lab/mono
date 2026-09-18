@@ -468,6 +468,20 @@ func demographicProfileIDs(profiles []yandexDemographicProfile, criteriaTypes []
 		return 0, 0, fmt.Errorf("unsupported persona gender %q", gender)
 	}
 
+	genderType, ageType := demographicCriteriaTypes(criteriaTypes)
+	if genderType == "" || ageType == "" {
+		return 0, 0, errors.New("yandex direct returned no gender or age demographic criteria type")
+	}
+
+	genderID, ageID := demographicProfileIDsByType(profiles, genderType, ageType, genderName, age)
+	if genderID == 0 || ageID == 0 {
+		return 0, 0, fmt.Errorf("yandex direct has no demographic profile for gender %q and age %d", gender, age)
+	}
+
+	return genderID, ageID, nil
+}
+
+func demographicCriteriaTypes(criteriaTypes []yandexAudienceCriteriaType) (string, string) {
 	var genderType, ageType string
 	for _, criteriaType := range criteriaTypes {
 		switch strings.ToLower(criteriaType.Name) {
@@ -477,10 +491,11 @@ func demographicProfileIDs(profiles []yandexDemographicProfile, criteriaTypes []
 			ageType = criteriaType.Type
 		}
 	}
-	if genderType == "" || ageType == "" {
-		return 0, 0, errors.New("yandex direct returned no gender or age demographic criteria type")
-	}
 
+	return genderType, ageType
+}
+
+func demographicProfileIDsByType(profiles []yandexDemographicProfile, genderType, ageType, genderName string, age int) (int64, int64) {
 	var genderID, ageID int64
 	for _, profile := range profiles {
 		name := strings.ToLower(profile.Name + " " + profile.Description)
@@ -491,10 +506,8 @@ func demographicProfileIDs(profiles []yandexDemographicProfile, criteriaTypes []
 			ageID = profile.ID
 		}
 	}
-	if genderID == 0 || ageID == 0 {
-		return 0, 0, fmt.Errorf("yandex direct has no demographic profile for gender %q and age %d", gender, age)
-	}
-	return genderID, ageID, nil
+
+	return genderID, ageID
 }
 
 func responseError(result any) *yandexRequestError {

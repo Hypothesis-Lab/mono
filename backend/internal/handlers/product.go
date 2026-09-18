@@ -137,35 +137,14 @@ func (s *Server) DeleteProduct(ctx context.Context, req api.DeleteProductRequest
 }
 
 func validateCreateProduct(req api.CreateProductRequest) string {
-	if strings.TrimSpace(req.Name) == "" {
-		return "name is required"
-	}
-	if strings.TrimSpace(req.Description) == "" {
-		return "description is required"
-	}
-	if req.Category == "" || !req.Category.Valid() {
-		return "category is required"
-	}
-	if message := validateCustomCategory(req.Category, req.CustomCategory); message != "" {
+	if message := validateCreateProductDetails(req); message != "" {
 		return message
 	}
-	if strings.TrimSpace(req.Brand) == "" {
-		return "brand is required"
+	if message := validateCreateProductGoal(req); message != "" {
+		return message
 	}
-	if strings.TrimSpace(req.Country) == "" {
-		return "country is required"
-	}
-	if strings.TrimSpace(req.ExperimentGoal) == "" {
-		return "experiment_goal is required"
-	}
-	if !req.GoalOrigin.Valid() {
-		return "goal_origin is required"
-	}
-	if strings.TrimSpace(req.TargetAction) == "" {
-		return "target_action is required"
-	}
-	if strings.TrimSpace(req.PrimaryMetric) == "" || !req.MetricDirection.Valid() || strings.TrimSpace(req.MetricNumerator) == "" || strings.TrimSpace(req.MetricDenominator) == "" {
-		return "primary_metric, metric_direction, metric_numerator, and metric_denominator are required"
+	if message := validateCreateProductMetrics(req); message != "" {
+		return message
 	}
 	if message := validateFacts(req.Facts); message != "" {
 		return message
@@ -186,7 +165,72 @@ func validateCreateProduct(req api.CreateProductRequest) string {
 	return ""
 }
 
+func validateCreateProductDetails(req api.CreateProductRequest) string {
+	if strings.TrimSpace(req.Name) == "" {
+		return "name is required"
+	}
+	if strings.TrimSpace(req.Description) == "" {
+		return "description is required"
+	}
+	if req.Category == "" || !req.Category.Valid() {
+		return "category is required"
+	}
+	if message := validateCustomCategory(req.Category, req.CustomCategory); message != "" {
+		return message
+	}
+	if strings.TrimSpace(req.Brand) == "" {
+		return "brand is required"
+	}
+	if strings.TrimSpace(req.Country) == "" {
+		return "country is required"
+	}
+
+	return ""
+}
+
+func validateCreateProductGoal(req api.CreateProductRequest) string {
+	if strings.TrimSpace(req.ExperimentGoal) == "" {
+		return "experiment_goal is required"
+	}
+	if !req.GoalOrigin.Valid() {
+		return "goal_origin is required"
+	}
+	if strings.TrimSpace(req.TargetAction) == "" {
+		return "target_action is required"
+	}
+
+	return ""
+}
+
+func validateCreateProductMetrics(req api.CreateProductRequest) string {
+	if strings.TrimSpace(req.PrimaryMetric) == "" || !req.MetricDirection.Valid() || strings.TrimSpace(req.MetricNumerator) == "" || strings.TrimSpace(req.MetricDenominator) == "" {
+		return "primary_metric, metric_direction, metric_numerator, and metric_denominator are required"
+	}
+
+	return ""
+}
+
 func validateUpdateProduct(req *api.UpdateProductRequest) string {
+	if message := validateUpdateProductDetails(req); message != "" {
+		return message
+	}
+	if message := validateUpdateProductGoal(req); message != "" {
+		return message
+	}
+	if message := validateUpdateProductMetrics(req); message != "" {
+		return message
+	}
+	if message := validateUpdateProductCollections(req); message != "" {
+		return message
+	}
+	if req.Price != nil && (!req.Price.Status.Valid() || strings.TrimSpace(req.Price.Description) == "") {
+		return "price status and description are required"
+	}
+
+	return ""
+}
+
+func validateUpdateProductDetails(req *api.UpdateProductRequest) string {
 	if req.Name != nil && strings.TrimSpace(*req.Name) == "" {
 		return "name must not be empty"
 	}
@@ -210,12 +254,22 @@ func validateUpdateProduct(req *api.UpdateProductRequest) string {
 	if req.Country != nil && strings.TrimSpace(*req.Country) == "" {
 		return "country must not be empty"
 	}
+
+	return ""
+}
+
+func validateUpdateProductGoal(req *api.UpdateProductRequest) string {
 	if req.ExperimentGoal != nil && strings.TrimSpace(*req.ExperimentGoal) == "" {
 		return "experiment_goal must not be empty"
 	}
 	if req.TargetAction != nil && strings.TrimSpace(*req.TargetAction) == "" {
 		return "target_action must not be empty"
 	}
+
+	return ""
+}
+
+func validateUpdateProductMetrics(req *api.UpdateProductRequest) string {
 	if req.PrimaryMetric != nil && strings.TrimSpace(*req.PrimaryMetric) == "" {
 		return "primary_metric must not be empty"
 	}
@@ -231,6 +285,11 @@ func validateUpdateProduct(req *api.UpdateProductRequest) string {
 	if req.GoalOrigin != nil && !req.GoalOrigin.Valid() {
 		return "invalid goal_origin"
 	}
+
+	return ""
+}
+
+func validateUpdateProductCollections(req *api.UpdateProductRequest) string {
 	if req.Facts != nil {
 		if message := validateFacts(*req.Facts); message != "" {
 			return message
@@ -245,9 +304,6 @@ func validateUpdateProduct(req *api.UpdateProductRequest) string {
 		if message := validateChannels(*req.AllowedChannels); message != "" {
 			return message
 		}
-	}
-	if req.Price != nil && (!req.Price.Status.Valid() || strings.TrimSpace(req.Price.Description) == "") {
-		return "price status and description are required"
 	}
 
 	return ""

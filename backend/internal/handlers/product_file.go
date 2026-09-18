@@ -226,60 +226,26 @@ func parseMultipartUpload(reader *multipart.Reader) (parsedFile, file.Type, erro
 				return parsedFile{}, "", errors.New("multiple file parts are not allowed")
 			}
 
-			filename := part.FileName()
-			if filename == "" {
-				return parsedFile{}, "", errors.New("file name is required")
-			}
-
-			if ext := filepath.Ext(filename); ext != "" {
-				filename = filename[:len(filename)-len(ext)] + strings.ToLower(ext)
-			}
-
-			contentType := part.Header.Get("Content-Type")
-			if contentType == "" {
-				contentType = "application/octet-stream"
-			}
-
-			buf, err := io.ReadAll(io.LimitReader(part, maxFileSize+1))
-			if err != nil {
-				return parsedFile{}, "", fmt.Errorf("failed to read file: %w", err)
-			}
-			if int64(len(buf)) > maxFileSize {
-				return parsedFile{}, "", errFileTooLarge
+			parsed, parseErr := parseFilePart(part)
+			if parseErr != nil {
+				return parsedFile{}, "", parseErr
 			}
 
 			hasFile = true
-			result = parsedFile{
-				filename:    filename,
-				contentType: contentType,
-				size:        int64(len(buf)),
-				data:        buf,
-			}
+			result = parsed
 
 		case typePartName:
 			if hasType {
 				return parsedFile{}, "", errors.New("multiple type parts are not allowed")
 			}
 
-			value, err := io.ReadAll(part)
-			if err != nil {
-				return parsedFile{}, "", fmt.Errorf("failed to read file type: %w", err)
-			}
-
-			switch strings.TrimSpace(string(value)) {
-			case "other":
-				fileType = file.TypeOther
-			case "brandbook":
-				fileType = file.TypeBrandbook
-			case "product":
-				fileType = file.TypeProduct
-			case "reference":
-				fileType = file.TypeReference
-			default:
-				return parsedFile{}, "", errors.New("type must be one of product, brandbook, reference, other")
+			parsedType, parseErr := parseFileTypePart(part)
+			if parseErr != nil {
+				return parsedFile{}, "", parseErr
 			}
 
 			hasType = true
+			fileType = parsedType
 
 		default:
 			return parsedFile{}, "", fmt.Errorf("unexpected form field %q: expected %q or %q", part.FormName(), filePartName, typePartName)
@@ -299,6 +265,52 @@ func parseMultipartUpload(reader *multipart.Reader) (parsedFile, file.Type, erro
 	}
 
 	return result, fileType, nil
+}
+
+func parseFilePart(part *multipart.Part) (parsedFile, error) {
+	filename := part.FileName()
+	if filename == "" {
+		return parsedFile{}, errors.New("file name is required")
+	}
+
+	if ext := filepath.Ext(filename); ext != "" {
+		filename = filename[:len(filename)-len(ext)] + strings.ToLower(ext)
+	}
+
+	contentType := part.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	data, err := io.ReadAll(io.LimitReader(part, maxFileSize+1))
+	if err != nil {
+		return parsedFile{}, fmt.Errorf("failed to read file: %w", err)
+	}
+	if int64(len(data)) > maxFileSize {
+		return parsedFile{}, errFileTooLarge
+	}
+
+	return parsedFile{filename: filename, contentType: contentType, size: int64(len(data)), data: data}, nil
+}
+
+func parseFileTypePart(part *multipart.Part) (file.Type, error) {
+	value, err := io.ReadAll(part)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file type: %w", err)
+	}
+
+	switch strings.TrimSpace(string(value)) {
+	case "other":
+		return file.TypeOther, nil
+	case "brandbook":
+		return file.TypeBrandbook, nil
+	case "product":
+		return file.TypeProduct, nil
+	case "reference":
+		return file.TypeReference, nil
+	default:
+		return "", errors.New("type must be one of product, brandbook, reference, other")
+	}
 }
 
 func validateUploadedFile(filename, contentType string, data []byte) error {

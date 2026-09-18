@@ -17,7 +17,8 @@ tasks:
 
   test:integration:
     cmds:
-      - go test ./test/... -count=1 -v
+      - >-
+        bash -o pipefail -c "DOCKER_HOST=unix://$(podman info --format '{{"{{"}}.Host.RemoteSocket.Path{{"}}"}}') go test ./test/... -count=1 -v 2>&1 | sed '/^go: downloading /d'"
 
   test:
     cmds:

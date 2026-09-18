@@ -11,9 +11,6 @@ import (
 	"github.com/getkin/kin-openapi/openapi3filter"
 )
 
-// validationMessage maps an OpenAPI request validation failure to a
-// user-facing message, deriving the field and constraint from the
-// error's schema metadata.
 func validationMessage(err error, status int) string {
 	var reqErr *openapi3filter.RequestError
 	if !errors.As(err, &reqErr) || reqErr.Parameter != nil {
@@ -35,43 +32,49 @@ func validationMessage(err error, status int) string {
 
 	var schemaErr *openapi3.SchemaError
 	if errors.As(err, &schemaErr) {
-		field := "value"
-		path := schemaErr.JSONPointer()
-		for i := len(path) - 1; i >= 0; i-- {
-			if _, parseErr := strconv.Atoi(path[i]); parseErr == nil {
-				continue
-			}
-
-			field = path[i]
-			break
-		}
-
-		switch schemaErr.SchemaField {
-		case "required":
-			return fmt.Sprintf("%s is required", field)
-		case "minLength":
-			return fmt.Sprintf("%s must be at least %d characters long", field, schemaErr.Schema.MinLength)
-		case "maxLength":
-			return fmt.Sprintf("%s must be at most %d characters long", field, *schemaErr.Schema.MaxLength)
-		case "minItems":
-			return fmt.Sprintf("%s must have at least %d items", field, schemaErr.Schema.MinItems)
-		case "maxItems":
-			return fmt.Sprintf("%s must have at most %d items", field, *schemaErr.Schema.MaxItems)
-		case "minimum":
-			return fmt.Sprintf("%s must be greater than or equal to %v", field, *schemaErr.Schema.Min)
-		case "maximum":
-			return fmt.Sprintf("%s must be less than or equal to %v", field, *schemaErr.Schema.Max)
-		case "enum":
-			values := make([]string, 0, len(schemaErr.Schema.Enum))
-			for _, v := range schemaErr.Schema.Enum {
-				values = append(values, fmt.Sprintf("%v", v))
-			}
-
-			return fmt.Sprintf("%s must be one of %s", field, strings.Join(values, ", "))
-		case "type":
-			return fmt.Sprintf("%s has invalid type", field)
-		}
+		return schemaValidationMessage(schemaErr, status)
 	}
 
 	return http.StatusText(status)
+}
+
+func schemaValidationMessage(schemaErr *openapi3.SchemaError, status int) string {
+	field := schemaErrorField(schemaErr.JSONPointer())
+	switch schemaErr.SchemaField {
+	case "required":
+		return fmt.Sprintf("%s is required", field)
+	case "minLength":
+		return fmt.Sprintf("%s must be at least %d characters long", field, schemaErr.Schema.MinLength)
+	case "maxLength":
+		return fmt.Sprintf("%s must be at most %d characters long", field, *schemaErr.Schema.MaxLength)
+	case "minItems":
+		return fmt.Sprintf("%s must have at least %d items", field, schemaErr.Schema.MinItems)
+	case "maxItems":
+		return fmt.Sprintf("%s must have at most %d items", field, *schemaErr.Schema.MaxItems)
+	case "minimum":
+		return fmt.Sprintf("%s must be greater than or equal to %v", field, *schemaErr.Schema.Min)
+	case "maximum":
+		return fmt.Sprintf("%s must be less than or equal to %v", field, *schemaErr.Schema.Max)
+	case "enum":
+		values := make([]string, 0, len(schemaErr.Schema.Enum))
+		for _, value := range schemaErr.Schema.Enum {
+			values = append(values, fmt.Sprintf("%v", value))
+		}
+
+		return fmt.Sprintf("%s must be one of %s", field, strings.Join(values, ", "))
+	case "type":
+		return fmt.Sprintf("%s has invalid type", field)
+	default:
+		return http.StatusText(status)
+	}
+}
+
+func schemaErrorField(path []string) string {
+	for i := len(path) - 1; i >= 0; i-- {
+		if _, err := strconv.Atoi(path[i]); err != nil {
+			return path[i]
+		}
+	}
+
+	return "value"
 }

@@ -166,39 +166,9 @@ func (s *HypothesisService) Launch(ctx context.Context, userID, id string) (*hyp
 		return nil, fmt.Errorf("setting status: %w", err)
 	}
 
-	createdTargeting := []createdAudienceTargeting{}
-	audiences, err := s.audiences.ListByProductID(ctx, p.ID)
+	createdTargeting, err := s.createAudienceTargeting(ctx, p, campaignID)
 	if err != nil {
-		return nil, s.rollbackLaunch(ctx, userID, id, p.ID, campaignID, createdTargeting, fmt.Errorf("list product audiences: %w", err))
-	}
-	if len(audiences) == 0 {
-		return nil, s.rollbackLaunch(ctx, userID, id, p.ID, campaignID, createdTargeting, errors.New("product has no generated audiences"))
-	}
-	for _, audience := range audiences {
-		var persona struct {
-			Gender string `json:"gender"`
-			Age    int    `json:"age"`
-		}
-		if err := json.Unmarshal(audience.Persona, &persona); err != nil {
-			return nil, s.rollbackLaunch(ctx, userID, id, p.ID, campaignID, createdTargeting, fmt.Errorf("decode audience %s persona: %w", audience.ID, err))
-		}
-		retargetingListID, err := s.yandex.CreateDemographicRetargetingList(ctx, "product-"+p.ID+"-"+audience.PersonaID, persona.Gender, persona.Age)
-		if err != nil {
-			return nil, s.rollbackLaunch(ctx, userID, id, p.ID, campaignID, createdTargeting, fmt.Errorf("create retargeting list for audience %s: %w", audience.ID, err))
-		}
-		createdTargeting = append(createdTargeting, createdAudienceTargeting{retargetingListID: retargetingListID})
-
-		adGroupID, err := s.yandex.CreateUserProfileAdGroup(ctx, campaignID, "product-"+p.ID+"-"+audience.PersonaID)
-		if err != nil {
-			return nil, s.rollbackLaunch(ctx, userID, id, p.ID, campaignID, createdTargeting, fmt.Errorf("create ad group for audience %s: %w", audience.ID, err))
-		}
-		createdTargeting[len(createdTargeting)-1].adGroupID = adGroupID
-
-		audienceTargetID, err := s.yandex.CreateAudienceTarget(ctx, adGroupID, retargetingListID)
-		if err != nil {
-			return nil, s.rollbackLaunch(ctx, userID, id, p.ID, campaignID, createdTargeting, fmt.Errorf("create audience target for audience %s: %w", audience.ID, err))
-		}
-		createdTargeting[len(createdTargeting)-1].audienceTargetID = audienceTargetID
+		return nil, s.rollbackLaunch(ctx, userID, id, p.ID, campaignID, createdTargeting, err)
 	}
 
 	return launched, nil
@@ -312,6 +282,45 @@ func (s *HypothesisService) Delete(ctx context.Context, userID, id string) error
 	}
 
 	return nil
+}
+
+func (s *HypothesisService) createAudienceTargeting(ctx context.Context, p *product.Product, campaignID int64) ([]createdAudienceTargeting, error) {
+	createdTargeting := []createdAudienceTargeting{}
+	audiences, err := s.audiences.ListByProductID(ctx, p.ID)
+	if err != nil {
+		return createdTargeting, fmt.Errorf("list product audiences: %w", err)
+	}
+	if len(audiences) == 0 {
+		return createdTargeting, errors.New("product has no generated audiences")
+	}
+	for _, audience := range audiences {
+		var persona struct {
+			Gender string `json:"gender"`
+			Age    int    `json:"age"`
+		}
+		if err := json.Unmarshal(audience.Persona, &persona); err != nil {
+			return createdTargeting, fmt.Errorf("decode audience %s persona: %w", audience.ID, err)
+		}
+		retargetingListID, err := s.yandex.CreateDemographicRetargetingList(ctx, "product-"+p.ID+"-"+audience.PersonaID, persona.Gender, persona.Age)
+		if err != nil {
+			return createdTargeting, fmt.Errorf("create retargeting list for audience %s: %w", audience.ID, err)
+		}
+		createdTargeting = append(createdTargeting, createdAudienceTargeting{retargetingListID: retargetingListID})
+
+		adGroupID, err := s.yandex.CreateUserProfileAdGroup(ctx, campaignID, "product-"+p.ID+"-"+audience.PersonaID)
+		if err != nil {
+			return createdTargeting, fmt.Errorf("create ad group for audience %s: %w", audience.ID, err)
+		}
+		createdTargeting[len(createdTargeting)-1].adGroupID = adGroupID
+
+		audienceTargetID, err := s.yandex.CreateAudienceTarget(ctx, adGroupID, retargetingListID)
+		if err != nil {
+			return createdTargeting, fmt.Errorf("create audience target for audience %s: %w", audience.ID, err)
+		}
+		createdTargeting[len(createdTargeting)-1].audienceTargetID = audienceTargetID
+	}
+
+	return createdTargeting, nil
 }
 
 func (s *HypothesisService) rollbackLaunch(ctx context.Context, userID, hypothesisID, productID string, campaignID int64, targetings []createdAudienceTargeting, launchErr error) error {

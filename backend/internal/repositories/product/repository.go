@@ -122,6 +122,11 @@ type Repository struct {
 	db *db.DB
 }
 
+type updateField struct {
+	column string
+	value  any
+}
+
 func NewRepository(db *db.DB) *Repository {
 	return &Repository{db: db}
 }
@@ -196,117 +201,15 @@ func (r *Repository) GetByHypothesisID(ctx context.Context, hypothesisID string)
 }
 
 func (r *Repository) Update(ctx context.Context, userID, id string, in UpdateInput) (*Product, error) {
-	if in.Name == nil && in.Description == nil && in.Category == nil && in.CustomCategory == nil && !in.ClearCustomCategory && in.Brand == nil && in.Country == nil && in.Town == nil && in.ExperimentGoal == nil && in.GoalOrigin == nil && in.TargetAction == nil && in.PrimaryMetric == nil && in.MetricDirection == nil && in.MetricNumerator == nil && in.MetricDenominator == nil && in.SuccessCriterion == nil && in.Facts == nil && in.KeyFactIDs == nil && in.Price == nil && in.FactsCheckedAt == nil && in.EligibilityRules == nil && in.AllowedChannels == nil && in.ContactablePersonaIDs == nil && in.CampaignNote == nil && in.ForbiddenClaims == nil && in.KnownConstraints == nil && in.Keywords == nil && in.Unknowns == nil && in.Link == nil {
-		return r.Get(ctx, userID, id)
-	}
-
 	builder := squirrelPSQL.
 		Update("product").
 		Where(squirrel.Eq{"product.id": id}).
 		Where("EXISTS (SELECT 1 FROM hypothesis WHERE hypothesis.id = product.hypothesis_id AND hypothesis.user_id = ?)", userID).
 		Suffix("RETURNING id, name, description, category, custom_category, brand, country, town, experiment_goal, goal_origin, target_action, primary_metric, metric_direction, metric_numerator, metric_denominator, success_criterion, facts, key_fact_ids, price, facts_checked_at, eligibility_rules, allowed_channels, contactable_persona_ids, campaign_note, forbidden_claims, known_constraints, keywords, unknowns, link, hypothesis_id")
 
-	if in.Name != nil {
-		builder = builder.Set("name", *in.Name)
-	}
-
-	if in.Description != nil {
-		builder = builder.Set("description", *in.Description)
-	}
-
-	if in.Category != nil {
-		builder = builder.Set("category", *in.Category)
-	}
-	if in.CustomCategory != nil {
-		builder = builder.Set("custom_category", *in.CustomCategory)
-	}
-	if in.ClearCustomCategory {
-		builder = builder.Set("custom_category", nil)
-	}
-
-	if in.Brand != nil {
-		builder = builder.Set("brand", *in.Brand)
-	}
-
-	if in.Country != nil {
-		builder = builder.Set("country", *in.Country)
-	}
-
-	if in.Town != nil {
-		builder = builder.Set("town", *in.Town)
-	}
-
-	if in.ExperimentGoal != nil {
-		builder = builder.Set("experiment_goal", *in.ExperimentGoal)
-	}
-	if in.GoalOrigin != nil {
-		builder = builder.Set("goal_origin", *in.GoalOrigin)
-	}
-
-	if in.TargetAction != nil {
-		builder = builder.Set("target_action", *in.TargetAction)
-	}
-	if in.PrimaryMetric != nil {
-		builder = builder.Set("primary_metric", *in.PrimaryMetric)
-	}
-	if in.MetricDirection != nil {
-		builder = builder.Set("metric_direction", *in.MetricDirection)
-	}
-	if in.MetricNumerator != nil {
-		builder = builder.Set("metric_numerator", *in.MetricNumerator)
-	}
-	if in.MetricDenominator != nil {
-		builder = builder.Set("metric_denominator", *in.MetricDenominator)
-	}
-	if in.SuccessCriterion != nil {
-		builder = builder.Set("success_criterion", *in.SuccessCriterion)
-	}
-
-	if in.Facts != nil {
-		builder = builder.Set("facts", *in.Facts)
-	}
-	if in.KeyFactIDs != nil {
-		builder = builder.Set("key_fact_ids", *in.KeyFactIDs)
-	}
-	if in.Price != nil {
-		builder = builder.Set("price", *in.Price)
-	}
-	if in.FactsCheckedAt != nil {
-		builder = builder.Set("facts_checked_at", *in.FactsCheckedAt)
-	}
-
-	if in.EligibilityRules != nil {
-		builder = builder.Set("eligibility_rules", *in.EligibilityRules)
-	}
-
-	if in.AllowedChannels != nil {
-		builder = builder.Set("allowed_channels", *in.AllowedChannels)
-	}
-	if in.ContactablePersonaIDs != nil {
-		builder = builder.Set("contactable_persona_ids", *in.ContactablePersonaIDs)
-	}
-	if in.CampaignNote != nil {
-		builder = builder.Set("campaign_note", *in.CampaignNote)
-	}
-
-	if in.ForbiddenClaims != nil {
-		builder = builder.Set("forbidden_claims", *in.ForbiddenClaims)
-	}
-
-	if in.KnownConstraints != nil {
-		builder = builder.Set("known_constraints", *in.KnownConstraints)
-	}
-
-	if in.Keywords != nil {
-		builder = builder.Set("keywords", *in.Keywords)
-	}
-
-	if in.Unknowns != nil {
-		builder = builder.Set("unknowns", *in.Unknowns)
-	}
-
-	if in.Link != nil {
-		builder = builder.Set("link", *in.Link)
+	builder, updates := applyUpdateFields(builder, in)
+	if updates == 0 {
+		return r.Get(ctx, userID, id)
 	}
 
 	sql, args, err := builder.ToSql()
@@ -325,6 +228,73 @@ func (r *Repository) Update(ctx context.Context, userID, id string, in UpdateInp
 	}
 
 	return p, nil
+}
+
+func applyUpdateFields(builder squirrel.UpdateBuilder, in UpdateInput) (squirrel.UpdateBuilder, int) {
+	fields := []updateField{
+		{"name", in.Name},
+		{"description", in.Description},
+		{"category", in.Category},
+		{"custom_category", in.CustomCategory},
+		{"brand", in.Brand},
+		{"country", in.Country},
+		{"town", in.Town},
+		{"experiment_goal", in.ExperimentGoal},
+		{"goal_origin", in.GoalOrigin},
+		{"target_action", in.TargetAction},
+		{"primary_metric", in.PrimaryMetric},
+		{"metric_direction", in.MetricDirection},
+		{"metric_numerator", in.MetricNumerator},
+		{"metric_denominator", in.MetricDenominator},
+		{"success_criterion", in.SuccessCriterion},
+		{"facts", in.Facts},
+		{"key_fact_ids", in.KeyFactIDs},
+		{"price", in.Price},
+		{"facts_checked_at", in.FactsCheckedAt},
+		{"eligibility_rules", in.EligibilityRules},
+		{"allowed_channels", in.AllowedChannels},
+		{"contactable_persona_ids", in.ContactablePersonaIDs},
+		{"campaign_note", in.CampaignNote},
+		{"forbidden_claims", in.ForbiddenClaims},
+		{"known_constraints", in.KnownConstraints},
+		{"keywords", in.Keywords},
+		{"unknowns", in.Unknowns},
+		{"link", in.Link},
+	}
+
+	updates := 0
+	for _, field := range fields {
+		var updated bool
+		builder, updated = setUpdateField(builder, field)
+		if updated {
+			updates++
+		}
+	}
+	if in.ClearCustomCategory {
+		builder = builder.Set("custom_category", nil)
+		updates++
+	}
+
+	return builder, updates
+}
+
+func setUpdateField(builder squirrel.UpdateBuilder, field updateField) (squirrel.UpdateBuilder, bool) {
+	switch value := field.value.(type) {
+	case *string:
+		if value != nil {
+			return builder.Set(field.column, *value), true
+		}
+	case *json.RawMessage:
+		if value != nil {
+			return builder.Set(field.column, *value), true
+		}
+	case *[]string:
+		if value != nil {
+			return builder.Set(field.column, *value), true
+		}
+	}
+
+	return builder, false
 }
 
 func (r *Repository) Delete(ctx context.Context, userID, id string) error {
