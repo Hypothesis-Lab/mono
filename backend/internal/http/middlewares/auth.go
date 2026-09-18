@@ -142,6 +142,7 @@ func authErrorHandler(_ context.Context, err error, w http.ResponseWriter, _ *ht
 	if status == 0 {
 		status = http.StatusBadRequest
 	}
+
 	w.WriteHeader(status)
 
 	if encodeErr := json.NewEncoder(w).Encode(api.ErrBody{Error: api.ErrDetail{Code: status, Description: validationMessage(err, status)}}); encodeErr != nil {

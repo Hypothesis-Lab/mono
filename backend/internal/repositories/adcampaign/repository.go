@@ -86,6 +86,7 @@ func (r *Repository) Delete(ctx context.Context, productID, provider string) err
 	if err != nil {
 		return fmt.Errorf("delete ad campaign for product %s: %w", productID, err)
 	}
+
 	if result.RowsAffected() == 0 {
 		return ErrNotFound
 	}

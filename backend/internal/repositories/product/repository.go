@@ -270,6 +270,7 @@ func applyUpdateFields(builder squirrel.UpdateBuilder, in UpdateInput) (squirrel
 			updates++
 		}
 	}
+
 	if in.ClearCustomCategory {
 		builder = builder.Set("custom_category", nil)
 		updates++

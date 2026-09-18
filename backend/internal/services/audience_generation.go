@@ -72,6 +72,7 @@ func (w *AudienceGenerationWorker) sync(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("get completed audience generation: %w", err)
 	}
+
 	if job == nil {
 		return nil
 	}
@@ -88,9 +89,11 @@ func (w *AudienceGenerationWorker) sync(ctx context.Context) error {
 			Score:      generated.Score,
 		})
 	}
+
 	if err := w.audiences.PersistGenerated(ctx, job.ID, job.ProductID, inputs); err != nil {
 		return fmt.Errorf("persist generated audiences: %w", err)
 	}
+
 	if err := w.generator.MarkAudienceGenerationPersisted(ctx, job.ID); err != nil {
 		return fmt.Errorf("acknowledge persisted audience generation: %w", err)
 	}

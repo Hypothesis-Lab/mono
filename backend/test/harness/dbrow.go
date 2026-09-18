@@ -25,6 +25,7 @@ func RowAsStrings(ctx context.Context, t require.TestingT, pool *pgxpool.Pool, t
 	for i, fd := range fds {
 		got[fd.Name] = toStr(vals[i])
 	}
+
 	return got
 }
 
@@ -32,6 +33,7 @@ func toStr(v any) string {
 	if v == nil {
 		return "<NULL>"
 	}
+
 	switch x := v.(type) {
 	case time.Time:
 		return x.Format(time.RFC3339Nano)

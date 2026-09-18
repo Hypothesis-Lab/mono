@@ -209,6 +209,7 @@ func TestParseMultipartUpload(t *testing.T) {
 				require.EqualError(t, err, tc.wantErr)
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, tc.wantType, fileType)
 			require.Equal(t, tc.wantFile, parsed)

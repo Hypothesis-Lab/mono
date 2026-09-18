@@ -72,6 +72,7 @@ func (r *Repository) ListByProductID(ctx context.Context, productID string) ([]*
 
 		result = append(result, a)
 	}
+
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate audiences: %w", err)
 	}
@@ -84,6 +85,7 @@ func (r *Repository) PersistGenerated(ctx context.Context, generatorJobID, produ
 	if err != nil {
 		return fmt.Errorf("begin persist generated audiences transaction: %w", err)
 	}
+
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	for _, in := range inputs {

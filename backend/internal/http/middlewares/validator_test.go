@@ -33,6 +33,7 @@ func TestValidationMessage(t *testing.T) {
 			if status == 0 {
 				status = http.StatusBadRequest
 			}
+
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(status)
 			_, _ = io.WriteString(w, validationMessage(err, status))

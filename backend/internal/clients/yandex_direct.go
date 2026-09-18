@@ -251,9 +251,11 @@ func (c *YandexDirectClient) CreateCampaign(ctx context.Context, name, startDate
 	if c.token == "" {
 		return 0, errors.New("yandex direct token is required")
 	}
+
 	if name == "" {
 		return 0, errors.New("campaign name is required")
 	}
+
 	if startDate == "" {
 		return 0, errors.New("campaign start date is required")
 	}
@@ -274,9 +276,11 @@ func (c *YandexDirectClient) CreateCampaign(ctx context.Context, name, startDate
 	if err := c.post(ctx, "campaigns", requestBody, &result); err != nil {
 		return 0, fmt.Errorf("create yandex direct campaign: %w", err)
 	}
+
 	if len(result.Result.AddResults) != 1 {
 		return 0, fmt.Errorf("yandex direct campaign response contained %d results", len(result.Result.AddResults))
 	}
+
 	if len(result.Result.AddResults[0].Errors) > 0 {
 		itemError := result.Result.AddResults[0].Errors[0]
 		return 0, fmt.Errorf(
@@ -294,6 +298,7 @@ func (c *YandexDirectClient) DeleteCampaign(ctx context.Context, id int64) error
 	if c.token == "" {
 		return errors.New("yandex direct token is required")
 	}
+
 	if id == 0 {
 		return errors.New("yandex direct campaign id is required")
 	}
@@ -305,9 +310,11 @@ func (c *YandexDirectClient) DeleteCampaign(ctx context.Context, id int64) error
 	if err := c.post(ctx, "campaigns", requestBody, &result); err != nil {
 		return fmt.Errorf("delete yandex direct campaign: %w", err)
 	}
+
 	if len(result.Result.DeleteResults) != 1 {
 		return fmt.Errorf("yandex direct campaign deletion response contained %d results", len(result.Result.DeleteResults))
 	}
+
 	if len(result.Result.DeleteResults[0].Errors) > 0 {
 		itemError := result.Result.DeleteResults[0].Errors[0]
 		return fmt.Errorf(
@@ -329,6 +336,7 @@ func (c *YandexDirectClient) CreateUserProfileAdGroup(ctx context.Context, campa
 	if err := c.post(ctx, "adgroups", requestBody, &result); err != nil {
 		return 0, fmt.Errorf("create yandex direct ad group: %w", err)
 	}
+
 	return addResultID(result, "ad group")
 }
 
@@ -340,6 +348,7 @@ func (c *YandexDirectClient) CreateDemographicRetargetingList(ctx context.Contex
 	if err := c.post(ctx, "dictionaries", dictionariesRequest, &dictionaries); err != nil {
 		return 0, fmt.Errorf("get yandex direct demographic profiles: %w", err)
 	}
+
 	if len(dictionaries.Result.AudienceDemographicProfiles) == 0 || len(dictionaries.Result.AudienceCriteriaTypes) == 0 {
 		return 0, errors.New("yandex direct returned no demographic profiles or criteria types")
 	}
@@ -363,6 +372,7 @@ func (c *YandexDirectClient) CreateDemographicRetargetingList(ctx context.Contex
 	if err := c.post(ctx, "retargetinglists", requestBody, &result); err != nil {
 		return 0, fmt.Errorf("create yandex direct retargeting list: %w", err)
 	}
+
 	return addResultID(result, "retargeting list")
 }
 
@@ -374,6 +384,7 @@ func (c *YandexDirectClient) CreateAudienceTarget(ctx context.Context, adGroupID
 	if err := c.post(ctx, "audiencetargets", requestBody, &result); err != nil {
 		return 0, fmt.Errorf("create yandex direct audience target: %w", err)
 	}
+
 	return addResultID(result, "audience target")
 }
 
@@ -399,17 +410,21 @@ func (c *YandexDirectClient) delete(ctx context.Context, service string, request
 	if c.token == "" {
 		return errors.New("yandex direct token is required")
 	}
+
 	var result yandexDeleteResponse
 	if err := c.post(ctx, service, requestBody, &result); err != nil {
 		return fmt.Errorf("delete yandex direct %s: %w", name, err)
 	}
+
 	if len(result.Result.DeleteResults) != 1 {
 		return fmt.Errorf("yandex direct %s deletion response contained %d results", name, len(result.Result.DeleteResults))
 	}
+
 	if len(result.Result.DeleteResults[0].Errors) > 0 {
 		itemError := result.Result.DeleteResults[0].Errors[0]
 		return fmt.Errorf("yandex direct %s deletion failed: code=%d message=%q details=%q", name, itemError.Code, itemError.Message, itemError.Details)
 	}
+
 	return nil
 }
 
@@ -417,11 +432,13 @@ func addResultID(result yandexAddResponse, name string) (int64, error) {
 	if len(result.Result.AddResults) != 1 {
 		return 0, fmt.Errorf("yandex direct %s response contained %d results", name, len(result.Result.AddResults))
 	}
+
 	item := result.Result.AddResults[0]
 	if len(item.Errors) > 0 {
 		itemError := item.Errors[0]
 		return 0, fmt.Errorf("yandex direct %s creation failed: code=%d message=%q details=%q", name, itemError.Code, itemError.Message, itemError.Details)
 	}
+
 	return item.ID, nil
 }
 
@@ -429,14 +446,17 @@ func (c *YandexDirectClient) post(ctx context.Context, service string, requestBo
 	if c.token == "" {
 		return errors.New("yandex direct token is required")
 	}
+
 	body, err := json.Marshal(requestBody)
 	if err != nil {
 		return fmt.Errorf("marshal yandex direct %s request: %w", service, err)
 	}
+
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint+"/"+service, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("create yandex direct %s request: %w", service, err)
 	}
+
 	request.Header.Set("Authorization", "Bearer "+c.token)
 	request.Header.Set("Accept-Language", "en")
 	request.Header.Set("Content-Type", "application/json; charset=utf-8")
@@ -450,15 +470,19 @@ func (c *YandexDirectClient) post(ctx context.Context, service string, requestBo
 	if err != nil {
 		return fmt.Errorf("read yandex direct %s response: %w", service, err)
 	}
+
 	if err := json.Unmarshal(responseBody, result); err != nil {
 		return fmt.Errorf("decode yandex direct %s response: %w", service, err)
 	}
+
 	if responseError(result) != nil {
 		return responseError(result)
 	}
+
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return fmt.Errorf("yandex direct %s request returned HTTP status %d", service, response.StatusCode)
 	}
+
 	return nil
 }
 
@@ -502,6 +526,7 @@ func demographicProfileIDsByType(profiles []yandexDemographicProfile, genderType
 		if genderID == 0 && profile.Type == genderType && matchesGender(name, genderName) {
 			genderID = profile.ID
 		}
+
 		if ageID == 0 && profile.Type == ageType && profileContainsAge(profile.Name+" "+profile.Description, age) {
 			ageID = profile.ID
 		}
@@ -531,6 +556,7 @@ func matchesGender(value, gender string) bool {
 	if gender == "male" && strings.Contains(value, "female") {
 		return false
 	}
+
 	return strings.Contains(value, gender)
 }
 
@@ -542,11 +568,13 @@ func profileContainsAge(value string, age int) bool {
 			return age >= lower && age <= upper
 		}
 	}
+
 	if parts := agePlusPattern.FindStringSubmatch(value); len(parts) == 2 {
 		lower, err := strconv.Atoi(parts[1])
 		if err == nil {
 			return age >= lower
 		}
 	}
+
 	return false
 }

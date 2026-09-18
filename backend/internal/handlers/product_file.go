@@ -216,6 +216,7 @@ func parseMultipartUpload(reader *multipart.Reader) (parsedFile, file.Type, erro
 		if err == io.EOF {
 			break
 		}
+
 		if err != nil {
 			return parsedFile{}, "", fmt.Errorf("invalid multipart body: %w", err)
 		}
@@ -286,6 +287,7 @@ func parseFilePart(part *multipart.Part) (parsedFile, error) {
 	if err != nil {
 		return parsedFile{}, fmt.Errorf("failed to read file: %w", err)
 	}
+
 	if int64(len(data)) > maxFileSize {
 		return parsedFile{}, errFileTooLarge
 	}
@@ -324,6 +326,7 @@ func validateUploadedFile(filename, contentType string, data []byte) error {
 	if err != nil {
 		return fmt.Errorf("parse declared content type: %w", err)
 	}
+
 	if declared != info.contentType {
 		return errors.New("declared content type does not match file extension")
 	}

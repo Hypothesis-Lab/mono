@@ -162,6 +162,7 @@ func (s *Server) ListProductAudiences(ctx context.Context, req api.ListProductAu
 
 			return api.ListProductAudiences500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
 		}
+
 		resp = append(resp, response)
 	}
 
@@ -173,10 +174,12 @@ func validateProductForGeneration(p *product.Product) string {
 	if err := json.Unmarshal(p.Facts, &facts); err != nil {
 		return "product facts are invalid"
 	}
+
 	var rules []api.EligibilityRule
 	if err := json.Unmarshal(p.EligibilityRules, &rules); err != nil {
 		return "product eligibility rules are invalid"
 	}
+
 	var price api.ProductPrice
 	if err := json.Unmarshal(p.Price, &price); err != nil {
 		return "product price is invalid"

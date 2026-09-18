@@ -71,6 +71,7 @@ func (s *ProductService) Update(ctx context.Context, userID, id string, in produ
 		if in.CustomCategory != nil {
 			return nil, product.ErrCustomCategoryNotAllowed
 		}
+
 		in.ClearCustomCategory = true
 	}
 

@@ -71,6 +71,7 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("create test network: %w", err)
 	}
+
 	cleanupFns = append(cleanupFns, func(cleanupCtx context.Context) { _ = testNetwork.Remove(cleanupCtx) })
 
 	postgresContainer, err := startContainer(ctx, testNetwork.Name, &cleanupFns, "postgres", testcontainers.ContainerRequest{
@@ -125,6 +126,7 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("get s3 host: %w", err)
 	}
+
 	if s3Host == "localhost" {
 		s3Host = "127.0.0.1"
 	}
@@ -133,6 +135,7 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("get s3 mapped port: %w", err)
 	}
+
 	s3Endpoint := fmt.Sprintf("http://%s:%s", s3Host, s3MappedPort.Port())
 	if err := waitForSeaweedFS(ctx, s3Endpoint); err != nil {
 		return err
@@ -223,10 +226,12 @@ func startContainer(ctx context.Context, networkName string, cleanupFns *[]func(
 	if req.Networks == nil {
 		req.Networks = []string{}
 	}
+
 	req.Networks = append(req.Networks, networkName)
 	if req.NetworkAliases == nil {
 		req.NetworkAliases = map[string][]string{}
 	}
+
 	req.NetworkAliases[networkName] = append(req.NetworkAliases[networkName], service)
 	req.HostConfigModifier = func(hostConfig *container.HostConfig) {
 		hostConfig.PortBindings = portBindings
@@ -257,6 +262,7 @@ func loopbackPortBindings(exposedPorts []string) (dockernetwork.PortMap, error) 
 		if err != nil {
 			return nil, fmt.Errorf("parse exposed port %q: %w", exposedPort, err)
 		}
+
 		for port := range portRange.All() {
 			portBindings[port] = []dockernetwork.PortBinding{{HostIP: loopback, HostPort: "0"}}
 		}
@@ -281,6 +287,7 @@ func waitForSeaweedFS(ctx context.Context, endpoint string) error {
 		if err != nil {
 			return fmt.Errorf("create seaweedfs status request: %w", err)
 		}
+
 		response, err := client.Do(request)
 		if err == nil {
 			_ = response.Body.Close()
@@ -307,6 +314,7 @@ func findProjectRoot() (string, error) {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			return dir, nil
 		}
+
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			return "", fmt.Errorf("find project root from %s: go.mod not found", wd)

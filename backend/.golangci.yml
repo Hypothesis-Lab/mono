@@ -34,6 +34,7 @@ linters:
     - unconvert
     - usestdlibvars
     - wastedassign
+    - wsl_v5
 
   exclusions:
     generated: strict
@@ -54,6 +55,11 @@ linters:
     cyclop:
       max-complexity: 15
       package-average: 10.0
+
+    wsl_v5:
+      default: none
+      enable:
+        - after-block
 
     funcorder:
       constructor: true

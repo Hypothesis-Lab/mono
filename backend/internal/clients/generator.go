@@ -178,6 +178,7 @@ func (c *GeneratorClient) QueueProduct(ctx context.Context, p *product.Product) 
 	if err != nil {
 		return "", fmt.Errorf("create generator job request: %w", err)
 	}
+
 	request.Header.Set("Content-Type", "application/json")
 
 	response, err := c.httpClient.Do(request)
@@ -190,9 +191,11 @@ func (c *GeneratorClient) QueueProduct(ctx context.Context, p *product.Product) 
 	if err != nil {
 		return "", fmt.Errorf("read generator job response: %w", err)
 	}
+
 	if response.StatusCode == http.StatusConflict {
 		return "", ErrProductAlreadyQueued
 	}
+
 	if response.StatusCode != http.StatusCreated {
 		return "", fmt.Errorf("generator job request returned HTTP status %d: %s", response.StatusCode, responseBody)
 	}
@@ -201,6 +204,7 @@ func (c *GeneratorClient) QueueProduct(ctx context.Context, p *product.Product) 
 	if err := json.Unmarshal(responseBody, &result); err != nil {
 		return "", fmt.Errorf("decode generator job response: %w", err)
 	}
+
 	if result.ID == "" {
 		return "", fmt.Errorf("generator job response did not contain an id")
 	}
@@ -225,9 +229,11 @@ func (c *GeneratorClient) ProductGenerationStatus(ctx context.Context, productID
 	if err != nil {
 		return "", fmt.Errorf("read generator generation status response: %w", err)
 	}
+
 	if response.StatusCode == http.StatusNotFound {
 		return "", ErrProductGenerationNotFound
 	}
+
 	if response.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("generator generation status request returned HTTP status %d: %s", response.StatusCode, responseBody)
 	}
@@ -236,6 +242,7 @@ func (c *GeneratorClient) ProductGenerationStatus(ctx context.Context, productID
 	if err := json.Unmarshal(responseBody, &result); err != nil {
 		return "", fmt.Errorf("decode generator generation status response: %w", err)
 	}
+
 	if result.Status != "created" && result.Status != "working" && result.Status != "failed" {
 		return "", fmt.Errorf("generator returned invalid generation status %q", result.Status)
 	}
@@ -260,9 +267,11 @@ func (c *GeneratorClient) RetryProductGeneration(ctx context.Context, productID 
 	if err != nil {
 		return fmt.Errorf("read generator retry response: %w", err)
 	}
+
 	if response.StatusCode == http.StatusNotFound {
 		return ErrProductGenerationNotFailed
 	}
+
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("generator retry request returned HTTP status %d: %s", response.StatusCode, responseBody)
 	}
@@ -286,10 +295,12 @@ func (c *GeneratorClient) NextCompletedAudienceGeneration(ctx context.Context) (
 	if response.StatusCode == http.StatusNoContent {
 		return nil, nil //nolint:nilnil // no completed job is a valid result
 	}
+
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, fmt.Errorf("read completed generator job response: %w", err)
 	}
+
 	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("completed generator job request returned HTTP status %d: %s", response.StatusCode, responseBody)
 	}
@@ -298,6 +309,7 @@ func (c *GeneratorClient) NextCompletedAudienceGeneration(ctx context.Context) (
 	if err := json.Unmarshal(responseBody, &responseData); err != nil {
 		return nil, fmt.Errorf("decode completed generator job response: %w", err)
 	}
+
 	if responseData.ID == "" || responseData.ProductID == "" {
 		return nil, errors.New("completed generator job response did not contain an id and product id")
 	}
@@ -331,6 +343,7 @@ func (c *GeneratorClient) MarkAudienceGenerationPersisted(ctx context.Context, j
 	if err != nil {
 		return fmt.Errorf("read persist generator job response: %w", err)
 	}
+
 	if response.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("persist generator job request returned HTTP status %d: %s", response.StatusCode, responseBody)
 	}
@@ -348,6 +361,7 @@ func completedJobAudiences(result json.RawMessage) ([]GeneratedAudience, error) 
 	if err != nil {
 		return nil, fmt.Errorf("index completed generator personas: %w", err)
 	}
+
 	research, err := indexGeneratorValues(parsed.PersonaResearch)
 	if err != nil {
 		return nil, fmt.Errorf("index completed generator research: %w", err)
@@ -358,18 +372,22 @@ func completedJobAudiences(result json.RawMessage) ([]GeneratedAudience, error) 
 		if ranking.SelectionOrder < 1 || ranking.SelectionOrder > 3 {
 			return nil, fmt.Errorf("completed generator result has invalid selection order for persona %q", ranking.PersonaID)
 		}
+
 		persona, ok := personas[ranking.PersonaID]
 		if !ok {
 			return nil, fmt.Errorf("completed generator result is missing persona %q", ranking.PersonaID)
 		}
+
 		personaResearch, ok := research[ranking.PersonaID]
 		if !ok {
 			return nil, fmt.Errorf("completed generator result is missing research for persona %q", ranking.PersonaID)
 		}
+
 		hypotheses, ok := parsed.HypothesesByPersona[ranking.PersonaID]
 		if !ok {
 			return nil, fmt.Errorf("completed generator result is missing hypotheses for persona %q", ranking.PersonaID)
 		}
+
 		if len(ranking.Metrics) == 0 {
 			return nil, fmt.Errorf("completed generator result is missing metrics for persona %q", ranking.PersonaID)
 		}
@@ -384,6 +402,7 @@ func completedJobAudiences(result json.RawMessage) ([]GeneratedAudience, error) 
 			Score:      ranking.FinalScore,
 		})
 	}
+
 	sort.Slice(audiences, func(i, j int) bool { return audiences[i].Rank < audiences[j].Rank })
 	for index, audience := range audiences {
 		if audience.Rank != index+1 {
@@ -401,9 +420,11 @@ func indexGeneratorValues(values []json.RawMessage) (map[string]json.RawMessage,
 		if err := json.Unmarshal(value, &reference); err != nil {
 			return nil, fmt.Errorf("decode generator value: %w", err)
 		}
+
 		if reference.PersonaID == "" {
 			return nil, errors.New("generator value did not contain persona_id")
 		}
+
 		indexed[reference.PersonaID] = value
 	}
 

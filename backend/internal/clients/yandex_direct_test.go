@@ -21,6 +21,7 @@ func TestYandexDirectClientCreateCampaign(t *testing.T) {
 		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&request)) {
 			return
 		}
+
 		assert.Equal(t, "add", request.Method)
 		if !assert.Len(t, request.Params.Campaigns, 1) {
 			return

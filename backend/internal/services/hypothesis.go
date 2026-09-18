@@ -159,6 +159,7 @@ func (s *HypothesisService) Launch(ctx context.Context, userID, id string) (*hyp
 		if deleteErr := s.yandex.DeleteCampaign(ctx, campaignID); deleteErr != nil {
 			return nil, fmt.Errorf("set hypothesis status after creating yandex campaign %d: %w", campaignID, errors.Join(err, fmt.Errorf("delete yandex campaign: %w", deleteErr)))
 		}
+
 		if deleteErr := s.campaigns.Delete(ctx, p.ID, adcampaign.ProviderYandex); deleteErr != nil {
 			return nil, fmt.Errorf("set hypothesis status after creating yandex campaign %d: %w", campaignID, errors.Join(err, fmt.Errorf("delete local ad campaign: %w", deleteErr)))
 		}
@@ -193,6 +194,7 @@ func (s *HypothesisService) Stop(ctx context.Context, userID, id string) (*hypot
 		if errors.Is(err, product.ErrNotFound) {
 			return s.hypotheses.SetStatus(ctx, userID, id, hypothesis.StatusIdle)
 		}
+
 		return nil, fmt.Errorf("getting product: %w", err)
 	}
 
@@ -290,9 +292,11 @@ func (s *HypothesisService) createAudienceTargeting(ctx context.Context, p *prod
 	if err != nil {
 		return createdTargeting, fmt.Errorf("list product audiences: %w", err)
 	}
+
 	if len(audiences) == 0 {
 		return createdTargeting, errors.New("product has no generated audiences")
 	}
+
 	for _, audience := range audiences {
 		var persona struct {
 			Gender string `json:"gender"`
@@ -301,22 +305,26 @@ func (s *HypothesisService) createAudienceTargeting(ctx context.Context, p *prod
 		if err := json.Unmarshal(audience.Persona, &persona); err != nil {
 			return createdTargeting, fmt.Errorf("decode audience %s persona: %w", audience.ID, err)
 		}
+
 		retargetingListID, err := s.yandex.CreateDemographicRetargetingList(ctx, "product-"+p.ID+"-"+audience.PersonaID, persona.Gender, persona.Age)
 		if err != nil {
 			return createdTargeting, fmt.Errorf("create retargeting list for audience %s: %w", audience.ID, err)
 		}
+
 		createdTargeting = append(createdTargeting, createdAudienceTargeting{retargetingListID: retargetingListID})
 
 		adGroupID, err := s.yandex.CreateUserProfileAdGroup(ctx, campaignID, "product-"+p.ID+"-"+audience.PersonaID)
 		if err != nil {
 			return createdTargeting, fmt.Errorf("create ad group for audience %s: %w", audience.ID, err)
 		}
+
 		createdTargeting[len(createdTargeting)-1].adGroupID = adGroupID
 
 		audienceTargetID, err := s.yandex.CreateAudienceTarget(ctx, adGroupID, retargetingListID)
 		if err != nil {
 			return createdTargeting, fmt.Errorf("create audience target for audience %s: %w", audience.ID, err)
 		}
+
 		createdTargeting[len(createdTargeting)-1].audienceTargetID = audienceTargetID
 	}
 
@@ -328,15 +336,19 @@ func (s *HypothesisService) rollbackLaunch(ctx context.Context, userID, hypothes
 		targeting := targetings[index]
 		launchErr = deleteAudienceTargeting(ctx, s.yandex, targeting, launchErr)
 	}
+
 	if deleteErr := s.yandex.DeleteCampaign(ctx, campaignID); deleteErr != nil {
 		return fmt.Errorf("%w; delete yandex campaign: %w", launchErr, deleteErr)
 	}
+
 	if deleteErr := s.campaigns.Delete(ctx, productID, adcampaign.ProviderYandex); deleteErr != nil {
 		return fmt.Errorf("%w; delete local campaign: %w", launchErr, deleteErr)
 	}
+
 	if _, err := s.hypotheses.SetStatus(ctx, userID, hypothesisID, hypothesis.StatusIdle); err != nil {
 		return fmt.Errorf("%w; reset hypothesis status: %w", launchErr, err)
 	}
+
 	return launchErr
 }
 
@@ -346,15 +358,18 @@ func deleteAudienceTargeting(ctx context.Context, yandex *clients.YandexDirectCl
 			launchErr = fmt.Errorf("%w; delete audience target: %w", launchErr, err)
 		}
 	}
+
 	if targeting.adGroupID != 0 {
 		if err := yandex.DeleteAdGroup(ctx, targeting.adGroupID); err != nil {
 			launchErr = fmt.Errorf("%w; delete ad group: %w", launchErr, err)
 		}
 	}
+
 	if targeting.retargetingListID != 0 {
 		if err := yandex.DeleteRetargetingList(ctx, targeting.retargetingListID); err != nil {
 			launchErr = fmt.Errorf("%w; delete retargeting list: %w", launchErr, err)
 		}
 	}
+
 	return launchErr
 }

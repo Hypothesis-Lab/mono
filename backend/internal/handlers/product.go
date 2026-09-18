@@ -92,6 +92,7 @@ func (s *Server) UpdateProduct(ctx context.Context, req api.UpdateProductRequest
 		if errors.Is(err, product.ErrCustomCategoryRequired) || errors.Is(err, product.ErrCustomCategoryNotAllowed) {
 			return api.UpdateProduct400JSONResponse(errBody(http.StatusBadRequest, err.Error())), nil
 		}
+
 		if errors.Is(err, product.ErrNotFound) {
 			s.logger.Error("update product", zap.String("id", req.Id), zap.Error(err))
 
@@ -140,24 +141,31 @@ func validateCreateProduct(req api.CreateProductRequest) string {
 	if message := validateCreateProductDetails(req); message != "" {
 		return message
 	}
+
 	if message := validateCreateProductGoal(req); message != "" {
 		return message
 	}
+
 	if message := validateCreateProductMetrics(req); message != "" {
 		return message
 	}
+
 	if message := validateFacts(req.Facts); message != "" {
 		return message
 	}
+
 	if message := validateFactReferences(req.Facts, req.KeyFactIds, req.Price); message != "" {
 		return message
 	}
+
 	if message := validateEligibilityRules(req.EligibilityRules); message != "" {
 		return message
 	}
+
 	if message := validateChannels(req.AllowedChannels); message != "" {
 		return message
 	}
+
 	if strings.TrimSpace(req.HypothesisId) == "" {
 		return "hypothesis_id is required"
 	}
@@ -169,18 +177,23 @@ func validateCreateProductDetails(req api.CreateProductRequest) string {
 	if strings.TrimSpace(req.Name) == "" {
 		return "name is required"
 	}
+
 	if strings.TrimSpace(req.Description) == "" {
 		return "description is required"
 	}
+
 	if req.Category == "" || !req.Category.Valid() {
 		return "category is required"
 	}
+
 	if message := validateCustomCategory(req.Category, req.CustomCategory); message != "" {
 		return message
 	}
+
 	if strings.TrimSpace(req.Brand) == "" {
 		return "brand is required"
 	}
+
 	if strings.TrimSpace(req.Country) == "" {
 		return "country is required"
 	}
@@ -192,9 +205,11 @@ func validateCreateProductGoal(req api.CreateProductRequest) string {
 	if strings.TrimSpace(req.ExperimentGoal) == "" {
 		return "experiment_goal is required"
 	}
+
 	if !req.GoalOrigin.Valid() {
 		return "goal_origin is required"
 	}
+
 	if strings.TrimSpace(req.TargetAction) == "" {
 		return "target_action is required"
 	}
@@ -214,15 +229,19 @@ func validateUpdateProduct(req *api.UpdateProductRequest) string {
 	if message := validateUpdateProductDetails(req); message != "" {
 		return message
 	}
+
 	if message := validateUpdateProductGoal(req); message != "" {
 		return message
 	}
+
 	if message := validateUpdateProductMetrics(req); message != "" {
 		return message
 	}
+
 	if message := validateUpdateProductCollections(req); message != "" {
 		return message
 	}
+
 	if req.Price != nil && (!req.Price.Status.Valid() || strings.TrimSpace(req.Price.Description) == "") {
 		return "price status and description are required"
 	}
@@ -234,23 +253,29 @@ func validateUpdateProductDetails(req *api.UpdateProductRequest) string {
 	if req.Name != nil && strings.TrimSpace(*req.Name) == "" {
 		return "name must not be empty"
 	}
+
 	if req.Description != nil && strings.TrimSpace(*req.Description) == "" {
 		return "description must not be empty"
 	}
+
 	if req.Category != nil && !req.Category.Valid() {
 		return "invalid category"
 	}
+
 	if req.CustomCategory != nil {
 		if message := validateCustomCategoryValue(*req.CustomCategory); message != "" {
 			return message
 		}
+
 		if req.Category != nil && *req.Category != api.ProductCategoryOther {
 			return "custom_category is only allowed when category is other"
 		}
 	}
+
 	if req.Brand != nil && strings.TrimSpace(*req.Brand) == "" {
 		return "brand must not be empty"
 	}
+
 	if req.Country != nil && strings.TrimSpace(*req.Country) == "" {
 		return "country must not be empty"
 	}
@@ -262,6 +287,7 @@ func validateUpdateProductGoal(req *api.UpdateProductRequest) string {
 	if req.ExperimentGoal != nil && strings.TrimSpace(*req.ExperimentGoal) == "" {
 		return "experiment_goal must not be empty"
 	}
+
 	if req.TargetAction != nil && strings.TrimSpace(*req.TargetAction) == "" {
 		return "target_action must not be empty"
 	}
@@ -273,15 +299,19 @@ func validateUpdateProductMetrics(req *api.UpdateProductRequest) string {
 	if req.PrimaryMetric != nil && strings.TrimSpace(*req.PrimaryMetric) == "" {
 		return "primary_metric must not be empty"
 	}
+
 	if req.MetricDirection != nil && !req.MetricDirection.Valid() {
 		return "invalid metric_direction"
 	}
+
 	if req.MetricNumerator != nil && strings.TrimSpace(*req.MetricNumerator) == "" {
 		return "metric_numerator must not be empty"
 	}
+
 	if req.MetricDenominator != nil && strings.TrimSpace(*req.MetricDenominator) == "" {
 		return "metric_denominator must not be empty"
 	}
+
 	if req.GoalOrigin != nil && !req.GoalOrigin.Valid() {
 		return "invalid goal_origin"
 	}
@@ -295,11 +325,13 @@ func validateUpdateProductCollections(req *api.UpdateProductRequest) string {
 			return message
 		}
 	}
+
 	if req.EligibilityRules != nil {
 		if message := validateEligibilityRules(*req.EligibilityRules); message != "" {
 			return message
 		}
 	}
+
 	if req.AllowedChannels != nil {
 		if message := validateChannels(*req.AllowedChannels); message != "" {
 			return message
@@ -313,6 +345,7 @@ func validateFacts(facts []api.ProductFact) string {
 	if len(facts) < 3 {
 		return "at least three facts are required"
 	}
+
 	for _, fact := range facts {
 		if strings.TrimSpace(fact.FactId) == "" || strings.TrimSpace(fact.Text) == "" {
 			return "fact_id and text are required for every fact"
@@ -342,19 +375,23 @@ func validEligibilityValue(value interface{}) bool {
 		if len(v) == 0 {
 			return true
 		}
+
 		_, isStringSlice := v[0].(string)
 		for _, item := range v {
 			if isStringSlice {
 				if _, ok := item.(string); !ok {
 					return false
 				}
+
 				continue
 			}
+
 			number, ok := item.(float64)
 			if !ok || math.Trunc(number) != number {
 				return false
 			}
 		}
+
 		return true
 	default:
 		return false
@@ -375,21 +412,26 @@ func validateFactReferences(facts []api.ProductFact, keyFactIDs []string, price 
 	if len(keyFactIDs) == 0 {
 		return "at least one key fact is required"
 	}
+
 	known := make(map[string]struct{}, len(facts))
 	for _, fact := range facts {
 		known[fact.FactId] = struct{}{}
 	}
+
 	for _, factID := range append(keyFactIDs, price.SourceFactIds...) {
 		if _, ok := known[factID]; !ok {
 			return "key facts and price sources must reference confirmed facts"
 		}
 	}
+
 	if price.Status == api.Known && len(price.SourceFactIds) == 0 {
 		return "known price requires source fact ids"
 	}
+
 	if !price.Status.Valid() || strings.TrimSpace(price.Description) == "" {
 		return "price status and description are required"
 	}
+
 	return ""
 }
 
@@ -401,6 +443,7 @@ func validateCustomCategory(category api.ProductCategory, customCategory *string
 
 		return ""
 	}
+
 	if customCategory == nil {
 		return "custom_category is required when category is other"
 	}
@@ -422,10 +465,12 @@ func createProductInput(req api.CreateProductRequest) (product.CreateInput, erro
 	if err != nil {
 		return product.CreateInput{}, fmt.Errorf("marshal product facts: %w", err)
 	}
+
 	rules, err := json.Marshal(req.EligibilityRules)
 	if err != nil {
 		return product.CreateInput{}, fmt.Errorf("marshal eligibility rules: %w", err)
 	}
+
 	price, err := json.Marshal(req.Price)
 	if err != nil {
 		return product.CreateInput{}, fmt.Errorf("marshal product price: %w", err)
@@ -498,35 +543,43 @@ func updateProductInput(req *api.UpdateProductRequest) (product.UpdateInput, err
 		category := string(*req.Category)
 		in.Category = &category
 	}
+
 	if req.GoalOrigin != nil {
 		value := string(*req.GoalOrigin)
 		in.GoalOrigin = &value
 	}
+
 	if req.MetricDirection != nil {
 		value := string(*req.MetricDirection)
 		in.MetricDirection = &value
 	}
+
 	if req.Facts != nil {
 		facts, err := json.Marshal(*req.Facts)
 		if err != nil {
 			return product.UpdateInput{}, fmt.Errorf("marshal product facts: %w", err)
 		}
+
 		rawFacts := json.RawMessage(facts)
 		in.Facts = &rawFacts
 	}
+
 	if req.EligibilityRules != nil {
 		rules, err := json.Marshal(*req.EligibilityRules)
 		if err != nil {
 			return product.UpdateInput{}, fmt.Errorf("marshal eligibility rules: %w", err)
 		}
+
 		rawRules := json.RawMessage(rules)
 		in.EligibilityRules = &rawRules
 	}
+
 	if req.Price != nil {
 		price, err := json.Marshal(*req.Price)
 		if err != nil {
 			return product.UpdateInput{}, fmt.Errorf("marshal product price: %w", err)
 		}
+
 		rawPrice := json.RawMessage(price)
 		in.Price = &rawPrice
 	}
@@ -549,10 +602,12 @@ func newProductResponse(p *product.Product) (api.ProductResponse, error) {
 	if err := json.Unmarshal(p.Facts, &facts); err != nil {
 		return api.ProductResponse{}, fmt.Errorf("unmarshal product facts: %w", err)
 	}
+
 	var rules []api.EligibilityRule
 	if err := json.Unmarshal(p.EligibilityRules, &rules); err != nil {
 		return api.ProductResponse{}, fmt.Errorf("unmarshal eligibility rules: %w", err)
 	}
+
 	var price api.ProductPrice
 	if err := json.Unmarshal(p.Price, &price); err != nil {
 		return api.ProductResponse{}, fmt.Errorf("unmarshal product price: %w", err)

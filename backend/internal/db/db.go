@@ -71,6 +71,7 @@ func (db *DB) applyMigrations() error {
 	if err != nil {
 		return fmt.Errorf("parse migration database URL: %w", err)
 	}
+
 	migrationDB := stdlib.OpenDB(*migrationConfig)
 	defer migrationDB.Close()
 
