@@ -3,6 +3,8 @@ package harness
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"sync"
@@ -12,6 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-resty/resty/v2"
+	"github.com/moby/moby/api/types/container"
+	dockernetwork "github.com/moby/moby/api/types/network"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -56,11 +60,7 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 	defer close(e.setupDone)
 
 	cleanupFns := []func(context.Context){}
-	e.cleanup = func(cleanupCtx context.Context) {
-		for i := len(cleanupFns) - 1; i >= 0; i-- {
-			cleanupFns[i](cleanupCtx)
-		}
-	}
+	e.setCleanup(&cleanupFns)
 
 	projectRoot, err := findProjectRoot()
 	if err != nil {
@@ -73,34 +73,7 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 	}
 	cleanupFns = append(cleanupFns, func(cleanupCtx context.Context) { _ = testNetwork.Remove(cleanupCtx) })
 
-	start := func(service string, req testcontainers.ContainerRequest) (testcontainers.Container, error) {
-		if req.Networks == nil {
-			req.Networks = []string{}
-		}
-		req.Networks = append(req.Networks, testNetwork.Name)
-		if req.NetworkAliases == nil {
-			req.NetworkAliases = map[string][]string{}
-		}
-		req.NetworkAliases[testNetwork.Name] = append(req.NetworkAliases[testNetwork.Name], service)
-
-		container, startErr := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-			ContainerRequest: req,
-			Started:          true,
-		})
-		if startErr != nil {
-			if container != nil {
-				_ = container.Terminate(ctx)
-			}
-
-			return nil, fmt.Errorf("start %s container: %w", service, startErr)
-		}
-
-		cleanupFns = append(cleanupFns, func(cleanupCtx context.Context) { _ = container.Terminate(cleanupCtx) })
-
-		return container, nil
-	}
-
-	postgresContainer, err := start("postgres", testcontainers.ContainerRequest{
+	postgresContainer, err := startContainer(ctx, testNetwork.Name, &cleanupFns, "postgres", testcontainers.ContainerRequest{
 		Image:        "postgres:18-alpine",
 		ExposedPorts: []string{"5432/tcp"},
 		Env: map[string]string{
@@ -133,7 +106,7 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 		postgresDB,
 	)
 
-	s3Container, err := start("seaweedfs", testcontainers.ContainerRequest{
+	s3Container, err := startContainer(ctx, testNetwork.Name, &cleanupFns, "seaweedfs", testcontainers.ContainerRequest{
 		Image:        "chrislusf/seaweedfs:4.40",
 		ExposedPorts: []string{"8333/tcp"},
 		Env: map[string]string{
@@ -141,11 +114,8 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 			"AWS_SECRET_ACCESS_KEY": s3SecretKey,
 			"S3_BUCKET":             s3Bucket,
 		},
-		Cmd: []string{"server", "-s3"},
-		WaitingFor: wait.ForHTTP("/status").
-			WithPort("8333/tcp").
-			WithForcedIPv4LocalHost().
-			WithStartupTimeout(2 * time.Minute),
+		Cmd:        []string{"server", "-s3"},
+		WaitingFor: wait.ForLog("Start Seaweed S3 API Server").WithStartupTimeout(40 * time.Second),
 	})
 	if err != nil {
 		return err
@@ -163,15 +133,19 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("get s3 mapped port: %w", err)
 	}
+	s3Endpoint := fmt.Sprintf("http://%s:%s", s3Host, s3MappedPort.Port())
+	if err := waitForSeaweedFS(ctx, s3Endpoint); err != nil {
+		return err
+	}
 
 	e.S3 = s3.New(s3.Options{
 		Region:       s3Region,
-		BaseEndpoint: aws.String(fmt.Sprintf("http://%s:%s", s3Host, s3MappedPort.Port())),
+		BaseEndpoint: aws.String(s3Endpoint),
 		Credentials:  credentials.NewStaticCredentialsProvider(s3AccessKeyID, s3SecretKey, ""),
 		UsePathStyle: true,
 	})
 
-	appContainer, err := start("app", testcontainers.ContainerRequest{
+	appContainer, err := startContainer(ctx, testNetwork.Name, &cleanupFns, "app", testcontainers.ContainerRequest{
 		FromDockerfile: testcontainers.FromDockerfile{
 			Context:    projectRoot,
 			Dockerfile: "Dockerfile",
@@ -230,6 +204,97 @@ func (e *Env) DatabaseURL() string {
 
 func (e *Env) S3Bucket() string {
 	return s3Bucket
+}
+
+func (e *Env) setCleanup(cleanupFns *[]func(context.Context)) {
+	e.cleanup = func(cleanupCtx context.Context) {
+		for i := len(*cleanupFns) - 1; i >= 0; i-- {
+			(*cleanupFns)[i](cleanupCtx)
+		}
+	}
+}
+
+func startContainer(ctx context.Context, networkName string, cleanupFns *[]func(context.Context), service string, req testcontainers.ContainerRequest) (testcontainers.Container, error) {
+	portBindings, err := loopbackPortBindings(req.ExposedPorts)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.Networks == nil {
+		req.Networks = []string{}
+	}
+	req.Networks = append(req.Networks, networkName)
+	if req.NetworkAliases == nil {
+		req.NetworkAliases = map[string][]string{}
+	}
+	req.NetworkAliases[networkName] = append(req.NetworkAliases[networkName], service)
+	req.HostConfigModifier = func(hostConfig *container.HostConfig) {
+		hostConfig.PortBindings = portBindings
+	}
+
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		if container != nil {
+			_ = container.Terminate(ctx)
+		}
+
+		return nil, fmt.Errorf("start %s container: %w", service, err)
+	}
+
+	*cleanupFns = append(*cleanupFns, func(cleanupCtx context.Context) { _ = container.Terminate(cleanupCtx) })
+
+	return container, nil
+}
+
+func loopbackPortBindings(exposedPorts []string) (dockernetwork.PortMap, error) {
+	portBindings := make(dockernetwork.PortMap, len(exposedPorts))
+	loopback := netip.MustParseAddr("127.0.0.1")
+	for _, exposedPort := range exposedPorts {
+		portRange, err := dockernetwork.ParsePortRange(exposedPort)
+		if err != nil {
+			return nil, fmt.Errorf("parse exposed port %q: %w", exposedPort, err)
+		}
+		for port := range portRange.All() {
+			portBindings[port] = []dockernetwork.PortBinding{{HostIP: loopback, HostPort: "0"}}
+		}
+	}
+
+	return portBindings, nil
+}
+
+func waitForSeaweedFS(ctx context.Context, endpoint string) error {
+	startedAt := time.Now()
+	fmt.Printf("waiting for SeaweedFS at %s\n", startedAt.Format(time.RFC3339Nano))
+	defer func() {
+		fmt.Printf("finished waiting for SeaweedFS after %s\n", time.Since(startedAt))
+	}()
+
+	readyCtx, cancel := context.WithTimeout(ctx, 40*time.Second)
+	defer cancel()
+
+	client := http.Client{Timeout: time.Second}
+	for {
+		request, err := http.NewRequestWithContext(readyCtx, http.MethodGet, endpoint+"/status", nil)
+		if err != nil {
+			return fmt.Errorf("create seaweedfs status request: %w", err)
+		}
+		response, err := client.Do(request)
+		if err == nil {
+			_ = response.Body.Close()
+			if response.StatusCode == http.StatusOK {
+				return nil
+			}
+		}
+
+		select {
+		case <-readyCtx.Done():
+			return fmt.Errorf("wait for seaweedfs status: %w", readyCtx.Err())
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
 }
 
 func findProjectRoot() (string, error) {
