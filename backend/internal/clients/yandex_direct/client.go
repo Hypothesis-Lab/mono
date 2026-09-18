@@ -350,9 +350,9 @@ func (c *Client) DeleteCampaign(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (c *Client) CreateUserProfileAdGroup(ctx context.Context, campaignID int64, name string) (int64, error) {
+func (c *Client) CreateUserProfileAdGroup(ctx context.Context, campaignID int64, name string, regionIDs []int64) (int64, error) {
 	requestBody := yandexAdGroupAddRequest{Method: "add"}
-	requestBody.Params.AdGroups = []yandexAdGroup{{Name: name, CampaignID: campaignID, RegionIDs: []int64{0}}}
+	requestBody.Params.AdGroups = []yandexAdGroup{{Name: name, CampaignID: campaignID, RegionIDs: regionIDs}}
 
 	var result yandexAddResponse
 	if err := c.post(ctx, "adgroups", requestBody, &result); err != nil {

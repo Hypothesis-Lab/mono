@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"app/internal/clients/yandex_direct"
+	"github.com/joho/godotenv"
 
 	_ "modernc.org/sqlite"
 )
@@ -25,6 +26,10 @@ type objectGroup struct {
 }
 
 func main() {
+	if err := loadDotEnv(); err != nil {
+		log.Fatalf("load .env: %v", err)
+	}
+
 	token := os.Getenv("YANDEX_DIRECT_TOKEN")
 	if token == "" {
 		log.Fatal("YANDEX_DIRECT_TOKEN is required")
@@ -77,6 +82,29 @@ func main() {
 	}
 
 	fmt.Printf("saved inspection to %s\n", path)
+}
+
+func loadDotEnv() error {
+	directory, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("get working directory: %w", err)
+	}
+
+	for {
+		path := filepath.Join(directory, ".env")
+		if _, err := os.Stat(path); err == nil {
+			return godotenv.Load(path)
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("find %s: %w", path, err)
+		}
+
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			return nil
+		}
+
+		directory = parent
+	}
 }
 
 func listAll(ctx context.Context, client *yandexdirect.Client, service, objectName string, selectionCriteria map[string]any, fieldNames []string, additionalFields map[string][]string) ([]json.RawMessage, error) {

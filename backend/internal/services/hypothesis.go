@@ -16,6 +16,8 @@ import (
 	"app/internal/storage"
 )
 
+const russiaYandexRegionID int64 = 225
+
 var (
 	ErrAlreadyInProgress   = errors.New("hypothesis already in progress")
 	ErrHypothesisNoProduct = errors.New("hypothesis has no product")
@@ -313,7 +315,7 @@ func (s *HypothesisService) createAudienceTargeting(ctx context.Context, p *prod
 
 		createdTargeting = append(createdTargeting, createdAudienceTargeting{retargetingListID: retargetingListID})
 
-		adGroupID, err := s.yandex.CreateUserProfileAdGroup(ctx, campaignID, "product-"+p.ID+"-"+audience.PersonaID)
+		adGroupID, err := s.yandex.CreateUserProfileAdGroup(ctx, campaignID, "product-"+p.ID+"-"+audience.PersonaID, []int64{russiaYandexRegionID})
 		if err != nil {
 			return createdTargeting, fmt.Errorf("create ad group for audience %s: %w", audience.ID, err)
 		}
