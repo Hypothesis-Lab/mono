@@ -13,8 +13,10 @@ linters:
     - revive
     - errcheck
     - errorlint
+    - funcorder
     - bodyclose
     - contextcheck
+    - decorder
     - misspell
     - nolintlint
     - rowserrcheck
@@ -36,6 +38,21 @@ linters:
           - errcheck
 
   settings:
+    funcorder:
+      constructor: true
+      struct-method: true
+      function: true
+
+    decorder:
+      dec-order:
+        - const
+        - var
+        - type
+        - func
+      disable-dec-order-check: false
+      disable-dec-num-check: true
+      disable-init-func-first-check: true
+
     staticcheck:
       checks:
         - all

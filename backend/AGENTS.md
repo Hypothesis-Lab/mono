@@ -28,27 +28,6 @@ ALL errors in handlers should be logged; if it's an operation on an object, it s
 - thus all error messages should be distinct, in order to find the exact place in code where that error occured
 - 2 different code paths shouldn't return the exact same error; as one solution, they should annotate that error
 
-# Style guide
-## Ordering
-```
-imports
-consts
-vars 
-enums
-type aliases
-structs relating to "class" A
-"class" struct A
-structs relating to "class" B
-"class" struct B
-constructors
-public methods
-private methods
-public functions
-private functions
-```
-
-vars and consts should be grouped unless have reason to be ungrouped
-
 # Repo map
 
 Standard `cmd/` + `internal/` Go layout, wired with uber/fx dependency injection (see `cmd/app/main.go`).

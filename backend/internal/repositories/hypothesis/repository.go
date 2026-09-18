@@ -13,6 +13,11 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+const (
+	StatusIdle       Status = "idle"
+	StatusInProgress Status = "in_progress"
+)
+
 var (
 	ErrNotFound = errors.New("hypothesis not found")
 
@@ -20,11 +25,6 @@ var (
 )
 
 type Status string
-
-const (
-	StatusIdle       Status = "idle"
-	StatusInProgress Status = "in_progress"
-)
 
 type Hypothesis struct {
 	ID          string

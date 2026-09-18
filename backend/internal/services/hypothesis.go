@@ -256,42 +256,6 @@ func (s *HypothesisService) Stop(ctx context.Context, userID, id string) (*hypot
 	return stopped, nil
 }
 
-func (s *HypothesisService) rollbackLaunch(ctx context.Context, userID, hypothesisID, productID string, campaignID int64, targetings []createdAudienceTargeting, launchErr error) error {
-	for index := len(targetings) - 1; index >= 0; index-- {
-		targeting := targetings[index]
-		launchErr = deleteAudienceTargeting(ctx, s.yandex, targeting, launchErr)
-	}
-	if deleteErr := s.yandex.DeleteCampaign(ctx, campaignID); deleteErr != nil {
-		return fmt.Errorf("%w; delete yandex campaign: %w", launchErr, deleteErr)
-	}
-	if deleteErr := s.campaigns.Delete(ctx, productID, adcampaign.ProviderYandex); deleteErr != nil {
-		return fmt.Errorf("%w; delete local campaign: %w", launchErr, deleteErr)
-	}
-	if _, err := s.hypotheses.SetStatus(ctx, userID, hypothesisID, hypothesis.StatusIdle); err != nil {
-		return fmt.Errorf("%w; reset hypothesis status: %w", launchErr, err)
-	}
-	return launchErr
-}
-
-func deleteAudienceTargeting(ctx context.Context, yandex *clients.YandexDirectClient, targeting createdAudienceTargeting, launchErr error) error {
-	if targeting.audienceTargetID != 0 {
-		if err := yandex.DeleteAudienceTarget(ctx, targeting.audienceTargetID); err != nil {
-			launchErr = fmt.Errorf("%w; delete audience target: %w", launchErr, err)
-		}
-	}
-	if targeting.adGroupID != 0 {
-		if err := yandex.DeleteAdGroup(ctx, targeting.adGroupID); err != nil {
-			launchErr = fmt.Errorf("%w; delete ad group: %w", launchErr, err)
-		}
-	}
-	if targeting.retargetingListID != 0 {
-		if err := yandex.DeleteRetargetingList(ctx, targeting.retargetingListID); err != nil {
-			launchErr = fmt.Errorf("%w; delete retargeting list: %w", launchErr, err)
-		}
-	}
-	return launchErr
-}
-
 func (s *HypothesisService) Update(ctx context.Context, userID, id string, in hypothesis.UpdateInput) (*hypothesis.Hypothesis, error) {
 	h, err := s.hypotheses.Get(ctx, userID, id)
 	if err != nil {
@@ -348,4 +312,40 @@ func (s *HypothesisService) Delete(ctx context.Context, userID, id string) error
 	}
 
 	return nil
+}
+
+func (s *HypothesisService) rollbackLaunch(ctx context.Context, userID, hypothesisID, productID string, campaignID int64, targetings []createdAudienceTargeting, launchErr error) error {
+	for index := len(targetings) - 1; index >= 0; index-- {
+		targeting := targetings[index]
+		launchErr = deleteAudienceTargeting(ctx, s.yandex, targeting, launchErr)
+	}
+	if deleteErr := s.yandex.DeleteCampaign(ctx, campaignID); deleteErr != nil {
+		return fmt.Errorf("%w; delete yandex campaign: %w", launchErr, deleteErr)
+	}
+	if deleteErr := s.campaigns.Delete(ctx, productID, adcampaign.ProviderYandex); deleteErr != nil {
+		return fmt.Errorf("%w; delete local campaign: %w", launchErr, deleteErr)
+	}
+	if _, err := s.hypotheses.SetStatus(ctx, userID, hypothesisID, hypothesis.StatusIdle); err != nil {
+		return fmt.Errorf("%w; reset hypothesis status: %w", launchErr, err)
+	}
+	return launchErr
+}
+
+func deleteAudienceTargeting(ctx context.Context, yandex *clients.YandexDirectClient, targeting createdAudienceTargeting, launchErr error) error {
+	if targeting.audienceTargetID != 0 {
+		if err := yandex.DeleteAudienceTarget(ctx, targeting.audienceTargetID); err != nil {
+			launchErr = fmt.Errorf("%w; delete audience target: %w", launchErr, err)
+		}
+	}
+	if targeting.adGroupID != 0 {
+		if err := yandex.DeleteAdGroup(ctx, targeting.adGroupID); err != nil {
+			launchErr = fmt.Errorf("%w; delete ad group: %w", launchErr, err)
+		}
+	}
+	if targeting.retargetingListID != 0 {
+		if err := yandex.DeleteRetargetingList(ctx, targeting.retargetingListID); err != nil {
+			launchErr = fmt.Errorf("%w; delete retargeting list: %w", launchErr, err)
+		}
+	}
+	return launchErr
 }

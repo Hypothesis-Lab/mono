@@ -12,13 +12,13 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+const ProviderYandex = "yandex"
+
 var (
 	ErrNotFound = errors.New("ad campaign not found")
 
 	squirrelPSQL = squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 )
-
-const ProviderYandex = "yandex"
 
 type Campaign struct {
 	ProductID  string

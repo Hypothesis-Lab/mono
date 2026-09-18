@@ -14,20 +14,21 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-var (
-	ErrNotFound = errors.New("file not found")
-
-	squirrelPSQL = squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
-)
-
-type Type string
-
 const (
 	TypeOther     Type = "other"
 	TypeBrandbook Type = "brandbook"
 	TypeProduct   Type = "product"
 	TypeReference Type = "reference"
 )
+
+var (
+	ErrNotFound               = errors.New("file not found")
+	ErrBrandbookAlreadyExists = errors.New("brandbook already exists for this hypothesis")
+
+	squirrelPSQL = squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
+)
+
+type Type string
 
 type File struct {
 	ID           string
@@ -199,5 +200,3 @@ func (r *Repository) Delete(ctx context.Context, id string) error {
 
 	return nil
 }
-
-var ErrBrandbookAlreadyExists = errors.New("brandbook already exists for this hypothesis")

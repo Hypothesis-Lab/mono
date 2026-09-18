@@ -13,6 +13,22 @@ var (
 	currentEnv *Env
 )
 
+type IntegrationSuite struct {
+	suite.Suite
+}
+
+type StatelessIntegrationSuite struct {
+	suite.Suite
+}
+
+func (s *IntegrationSuite) SetupTest() {
+	resetIntegrationState(s.T())
+}
+
+func (s *IntegrationSuite) SetupSubTest() {
+	resetIntegrationState(s.T())
+}
+
 func SetEnv(env *Env) {
 	envMu.Lock()
 	defer envMu.Unlock()
@@ -25,22 +41,6 @@ func CurrentEnv() *Env {
 	defer envMu.RUnlock()
 
 	return currentEnv
-}
-
-type IntegrationSuite struct {
-	suite.Suite
-}
-
-func (s *IntegrationSuite) SetupTest() {
-	resetIntegrationState(s.T())
-}
-
-func (s *IntegrationSuite) SetupSubTest() {
-	resetIntegrationState(s.T())
-}
-
-type StatelessIntegrationSuite struct {
-	suite.Suite
 }
 
 func resetIntegrationState(t *testing.T) {
