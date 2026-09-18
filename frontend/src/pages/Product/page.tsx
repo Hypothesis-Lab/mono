@@ -104,14 +104,14 @@ export function ProductPage() {
     isLoading: audiencesLoading,
   } = useListProductAudiencesQuery(
     product ? { id: product.id } : skipToken,
-    { pollingInterval: product ? 3000 : 0 },
+    { pollingInterval: product ? 10000 : 0 },
   )
   const {
     data: audienceGeneration,
     refetch: refetchAudienceGeneration,
   } = useGetProductAudienceGenerationStatusQuery(
     product ? { id: product.id } : skipToken,
-    { pollingInterval: product ? 3000 : 0 },
+    { pollingInterval: product ? 10000 : 0 },
   )
 
   const [createProduct, { isLoading: creating }] = useCreateProductMutation()
