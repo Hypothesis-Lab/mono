@@ -127,7 +127,7 @@ func (s *Server) LaunchHypothesis(ctx context.Context, req api.LaunchHypothesisR
 		return api.LaunchHypothesis500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
 	}
 
-	launched, err := s.hypothesisService.Launch(ctx, userID, req.Id)
+	workflowID, err := s.hypothesisService.StartLaunch(ctx, userID, req.Id)
 	if err != nil {
 		switch {
 		case errors.Is(err, hypothesis.ErrNotFound):
@@ -149,7 +149,39 @@ func (s *Server) LaunchHypothesis(ctx context.Context, req api.LaunchHypothesisR
 		}
 	}
 
-	return api.LaunchHypothesis200JSONResponse(newHypothesisResponse(launched)), nil
+	return api.LaunchHypothesis202JSONResponse(api.HypothesisLaunchResponse{WorkflowId: workflowID, Status: api.Queued}), nil
+}
+
+func (s *Server) GetHypothesisLaunchStatus(ctx context.Context, req api.GetHypothesisLaunchStatusRequestObject) (api.GetHypothesisLaunchStatusResponseObject, error) {
+	userID, ok := middlewares.UserIDFromContext(ctx)
+	if !ok {
+		s.logger.Error("missing user id in context")
+
+		return api.GetHypothesisLaunchStatus500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	launchStatus, err := s.hypothesisService.GetLaunchStatus(ctx, userID, req.Id)
+	if err != nil {
+		switch {
+		case errors.Is(err, hypothesis.ErrNotFound):
+			s.logger.Error("get hypothesis launch status", zap.String("id", req.Id), zap.Error(err))
+
+			return api.GetHypothesisLaunchStatus404JSONResponse(errBody(http.StatusNotFound, "hypothesis not found")), nil
+		case errors.Is(err, services.ErrLaunchNotFound):
+			s.logger.Error("get hypothesis launch status", zap.String("id", req.Id), zap.Error(err))
+
+			return api.GetHypothesisLaunchStatus404JSONResponse(errBody(http.StatusNotFound, "hypothesis launch not found")), nil
+		default:
+			s.logger.Error("get hypothesis launch status", zap.String("id", req.Id), zap.Error(err))
+
+			return api.GetHypothesisLaunchStatus500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+		}
+	}
+
+	return api.GetHypothesisLaunchStatus200JSONResponse(api.HypothesisLaunchStatusResponse{
+		WorkflowId: launchStatus.WorkflowID,
+		Status:     api.HypothesisLaunchStatusResponseStatus(launchStatus.Status),
+	}), nil
 }
 
 func (s *Server) StopHypothesis(ctx context.Context, req api.StopHypothesisRequestObject) (api.StopHypothesisResponseObject, error) {

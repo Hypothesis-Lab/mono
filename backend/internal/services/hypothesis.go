@@ -14,6 +14,10 @@ import (
 	"app/internal/repositories/hypothesis"
 	"app/internal/repositories/product"
 	"app/internal/storage"
+
+	enumspb "go.temporal.io/api/enums/v1"
+	"go.temporal.io/api/serviceerror"
+	"go.temporal.io/sdk/client"
 )
 
 const russiaYandexRegionID int64 = 225
@@ -23,6 +27,7 @@ var (
 	ErrHypothesisNoProduct = errors.New("hypothesis has no product")
 	ErrUpdateInProgress    = errors.New("cannot update hypothesis in progress")
 	ErrDeleteInProgress    = errors.New("cannot delete hypothesis in progress")
+	ErrLaunchNotFound      = errors.New("hypothesis launch not found")
 )
 
 type HypothesisService struct {
@@ -33,12 +38,18 @@ type HypothesisService struct {
 	storage    *storage.S3
 	campaigns  *adcampaign.Repository
 	yandex     *yandexdirect.Client
+	temporal   client.Client
 }
 
 type createdAudienceTargeting struct {
 	adGroupID         int64
 	retargetingListID int64
 	audienceTargetID  int64
+}
+
+type LaunchStatus struct {
+	WorkflowID string
+	Status     string
 }
 
 func NewHypothesisService(
@@ -49,6 +60,7 @@ func NewHypothesisService(
 	storage *storage.S3,
 	campaigns *adcampaign.Repository,
 	yandex *yandexdirect.Client,
+	temporal client.Client,
 ) *HypothesisService {
 	return &HypothesisService{
 		hypotheses: hypotheses,
@@ -58,6 +70,7 @@ func NewHypothesisService(
 		storage:    storage,
 		campaigns:  campaigns,
 		yandex:     yandex,
+		temporal:   temporal,
 	}
 }
 
@@ -116,65 +129,99 @@ func (s *HypothesisService) GetProduct(ctx context.Context, userID, id string) (
 	return p, nil
 }
 
-func (s *HypothesisService) Launch(ctx context.Context, userID, id string) (*hypothesis.Hypothesis, error) {
+func (s *HypothesisService) StartLaunch(ctx context.Context, userID, id string) (string, error) {
 	h, err := s.hypotheses.Get(ctx, userID, id)
 	if err != nil {
+		if errors.Is(err, hypothesis.ErrNotFound) {
+			return "", hypothesis.ErrNotFound
+		}
+
+		return "", fmt.Errorf("get hypothesis before launch: %w", err)
+	}
+
+	if h.Status != hypothesis.StatusIdle {
+		return "", ErrAlreadyInProgress
+	}
+
+	if _, err := s.products.GetByHypothesisID(ctx, id); err != nil {
+		if errors.Is(err, product.ErrNotFound) {
+			return "", ErrHypothesisNoProduct
+		}
+
+		return "", fmt.Errorf("get product before launch: %w", err)
+	}
+
+	if _, err := s.hypotheses.SetStatus(ctx, userID, id, hypothesis.StatusLaunching); err != nil {
+		return "", fmt.Errorf("mark hypothesis launching: %w", err)
+	}
+
+	workflowID := hypothesisLaunchWorkflowID(id)
+	if _, err := s.temporal.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
+		ID:        workflowID,
+		TaskQueue: hypothesisLaunchTaskQueue,
+	}, hypothesisLaunchWorkflow, hypothesisLaunchInput{UserID: userID, HypothesisID: id}); err != nil {
+		if _, resetErr := s.hypotheses.SetStatus(ctx, userID, id, hypothesis.StatusIdle); resetErr != nil {
+			return "", fmt.Errorf("start launch workflow: %w", errors.Join(err, fmt.Errorf("reset hypothesis status after start failure: %w", resetErr)))
+		}
+
+		var alreadyStarted *serviceerror.WorkflowExecutionAlreadyStarted
+		if errors.As(err, &alreadyStarted) {
+			return "", ErrAlreadyInProgress
+		}
+
+		return "", fmt.Errorf("start launch workflow: %w", err)
+	}
+
+	return workflowID, nil
+}
+
+func (s *HypothesisService) GetLaunchStatus(ctx context.Context, userID, id string) (*LaunchStatus, error) {
+	if _, err := s.hypotheses.Get(ctx, userID, id); err != nil {
 		if errors.Is(err, hypothesis.ErrNotFound) {
 			return nil, hypothesis.ErrNotFound
 		}
 
-		return nil, fmt.Errorf("getting hypothesis: %w", err)
+		return nil, fmt.Errorf("get hypothesis launch status: %w", err)
 	}
 
-	if h.Status == hypothesis.StatusInProgress {
-		return nil, ErrAlreadyInProgress
-	}
-
-	p, err := s.products.GetByHypothesisID(ctx, id)
+	workflowID := hypothesisLaunchWorkflowID(id)
+	description, err := s.temporal.DescribeWorkflowExecution(ctx, workflowID, "")
 	if err != nil {
-		if errors.Is(err, product.ErrNotFound) {
-			return nil, ErrHypothesisNoProduct
+		var notFound *serviceerror.NotFound
+		if errors.As(err, &notFound) {
+			return nil, ErrLaunchNotFound
 		}
 
-		return nil, fmt.Errorf("getting product: %w", err)
+		return nil, fmt.Errorf("describe hypothesis launch workflow: %w", err)
 	}
 
-	campaignID, err := s.yandex.CreateCampaign(ctx, p.Name, time.Now().Format(time.DateOnly))
-	if err != nil {
-		return nil, fmt.Errorf("create yandex campaign: %w", err)
+	return &LaunchStatus{WorkflowID: workflowID, Status: launchWorkflowStatus(description.WorkflowExecutionInfo.Status)}, nil
+}
+
+func hypothesisLaunchWorkflowID(hypothesisID string) string {
+	return "hypothesis-launch-" + hypothesisID
+}
+
+func launchWorkflowStatus(status enumspb.WorkflowExecutionStatus) string {
+	switch status {
+	case enumspb.WORKFLOW_EXECUTION_STATUS_RUNNING:
+		return "running"
+	case enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED:
+		return "completed"
+	case enumspb.WORKFLOW_EXECUTION_STATUS_CANCELED:
+		return "canceled"
+	case enumspb.WORKFLOW_EXECUTION_STATUS_TIMED_OUT:
+		return "timed_out"
+	case enumspb.WORKFLOW_EXECUTION_STATUS_TERMINATED:
+		return "terminated"
+	case enumspb.WORKFLOW_EXECUTION_STATUS_UNSPECIFIED,
+		enumspb.WORKFLOW_EXECUTION_STATUS_FAILED,
+		enumspb.WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW,
+		enumspb.WORKFLOW_EXECUTION_STATUS_PAUSED:
+		return "failed"
 	}
 
-	if err := s.campaigns.Create(ctx, adcampaign.Campaign{
-		ProductID:  p.ID,
-		Provider:   adcampaign.ProviderYandex,
-		ExternalID: campaignID,
-	}); err != nil {
-		if deleteErr := s.yandex.DeleteCampaign(ctx, campaignID); deleteErr != nil {
-			return nil, fmt.Errorf("store yandex campaign %d: %w", campaignID, errors.Join(err, fmt.Errorf("delete created yandex campaign: %w", deleteErr)))
-		}
-
-		return nil, fmt.Errorf("store yandex campaign %d: %w", campaignID, err)
-	}
-
-	launched, err := s.hypotheses.SetStatus(ctx, userID, id, hypothesis.StatusInProgress)
-	if err != nil {
-		if deleteErr := s.yandex.DeleteCampaign(ctx, campaignID); deleteErr != nil {
-			return nil, fmt.Errorf("set hypothesis status after creating yandex campaign %d: %w", campaignID, errors.Join(err, fmt.Errorf("delete yandex campaign: %w", deleteErr)))
-		}
-
-		if deleteErr := s.campaigns.Delete(ctx, p.ID, adcampaign.ProviderYandex); deleteErr != nil {
-			return nil, fmt.Errorf("set hypothesis status after creating yandex campaign %d: %w", campaignID, errors.Join(err, fmt.Errorf("delete local ad campaign: %w", deleteErr)))
-		}
-
-		return nil, fmt.Errorf("setting status: %w", err)
-	}
-
-	createdTargeting, err := s.createAudienceTargeting(ctx, p, campaignID)
-	if err != nil {
-		return nil, s.rollbackLaunch(ctx, userID, id, p.ID, campaignID, createdTargeting, err)
-	}
-
-	return launched, nil
+	return "failed"
 }
 
 func (s *HypothesisService) Stop(ctx context.Context, userID, id string) (*hypothesis.Hypothesis, error) {
@@ -187,7 +234,7 @@ func (s *HypothesisService) Stop(ctx context.Context, userID, id string) (*hypot
 		return nil, fmt.Errorf("getting hypothesis: %w", err)
 	}
 
-	if h.Status == hypothesis.StatusIdle {
+	if h.Status == hypothesis.StatusIdle || h.Status == hypothesis.StatusLaunching {
 		return h, nil
 	}
 
@@ -240,7 +287,7 @@ func (s *HypothesisService) Update(ctx context.Context, userID, id string, in hy
 		return nil, fmt.Errorf("getting hypothesis: %w", err)
 	}
 
-	if h.Status == hypothesis.StatusInProgress {
+	if h.Status != hypothesis.StatusIdle {
 		return nil, ErrUpdateInProgress
 	}
 
@@ -266,7 +313,7 @@ func (s *HypothesisService) Delete(ctx context.Context, userID, id string) error
 		return fmt.Errorf("getting hypothesis: %w", err)
 	}
 
-	if h.Status == hypothesis.StatusInProgress {
+	if h.Status != hypothesis.StatusIdle {
 		return ErrDeleteInProgress
 	}
 
@@ -283,6 +330,53 @@ func (s *HypothesisService) Delete(ctx context.Context, userID, id string) error
 
 	if err := s.hypotheses.Delete(ctx, userID, id); err != nil {
 		return fmt.Errorf("deleting hypothesis: %w", err)
+	}
+
+	return nil
+}
+
+func (s *HypothesisService) launchHypothesisActivity(ctx context.Context, input hypothesisLaunchInput) error {
+	p, err := s.products.GetByHypothesisID(ctx, input.HypothesisID)
+	if err != nil {
+		if errors.Is(err, product.ErrNotFound) {
+			return ErrHypothesisNoProduct
+		}
+
+		return fmt.Errorf("get product in launch activity: %w", err)
+	}
+
+	campaignID, err := s.yandex.CreateCampaign(ctx, p.Name, time.Now().Format(time.DateOnly))
+	if err != nil {
+		return fmt.Errorf("create yandex campaign in launch activity: %w", err)
+	}
+
+	if err := s.campaigns.Create(ctx, adcampaign.Campaign{
+		ProductID:  p.ID,
+		Provider:   adcampaign.ProviderYandex,
+		ExternalID: campaignID,
+	}); err != nil {
+		if deleteErr := s.yandex.DeleteCampaign(ctx, campaignID); deleteErr != nil {
+			return fmt.Errorf("store yandex campaign %d in launch activity: %w", campaignID, errors.Join(err, fmt.Errorf("delete created yandex campaign: %w", deleteErr)))
+		}
+
+		return fmt.Errorf("store yandex campaign %d in launch activity: %w", campaignID, err)
+	}
+
+	createdTargeting, err := s.createAudienceTargeting(ctx, p, campaignID)
+	if err != nil {
+		return s.rollbackLaunch(ctx, input.UserID, input.HypothesisID, p.ID, campaignID, createdTargeting, err)
+	}
+
+	if _, err := s.hypotheses.SetStatus(ctx, input.UserID, input.HypothesisID, hypothesis.StatusInProgress); err != nil {
+		return s.rollbackLaunch(ctx, input.UserID, input.HypothesisID, p.ID, campaignID, createdTargeting, fmt.Errorf("mark hypothesis in progress after launch: %w", err))
+	}
+
+	return nil
+}
+
+func (s *HypothesisService) resetHypothesisLaunchStatusActivity(ctx context.Context, input hypothesisLaunchInput) error {
+	if _, err := s.hypotheses.SetStatus(ctx, input.UserID, input.HypothesisID, hypothesis.StatusIdle); err != nil {
+		return fmt.Errorf("reset hypothesis status after launch: %w", err)
 	}
 
 	return nil

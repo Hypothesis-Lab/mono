@@ -21,6 +21,7 @@ var protectedRoutes = []struct {
 	{"PATCH", "/api/v1/hypothesis/{id}"},
 	{"DELETE", "/api/v1/hypothesis/{id}"},
 	{"POST", "/api/v1/hypothesis/{id}/launch"},
+	{"GET", "/api/v1/hypothesis/{id}/launch-status"},
 	{"POST", "/api/v1/hypothesis/{id}/stop"},
 	{"GET", "/api/v1/hypothesis/{id}/product"},
 

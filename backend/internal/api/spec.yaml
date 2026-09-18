@@ -251,12 +251,12 @@ paths:
           schema:
             type: string
       responses:
-        "200":
-          description: launched hypothesis
+        "202":
+          description: hypothesis launch queued
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HypothesisResponse"
+                $ref: "#/components/schemas/HypothesisLaunchResponse"
         "400":
           description: hypothesis already in progress or has no product
           content:
@@ -265,6 +265,36 @@ paths:
                 $ref: "#/components/schemas/ErrBody"
         "404":
           description: hypothesis not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+  /api/v1/hypothesis/{id}/launch-status:
+    get:
+      operationId: getHypothesisLaunchStatus
+      tags: [hypothesis]
+      summary: Get hypothesis launch status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: hypothesis launch status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HypothesisLaunchStatusResponse"
+        "404":
+          description: hypothesis or launch not found
           content:
             application/json:
               schema:
@@ -712,6 +742,20 @@ components:
         description: { type: string }
         status:      { type: string }
         created_at:  { type: string, format: date-time }
+    HypothesisLaunchResponse:
+      type: object
+      required: [workflow_id, status]
+      properties:
+        workflow_id: { type: string }
+        status: { type: string, enum: [queued] }
+    HypothesisLaunchStatusResponse:
+      type: object
+      required: [workflow_id, status]
+      properties:
+        workflow_id: { type: string }
+        status:
+          type: string
+          enum: [running, completed, failed, canceled, timed_out, terminated]
     CreateHypothesisRequest:
       type: object
       required: [description]

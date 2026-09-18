@@ -53,7 +53,7 @@ func (s *Server) QueueProductAudienceGeneration(ctx context.Context, req api.Que
 		return api.QueueProductAudienceGeneration500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
 	}
 
-	return api.QueueProductAudienceGeneration201JSONResponse(api.AudienceGenerationStatusResponse{Status: api.Created}), nil
+	return api.QueueProductAudienceGeneration201JSONResponse(api.AudienceGenerationStatusResponse{Status: api.AudienceGenerationStatusResponseStatusCreated}), nil
 }
 
 func (s *Server) GetProductAudienceGenerationStatus(ctx context.Context, req api.GetProductAudienceGenerationStatusRequestObject) (api.GetProductAudienceGenerationStatusResponseObject, error) {
@@ -124,7 +124,7 @@ func (s *Server) RetryProductAudienceGeneration(ctx context.Context, req api.Ret
 		return api.RetryProductAudienceGeneration500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
 	}
 
-	return api.RetryProductAudienceGeneration200JSONResponse(api.AudienceGenerationStatusResponse{Status: api.Created}), nil
+	return api.RetryProductAudienceGeneration200JSONResponse(api.AudienceGenerationStatusResponse{Status: api.AudienceGenerationStatusResponseStatusCreated}), nil
 }
 
 func (s *Server) ListProductAudiences(ctx context.Context, req api.ListProductAudiencesRequestObject) (api.ListProductAudiencesResponseObject, error) {

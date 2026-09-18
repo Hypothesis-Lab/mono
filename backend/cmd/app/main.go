@@ -18,6 +18,7 @@ import (
 	"app/internal/repositories/user"
 	"app/internal/services"
 	"app/internal/storage"
+	"app/internal/temporal"
 
 	"go.uber.org/fx"
 )
@@ -30,6 +31,7 @@ func main() {
 		fx.Provide(yandexdirect.NewFromConfig),
 		fx.Provide(db.NewDB),
 		fx.Provide(storage.NewS3),
+		fx.Provide(temporal.NewClient),
 		fx.Provide(hypothesis.NewRepository),
 		fx.Provide(product.NewRepository),
 		fx.Provide(audience.NewRepository),
@@ -37,6 +39,7 @@ func main() {
 		fx.Provide(file.NewRepository),
 		fx.Provide(user.NewRepository),
 		fx.Provide(services.NewHypothesisService),
+		fx.Provide(services.NewHypothesisLaunchWorker),
 		fx.Provide(services.NewProductService),
 		fx.Provide(services.NewAudienceGenerationWorker),
 		fx.Provide(services.NewUserAuthService),
@@ -44,6 +47,6 @@ func main() {
 		fx.Provide(handlers.NewServerInterface),
 		fx.Provide(apphttp.NewRouter),
 		fx.Provide(apphttp.NewServer),
-		fx.Invoke(func(*db.DB, *http.Server, *services.AudienceGenerationWorker) {}),
+		fx.Invoke(func(*db.DB, *http.Server, *services.AudienceGenerationWorker, *services.HypothesisLaunchWorker) {}),
 	).Run()
 }

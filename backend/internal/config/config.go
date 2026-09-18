@@ -20,6 +20,7 @@ type Config struct {
 	YandexDirectClientSecret string
 	YandexDirectToken        string
 	GeneratorURL             string
+	TemporalAddress          string
 	IsDevLogger              bool
 
 	ReadHeaderTimeout time.Duration
@@ -94,6 +95,11 @@ func New() (*Config, error) {
 		return nil, errors.New("GENERATOR_URL is required")
 	}
 
+	temporalAddress := os.Getenv("TEMPORAL_ADDRESS")
+	if temporalAddress == "" {
+		return nil, errors.New("TEMPORAL_ADDRESS is required")
+	}
+
 	devLogger := os.Getenv("DEV_LOGGER")
 
 	return &Config{
@@ -109,6 +115,7 @@ func New() (*Config, error) {
 		YandexDirectClientSecret: yandexDirectClientSecret,
 		YandexDirectToken:        yandexDirectToken,
 		GeneratorURL:             generatorURL,
+		TemporalAddress:          temporalAddress,
 		IsDevLogger:              devLogger == "true",
 		ReadHeaderTimeout:        envDuration("READ_HEADER_TIMEOUT", 10*time.Second),
 		ReadTimeout:              envDuration("READ_TIMEOUT", 30*time.Second),

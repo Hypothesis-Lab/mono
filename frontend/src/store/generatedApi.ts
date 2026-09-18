@@ -62,6 +62,14 @@ const injectedRtkApi = api.injectEndpoints({
         method: "POST",
       }),
     }),
+    getHypothesisLaunchStatus: build.query<
+      GetHypothesisLaunchStatusApiResponse,
+      GetHypothesisLaunchStatusApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/v1/hypothesis/${queryArg.id}/launch-status`,
+      }),
+    }),
     stopHypothesis: build.mutation<
       StopHypothesisApiResponse,
       StopHypothesisApiArg
@@ -205,8 +213,13 @@ export type DeleteHypothesisApiArg = {
   id: string;
 };
 export type LaunchHypothesisApiResponse =
-  /** status 200 launched hypothesis */ HypothesisResponse;
+  /** status 202 hypothesis launch queued */ HypothesisLaunchResponse;
 export type LaunchHypothesisApiArg = {
+  id: string;
+};
+export type GetHypothesisLaunchStatusApiResponse =
+  /** status 200 hypothesis launch status */ HypothesisLaunchStatusResponse;
+export type GetHypothesisLaunchStatusApiArg = {
   id: string;
 };
 export type StopHypothesisApiResponse =
@@ -302,6 +315,20 @@ export type CreateHypothesisRequest = {
 };
 export type UpdateHypothesisRequest = {
   description?: string | null;
+};
+export type HypothesisLaunchResponse = {
+  workflow_id: string;
+  status: "queued";
+};
+export type HypothesisLaunchStatusResponse = {
+  workflow_id: string;
+  status:
+    | "running"
+    | "completed"
+    | "failed"
+    | "canceled"
+    | "timed_out"
+    | "terminated";
 };
 export type ProductCategory =
   | "electronics"
@@ -464,6 +491,7 @@ export const {
   useUpdateHypothesisMutation,
   useDeleteHypothesisMutation,
   useLaunchHypothesisMutation,
+  useGetHypothesisLaunchStatusQuery,
   useStopHypothesisMutation,
   useGetHypothesisProductQuery,
   useCreateProductMutation,

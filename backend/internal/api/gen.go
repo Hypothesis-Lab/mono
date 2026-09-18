@@ -29,19 +29,19 @@ const (
 
 // Defines values for AudienceGenerationStatusResponseStatus.
 const (
-	Created AudienceGenerationStatusResponseStatus = "created"
-	Failed  AudienceGenerationStatusResponseStatus = "failed"
-	Working AudienceGenerationStatusResponseStatus = "working"
+	AudienceGenerationStatusResponseStatusCreated AudienceGenerationStatusResponseStatus = "created"
+	AudienceGenerationStatusResponseStatusFailed  AudienceGenerationStatusResponseStatus = "failed"
+	AudienceGenerationStatusResponseStatusWorking AudienceGenerationStatusResponseStatus = "working"
 )
 
 // Valid indicates whether the value is a known member of the AudienceGenerationStatusResponseStatus enum.
 func (e AudienceGenerationStatusResponseStatus) Valid() bool {
 	switch e {
-	case Created:
+	case AudienceGenerationStatusResponseStatusCreated:
 		return true
-	case Failed:
+	case AudienceGenerationStatusResponseStatusFailed:
 		return true
-	case Working:
+	case AudienceGenerationStatusResponseStatusWorking:
 		return true
 	default:
 		return false
@@ -108,6 +108,51 @@ func (e EligibilityRuleOperator) Valid() bool {
 	case Lte:
 		return true
 	case Truthy:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HypothesisLaunchResponseStatus.
+const (
+	Queued HypothesisLaunchResponseStatus = "queued"
+)
+
+// Valid indicates whether the value is a known member of the HypothesisLaunchResponseStatus enum.
+func (e HypothesisLaunchResponseStatus) Valid() bool {
+	switch e {
+	case Queued:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HypothesisLaunchStatusResponseStatus.
+const (
+	HypothesisLaunchStatusResponseStatusCanceled   HypothesisLaunchStatusResponseStatus = "canceled"
+	HypothesisLaunchStatusResponseStatusCompleted  HypothesisLaunchStatusResponseStatus = "completed"
+	HypothesisLaunchStatusResponseStatusFailed     HypothesisLaunchStatusResponseStatus = "failed"
+	HypothesisLaunchStatusResponseStatusRunning    HypothesisLaunchStatusResponseStatus = "running"
+	HypothesisLaunchStatusResponseStatusTerminated HypothesisLaunchStatusResponseStatus = "terminated"
+	HypothesisLaunchStatusResponseStatusTimedOut   HypothesisLaunchStatusResponseStatus = "timed_out"
+)
+
+// Valid indicates whether the value is a known member of the HypothesisLaunchStatusResponseStatus enum.
+func (e HypothesisLaunchStatusResponseStatus) Valid() bool {
+	switch e {
+	case HypothesisLaunchStatusResponseStatusCanceled:
+		return true
+	case HypothesisLaunchStatusResponseStatusCompleted:
+		return true
+	case HypothesisLaunchStatusResponseStatusFailed:
+		return true
+	case HypothesisLaunchStatusResponseStatusRunning:
+		return true
+	case HypothesisLaunchStatusResponseStatusTerminated:
+		return true
+	case HypothesisLaunchStatusResponseStatusTimedOut:
 		return true
 	default:
 		return false
@@ -410,6 +455,24 @@ type ErrDetail struct {
 	Description string `json:"description"`
 }
 
+// HypothesisLaunchResponse defines model for HypothesisLaunchResponse.
+type HypothesisLaunchResponse struct {
+	Status     HypothesisLaunchResponseStatus `json:"status"`
+	WorkflowId string                         `json:"workflow_id"`
+}
+
+// HypothesisLaunchResponseStatus defines model for HypothesisLaunchResponse.Status.
+type HypothesisLaunchResponseStatus string
+
+// HypothesisLaunchStatusResponse defines model for HypothesisLaunchStatusResponse.
+type HypothesisLaunchStatusResponse struct {
+	Status     HypothesisLaunchStatusResponseStatus `json:"status"`
+	WorkflowId string                               `json:"workflow_id"`
+}
+
+// HypothesisLaunchStatusResponseStatus defines model for HypothesisLaunchStatusResponse.Status.
+type HypothesisLaunchStatusResponseStatus string
+
 // HypothesisResponse defines model for HypothesisResponse.
 type HypothesisResponse struct {
 	CreatedAt   time.Time `json:"created_at"`
@@ -615,6 +678,9 @@ type ServerInterface interface {
 	// Launch hypothesis
 	// (POST /api/v1/hypothesis/{id}/launch)
 	LaunchHypothesis(w http.ResponseWriter, r *http.Request, id string)
+	// Get hypothesis launch status
+	// (GET /api/v1/hypothesis/{id}/launch-status)
+	GetHypothesisLaunchStatus(w http.ResponseWriter, r *http.Request, id string)
 	// Get the product attached to a hypothesis
 	// (GET /api/v1/hypothesis/{id}/product)
 	GetHypothesisProduct(w http.ResponseWriter, r *http.Request, id string)
@@ -714,6 +780,12 @@ func (_ Unimplemented) UploadProductFile(w http.ResponseWriter, r *http.Request,
 // Launch hypothesis
 // (POST /api/v1/hypothesis/{id}/launch)
 func (_ Unimplemented) LaunchHypothesis(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get hypothesis launch status
+// (GET /api/v1/hypothesis/{id}/launch-status)
+func (_ Unimplemented) GetHypothesisLaunchStatus(w http.ResponseWriter, r *http.Request, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1069,6 +1141,38 @@ func (siw *ServerInterfaceWrapper) LaunchHypothesis(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.LaunchHypothesis(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetHypothesisLaunchStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetHypothesisLaunchStatus(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHypothesisLaunchStatus(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1513,6 +1617,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/hypothesis/{id}/launch", wrapper.LaunchHypothesis)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/hypothesis/{id}/launch-status", wrapper.GetHypothesisLaunchStatus)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/hypothesis/{id}/product", wrapper.GetHypothesisProduct)
@@ -2129,16 +2236,16 @@ type LaunchHypothesisResponseObject interface {
 	VisitLaunchHypothesisResponse(w http.ResponseWriter) error
 }
 
-type LaunchHypothesis200JSONResponse HypothesisResponse
+type LaunchHypothesis202JSONResponse HypothesisLaunchResponse
 
-func (response LaunchHypothesis200JSONResponse) VisitLaunchHypothesisResponse(w http.ResponseWriter) error {
+func (response LaunchHypothesis202JSONResponse) VisitLaunchHypothesisResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
 		return err
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
+	w.WriteHeader(202)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -2174,6 +2281,56 @@ func (response LaunchHypothesis404JSONResponse) VisitLaunchHypothesisResponse(w 
 type LaunchHypothesis500JSONResponse ErrBody
 
 func (response LaunchHypothesis500JSONResponse) VisitLaunchHypothesisResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHypothesisLaunchStatusRequestObject struct {
+	Id string `json:"id"`
+}
+
+type GetHypothesisLaunchStatusResponseObject interface {
+	VisitGetHypothesisLaunchStatusResponse(w http.ResponseWriter) error
+}
+
+type GetHypothesisLaunchStatus200JSONResponse HypothesisLaunchStatusResponse
+
+func (response GetHypothesisLaunchStatus200JSONResponse) VisitGetHypothesisLaunchStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHypothesisLaunchStatus404JSONResponse ErrBody
+
+func (response GetHypothesisLaunchStatus404JSONResponse) VisitGetHypothesisLaunchStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHypothesisLaunchStatus500JSONResponse ErrBody
+
+func (response GetHypothesisLaunchStatus500JSONResponse) VisitGetHypothesisLaunchStatusResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -2750,6 +2907,9 @@ type StrictServerInterface interface {
 	// Launch hypothesis
 	// (POST /api/v1/hypothesis/{id}/launch)
 	LaunchHypothesis(ctx context.Context, request LaunchHypothesisRequestObject) (LaunchHypothesisResponseObject, error)
+	// Get hypothesis launch status
+	// (GET /api/v1/hypothesis/{id}/launch-status)
+	GetHypothesisLaunchStatus(ctx context.Context, request GetHypothesisLaunchStatusRequestObject) (GetHypothesisLaunchStatusResponseObject, error)
 	// Get the product attached to a hypothesis
 	// (GET /api/v1/hypothesis/{id}/product)
 	GetHypothesisProduct(ctx context.Context, request GetHypothesisProductRequestObject) (GetHypothesisProductResponseObject, error)
@@ -3124,6 +3284,32 @@ func (sh *strictHandler) LaunchHypothesis(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// GetHypothesisLaunchStatus operation middleware
+func (sh *strictHandler) GetHypothesisLaunchStatus(w http.ResponseWriter, r *http.Request, id string) {
+	var request GetHypothesisLaunchStatusRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetHypothesisLaunchStatus(ctx, request.(GetHypothesisLaunchStatusRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetHypothesisLaunchStatus")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetHypothesisLaunchStatusResponseObject); ok {
+		if err := validResponse.VisitGetHypothesisLaunchStatusResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetHypothesisProduct operation middleware
 func (sh *strictHandler) GetHypothesisProduct(w http.ResponseWriter, r *http.Request, id string) {
 	var request GetHypothesisProductRequestObject
@@ -3399,51 +3585,52 @@ func (sh *strictHandler) Healthz(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"bf83AA==",
+	"7Fzbcts40n4VFP//krHsJDu167vZOSW7qZpsDrUXKRcLIlsiYhJggKZtTUrvvgWAFE+gSMUWxczoxpZE",
+	"gGh0f30G+dULRZoJDhyVd/3VU2EMKTUff8wjBjyE34CDpMgEf48Uc/UOVCa4Aj0mkyIDiQzsZHNdfwKe",
+	"p971Jy+UQBEiz/fuhbxlfO353oqyBCLvxvdwk4F37SmU+sp263sSvuRMQqTnFnerxonlZwjR2/o70vpJ",
+	"KRYOKOpvKyFT/cmLKMIzZCl4ndV9b203KmTwWSwDFumZnUHxJhMYgzLLbH2vZ1gKKFlYjMlAKsFp40vf",
+	"/TMpojzEvsuS8tvaBcYR1iDNFVBAZRjbVVQoJNQG8jxd6nEtHrPIayzpYEKD4t0Xr7ZgtdsGewpiS1r8",
+	"ukzcQsX4g7gF3i9V1JcdfGntyg5zrfGTIeFVQSRT7+BLDgq7K0WgQskyjXr9NaUPb4CvMfaury6fvxyC",
+	"bn12PxlvLd97aaBJIu4hCsKYcg6J+Y0hpOZDyviOIgeWix+olHSjvy8l5dGIeSFNM8rWPOACwYnAkCKs",
+	"hdzoi/8vYeVde/+3qIzIorAgi2J3P5XD9VTBkYZIlwkEFageta9Q5BzlZsTMMFco0qBOfk2qP7z0h27Q",
+	"hsT+0ZCwNVuyhOEmkHkCzV3uY9wv1cx3eQKuXcNDBpKlwDFYC5qMIGdFQxxPQiG7X6mFa8r4azvtRZcW",
+	"c+cgjCG83dlbnieJlrJ3jTIHFzlCLlkUAQ/ChLK0Sdmg0PWeAyHZmvG6s4kgFQFVKk+tkHwvVyCDTIo7",
+	"Fjk9TmWvmOqzuLewCfQeD0VqxbSr7g5uYXMvZPuGTTgOsuGWi3sehIIrlJRxPJCLCeO3rWWvnv/dHxae",
+	"tfZBBFykjGtfMYYdxSQmISxVqBQc49o1KPC0khUfb/rvwfPUuqgRy3KaQo+fZSGM1IO3ZqydlFK5CSwh",
+	"I5ZXeRiCUkEoGYIstj3IYKRyDRjQcKStQXE/7sY5N5g5CCgt12YY2jSGNZ9QOprKMHeNVVN/27vtMNkB",
+	"HQcSnKgszV5LiUvhu4y03/W6/X6r7S4dds2lpTU5tA2QK1ho+4PBWGXAEzBIxkQCeoVSyUpFhS+e7xmh",
+	"rc12E/N3CXgPoH9FmWO8cequZm/Axix8R5Nc77KNvPIO5RZqJJaT/MHI6xcp/ymiTZeJIKWQQ/bgFyl/",
+	"BqQs6aiFnd6zYjGns2YoInAH8y2R7o82zW2Gt15FvW9ozsP4kDzuSw55jwfVid0qEfdu/9kitT7Y35fh",
+	"tYk9PPWUOec24dSCTMCmoUXyqTWXh2A/6nwwCkSO+jNIYz1OtNmnTWj3o6g3d614uX9/ZltNR1BMHcz1",
+	"3og14x8VyN7kB9JCZXZbtb84tplRpXQ01Ri9+3EoVytvu5vgoredzNRtYgIhSsFt/hsmAuOiziGEQVwu",
+	"OcNcWktJc9Q+UWVCGk+AYqP/LYW41f9pjiIVyO706BhogrH+IIx8xWpl3daaysjY2wzMTdJcGUe5pFzX",
+	"WIKQmn1rTEknjOvxfYfzhZ8cE3fAAw4Oa7G7vHsxew+zf2XJvgKP4KhDCjvblad+g8KsWAK9EeNwqtDz",
+	"s2J/9Jj5kvgSS0UlpgyjNCpMoWUFErgRfZ9MXarZJLiYUtuk32RiQeig7jaC4kcGI0rkMoRvyq/a6UzX",
+	"AxRRVhmDja44doxai8g9TOnH67mYc+RizmDyc67f/CXrNycv60xVxznXbc51m/66jYkAzsWbYxZvavrv",
+	"ChHewZopBDlV2lMD3w9PkgR9zKKnaZ4N4H3bu/ZJOmZ/prDq6F2xQVM2dVx1jqRGRlLz6XP18Gymfa/J",
+	"IqbeGGmQ8CeKmY4VJU0eF7W8i94JhLlkuHmvmWFt0hKoBKkPpVTffi3d7L/++8EcbNGjveviauWkY8TM",
+	"2+obM74ShiiGeh/ej29f624FSGU2711dXF5cFu0WTjPmXXsvLi4vXhhfjLGhZEEztri7WtAc40UiCl3P",
+	"hPWAtgnCBH8deddVYdWzDh4Ulv2OotijP9IsS1hoZi0+KysFi4MhlHQKt9tmKKEFZX6wdRBD//PLyydb",
+	"v3tIaLtteyFPMwo46hUg0sx9+YQUlB0kx7qM39GERaRgPFmacXr5qymXDyVEevs0UXr1v021eQTJaUIU",
+	"yDuQxHbE6srlXX+60UYj1XbFYpUwTign8MAUMr4muUUu0rXS5lIL0rvR92jogCwi6X41qMfaR9IEVzg/",
+	"ShmuplWGklkQEcojkoj1GiLC+Cz04h9TLG+SG0ITCTTakIofs1aOEl6EEg73w4qhq/pq8ZVFW5uBJYDQ",
+	"1Yufze+1BovxM5KmgCD1nb96jJs00jSebIRhawdNWPs1nrTTt5sO5F92ssKy1UE03cSSW5jql1MIpLE8",
+	"F0hWIuczQcQOA1ZahJI6tTUUmK8NFFQFCU3aGlwRAlP4qnFK9zG+elQS5ehvd8OyDocSppCIFakdKZ6X",
+	"eDQnSePAcymYmhhutn6Pj2qfRT6Sn+o78jyxr3JhoMv2ovVIagw8rZsiQpLaKMIU2fFsXmi0cq5zrgeP",
+	"TnMx0nM00Hoax1HR3HQbkwiitjjj2iyvJSg1od+qETBzrzUMRN/toH4DnBpmlxObubZ5O0PHQuc3wFG4",
+	"ySiGcRc57QbF0cDz9F66r7cycXllHHzzLJqXlz5rUV2LLJYeFQnYdHJvDlFLImdppQ9q79SPGh6QmtTz",
+	"srMp7yZHDf4QikjDGCKCglA3PIuMti9l+pglgkZTlC/6LHyaJ8gyKnGhW+7PIoq0ydLWWVpmH9ho8u9D",
+	"DLbwgILkZksX5HeebMhFJMIH3/zzyUUWrXxTs7vAhx0PJRAahpAhRBf2zILtSCwZp+bERk/74wiHTMtq",
+	"hB7UPS8wbXrpVGSX59LchqiBzBM7L5+kTCld/dbE+DrjzLnKs0xI7WQNUAoxn97CTFSy3SFzV7Y1LQKl",
+	"GUEwZqode1y9mIIsIwt4CAEiRfRpaZKwlOHs/L8GeatseID13RMWJOZhnD3tR3N96vTt+RHi39YzUvtV",
+	"xLKFFE9JnaQcUepJrSyhLUlMtQKXSDiHKI0QxUrtUXGylfyz6uGD4ZJG/YG277e84Xwsb5SWFLw6CRSF",
+	"LKn4PkogLZ4djs9S8Uch8+0uMvyuQNl+9mZPu6/uBDEGMptCnAn7KkO9I3SG6NR8c/GTPs6SKhRZf2Dx",
+	"HkX2Z68Kaw5kEM0HlDMDn8bAYRirWb99PdjK7h2vAds6un6a9HhM67URKp6076r1uN1wPWtDq99bVXNK",
+	"ZSh/cWnCYQeETn446HTngmbeXN0n9YH22LFle6ze2LcY0EljzLIrNg8DetaZdj/sGyzlghYvGn223r0E",
+	"dV8qVaCk782p31vYOvgGWOfZezuHVBybPuMvESkkcdEz59y/n3+m9k0dMC6n7Gmc/UdXJnvROQ0ur2aH",
+	"y8nrtbu4RoANLPWCVD8DkSRk9+bdZyWXiXnRmTq1KZ+o51Ou7ZJUrcBdCW1Gmmv0y0n5CKU9wPksJBRP",
+	"8vY994Jyc2I9n5//kVCB5i+gSD0KZEixr7+bl/IY0BakHUuHRp1l+nE3+Hs9z9R5Mf4Bh5kqVp1Th8Yp",
+	"ph1jxgLRvrjvj17IvSquuxHRpPL3f+9/hpLdAde93kyKZf3ZIEuDJqg5u/lg86eb7c32fwMA",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

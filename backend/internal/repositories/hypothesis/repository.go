@@ -15,6 +15,7 @@ import (
 
 const (
 	StatusIdle       Status = "idle"
+	StatusLaunching  Status = "launching"
 	StatusInProgress Status = "in_progress"
 )
 

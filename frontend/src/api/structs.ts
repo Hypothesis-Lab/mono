@@ -45,7 +45,7 @@ export function isApiNotFound(err: unknown): boolean {
   )
 }
 
-export type HypothesisStatus = 'idle' | 'in_progress'
+export type HypothesisStatus = 'idle' | 'launching' | 'in_progress'
 
 export type Hypothesis = {
   id: string
@@ -139,8 +139,9 @@ export type ProductFile = {
 }
 
 const statusLabels: Record<HypothesisStatus, string> = {
-  idle: 'В ожидании',
-  in_progress: 'В процессе',
+	idle: 'В ожидании',
+	launching: 'Запускается',
+	in_progress: 'В процессе',
 }
 
 export function getStatusLabel(status: string): string {

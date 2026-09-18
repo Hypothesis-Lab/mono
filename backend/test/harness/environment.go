@@ -168,6 +168,7 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 			"YANDEX_DIRECT_CLIENT_SECRET": yandexClientSecret,
 			"YANDEX_DIRECT_TOKEN":         yandexToken,
 			"GENERATOR_URL":               generatorURL,
+			"TEMPORAL_ADDRESS":            "temporal:7233",
 		},
 		WaitingFor: wait.ForHTTP("/healthz").WithPort(appPort + "/tcp").WithStartupTimeout(10 * time.Second),
 	})
