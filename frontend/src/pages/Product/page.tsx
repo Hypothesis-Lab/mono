@@ -23,6 +23,7 @@ import {
   useUploadProductFileMutation,
 } from '../../store/generatedApi'
 import type { EligibilityRule, ProductFact, ProductPrice, UpdateProductRequest } from '../../store/generatedApi'
+import { JsonTree } from './components/JsonTree/page'
 import * as S from './styles'
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024
@@ -838,9 +839,9 @@ export function ProductPage() {
 
         {!audiencesLoading && (audiences ?? []).length > 0 && (
           <S.AudienceList>
-              {audiences!.map((audience) => (
-                <S.AudienceItem key={audience.id}>
-                  <S.AudienceDetails>
+            {audiences!.map((audience) => (
+              <S.AudienceItem key={audience.id}>
+                <S.AudienceDetails>
                   <S.AudienceSummary>
                     <S.AudienceInfo>
                       <S.AudienceDescription>{audience.persona.label}</S.AudienceDescription>
@@ -849,7 +850,7 @@ export function ProductPage() {
                       </S.AudienceMeta>
                     </S.AudienceInfo>
                   </S.AudienceSummary>
-                  <S.AudienceData>{JSON.stringify(audience, null, 2)}</S.AudienceData>
+                  <JsonTree value={audience} />
                 </S.AudienceDetails>
               </S.AudienceItem>
             ))}

@@ -123,18 +123,6 @@ export const AudienceMeta = styled.span`
   color: #888;
 `
 
-export const AudienceData = styled.pre`
-  margin: 0;
-  padding: 12px;
-  border-top: 1px solid #e2e2e2;
-  background: #f7f7f7;
-  color: #333;
-  font-size: 12px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-`
-
 export const FilesSection = styled.section`
   display: flex;
   flex-direction: column;
