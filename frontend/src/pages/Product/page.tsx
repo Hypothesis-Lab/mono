@@ -125,6 +125,7 @@ export function ProductPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState<ProductCategory | ''>('')
+  const [customCategory, setCustomCategory] = useState('')
   const [brand, setBrand] = useState('')
   const [country, setCountry] = useState('')
   const [town, setTown] = useState('')
@@ -173,6 +174,7 @@ export function ProductPage() {
       setName(product.name)
       setDescription(product.description)
       setCategory(product.category)
+      setCustomCategory(product.custom_category ?? '')
       setBrand(product.brand)
       setCountry(product.country)
       setTown(product.town ?? '')
@@ -203,6 +205,7 @@ export function ProductPage() {
       setName('')
       setDescription('')
       setCategory('')
+      setCustomCategory('')
       setBrand('')
       setCountry('')
       setTown('')
@@ -271,6 +274,7 @@ export function ProductPage() {
 
     const trimmedName = name.trim()
     const trimmedDescription = description.trim()
+    const trimmedCustomCategory = customCategory.trim()
     const trimmedBrand = brand.trim()
     const trimmedCountry = country.trim()
     const trimmedTown = town.trim()
@@ -316,6 +320,11 @@ export function ProductPage() {
     }
     const trimmedLink = link.trim()
 
+    if (category === 'other' && trimmedCustomCategory === '') {
+      setSaveError('Укажите свою категорию продукта')
+      return
+    }
+
     try {
       if (product) {
         const body: UpdateProductRequest = {}
@@ -328,6 +337,9 @@ export function ProductPage() {
         }
         if (category !== product.category) {
           body.category = category as ProductCategory
+        }
+        if (category === 'other' && trimmedCustomCategory !== (product.custom_category ?? '')) {
+          body.custom_category = trimmedCustomCategory
         }
         if (trimmedBrand !== product.brand) {
           body.brand = trimmedBrand
@@ -385,6 +397,7 @@ export function ProductPage() {
             name: trimmedName,
             description: trimmedDescription,
             category: category as ProductCategory,
+            custom_category: category === 'other' ? trimmedCustomCategory : undefined,
             brand: trimmedBrand,
             country: trimmedCountry,
             town: trimmedTown === '' ? null : trimmedTown,
@@ -738,6 +751,21 @@ export function ProductPage() {
             ))}
           </S.Select>
         </S.Field>
+
+        {category === 'other' && (
+          <S.Field>
+            Своя категория
+            <S.Input
+              type="text"
+              value={customCategory}
+              onChange={(e) => setCustomCategory(e.target.value)}
+              placeholder="Например, страхование"
+              disabled={saving}
+              required
+              maxLength={64}
+            />
+          </S.Field>
+        )}
 
         <S.Field>
           Ключевые слова (через запятую)

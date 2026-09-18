@@ -27,6 +27,7 @@ from app.models import (
     HypothesisDraft,
     InputBundle,
     InsightBatch,
+    InterviewAnswer,
     MetricVote,
     Product,
     ResearchRecord,
@@ -122,8 +123,7 @@ class Workflow:
                 bundle.product, self.personas[persona_id], INTERVIEW_QUESTIONS[5:], prior, retry_message
             )
         if kind == "insights" and persona_id:
-            research = self._research(bundle.product, nodes, self.personas[persona_id])
-            return self._insights(research, retry_message)
+            return self._insights(self._answers(nodes, persona_id), retry_message)
         if kind == "score" and persona_id:
             persona = self.personas[persona_id]
             research = self._research(bundle.product, nodes, persona)
@@ -167,7 +167,7 @@ short Russian sentences. Return only JSON.
         self._validate_answers(batch, questions)
         return batch.model_dump(mode="json")
 
-    def _insights(self, research: ResearchRecord, previous_error: str | None) -> dict[str, Any]:
+    def _insights(self, answers: list[InterviewAnswer], previous_error: str | None) -> dict[str, Any]:
         template = {
             "pains": [
                 {"text": "insight", "present": True, "evidence": [{"question_id": "Q02", "quote": "exact quote"}]}
@@ -186,11 +186,11 @@ conditions are not a pain or need. Base pains and needs only on Q01-Q05, before 
 When a pain or need is absent, state it explicitly with present=false; never invent it. Every insight
 needs one or two short literal quotes from the cited answer. Write in Russian and return only JSON.
 """,
-            answers=[answer.model_dump() for answer in research.answers],
+            answers=[answer.model_dump() for answer in answers],
             template=template,
         )
         insights = self._model_output(InsightBatch, prompt, previous_error)
-        self._validate_insights(insights, research.answers)
+        self._validate_insights(insights, answers)
         return insights.model_dump(mode="json")
 
     def _score(
@@ -200,6 +200,14 @@ needs one or two short literal quotes from the cited answer. Write in Russian an
         research: ResearchRecord,
         previous_error: str | None,
     ) -> dict[str, Any]:
+        evidence_catalog = self._evidence_catalog(persona, research)
+        pain_ids = [key for key, value in evidence_catalog.items() if value["kind"] == "pains"]
+        need_ids = [key for key, value in evidence_catalog.items() if value["kind"] == "needs"]
+        product_fact_ids = [fact.fact_id for fact in product.facts]
+        response_schema = ScoreDraft.model_json_schema()
+        metric_vote = response_schema["$defs"]["MetricVote"]["properties"]
+        metric_vote["evidence_ids"]["items"]["enum"] = sorted(evidence_catalog)
+        metric_vote["fact_ids"]["items"]["enum"] = product_fact_ids
         rubric = {
             "need_strength": "0 no need; 2 concrete task with acceptable alternative; 4 repeated material consequences",
             "product_value_fit": "0 facts do not help; 2 partial help; 4 direct resolution with no material unknowns",
@@ -211,15 +219,19 @@ needs one or two short literal quotes from the cited answer. Write in Russian an
             """
 Score one synthetic persona's product fit, not creditworthiness. Do not compare personas or assess
 approval likelihood. Use each metric as an integer from 0 to 4. Every metric must reference IDs from
-the evidence catalog. need_strength and product_value_fit must both cite a pain and a need; product
-value fit must also cite product fact IDs that address the task. Unknown price is not free and material
-unknowns prevent product_value_fit=4. Write in Russian and return only JSON.
+the evidence catalog. Copy IDs exactly: evidence_ids may contain only evidence catalog keys, and fact_ids
+may contain only product fact IDs. Never put an evidence ID in fact_ids or a product fact ID in
+evidence_ids. need_strength and product_value_fit must each cite at least one pain ID and one need ID;
+product_value_fit must also cite product fact IDs that address the task. Unknown price is not free and
+material unknowns prevent product_value_fit=4. Write in Russian and return only JSON.
 """,
             rubric=rubric,
             product=self._product_for_research(product),
-            evidence_catalog=self._evidence_catalog(persona, research),
+            evidence_catalog=evidence_catalog,
+            product_fact_ids=product_fact_ids,
+            required_insight_ids={"pain_ids": pain_ids, "need_ids": need_ids},
         )
-        scores = self._model_output(ScoreDraft, prompt, previous_error)
+        scores = self._model_output(ScoreDraft, prompt, previous_error, response_schema)
         self._validate_score(scores, product, persona, research)
         return ScoreRecord(
             persona_id=persona.persona_id,
@@ -241,6 +253,21 @@ unknowns prevent product_value_fit=4. Write in Russian and return only JSON.
         row = next(item for item in ranking["top_3"] if item["persona_id"] == persona.persona_id)
         previous = [self._output(nodes, f"hypothesis:{persona.persona_id}:{index}") for index in range(slot_index)]
         channels = self._available_channels(bundle.product, persona, bundle.campaign)
+        catalog = self._evidence_catalog(persona, research)
+        response_schema = HypothesisDraft.model_json_schema()
+        properties = response_schema["properties"]
+        properties["pain_id"]["enum"] = [
+            key for key, value in catalog.items() if value["kind"] == "pains" and value["present"]
+        ]
+        properties["need_id"]["enum"] = [
+            key for key, value in catalog.items() if value["kind"] == "needs" and value["present"]
+        ]
+        properties["supporting_insight_ids"]["items"]["enum"] = [
+            key
+            for key, value in catalog.items()
+            if value["kind"] in {"desires", "objections", "triggers", "use_cases"}
+        ]
+        properties["selected_fact_ids"]["items"]["enum"] = [fact.fact_id for fact in bundle.product.facts]
         prompt = self._prompt(
             """
 Create one testable marketing hypothesis. Select one present pain and one present need from the evidence
@@ -253,7 +280,7 @@ available. Keep fields short, write in Russian, and return only JSON.
             persona=persona,
             insights={
                 key: value
-                for key, value in self._evidence_catalog(persona, research).items()
+                for key, value in catalog.items()
                 if value["kind"] in InsightBatch.model_fields
             },
             product=self._product_for_research(bundle.product),
@@ -261,7 +288,7 @@ available. Keep fields short, write in Russian, and return only JSON.
             allowed_channels=channels,
             previous=[{"headline": item["headline"], "change_to_test": item["change_to_test"]} for item in previous],
         )
-        draft = self._model_output(HypothesisDraft, prompt, previous_error)
+        draft = self._model_output(HypothesisDraft, prompt, previous_error, response_schema)
         self._validate_hypothesis(draft, bundle, persona, research, previous)
         return self._materialize_hypothesis(bundle, persona, research, row, draft, slot_index)
 
@@ -378,12 +405,8 @@ available. Keep fields short, write in Russian, and return only JSON.
         raise ValueError(f"unknown eligibility operator {operator}")
 
     def _research(self, product: Product, nodes: dict[str, Any], persona: SyntheticPersona) -> ResearchRecord:
-        pre = AnswerBatch.model_validate(self._output(nodes, f"interview_pre:{persona.persona_id}"))
-        post = AnswerBatch.model_validate(self._output(nodes, f"interview_post:{persona.persona_id}"))
-        self._validate_answers(pre, INTERVIEW_QUESTIONS[:5])
-        self._validate_answers(post, INTERVIEW_QUESTIONS[5:])
+        answers = self._answers(nodes, persona.persona_id)
         insights = InsightBatch.model_validate(self._output(nodes, f"insights:{persona.persona_id}"))
-        answers = pre.answers + post.answers
         self._validate_insights(insights, answers)
         return ResearchRecord(
             persona_id=persona.persona_id,
@@ -391,6 +414,13 @@ available. Keep fields short, write in Russian, and return only JSON.
             answers=answers,
             insights=insights,
         )
+
+    def _answers(self, nodes: dict[str, Any], persona_id: str) -> list[InterviewAnswer]:
+        pre = AnswerBatch.model_validate(self._output(nodes, f"interview_pre:{persona_id}"))
+        post = AnswerBatch.model_validate(self._output(nodes, f"interview_post:{persona_id}"))
+        self._validate_answers(pre, INTERVIEW_QUESTIONS[:5])
+        self._validate_answers(post, INTERVIEW_QUESTIONS[5:])
+        return pre.answers + post.answers
 
     @staticmethod
     def _validate_answers(batch: AnswerBatch, questions: list[Any]) -> None:
@@ -727,6 +757,7 @@ available. Keep fields short, write in Russian, and return only JSON.
                 "name",
                 "description",
                 "category",
+                "custom_category",
                 "country",
                 "town",
                 "price",
@@ -738,13 +769,19 @@ available. Keep fields short, write in Russian, and return only JSON.
             mode="json",
         )
 
-    def _model_output(self, model: type[ModelT], prompt: str, previous_error: str | None) -> ModelT:
+    def _model_output(
+        self,
+        model: type[ModelT],
+        prompt: str,
+        previous_error: str | None,
+        response_schema: dict[str, Any] | None = None,
+    ) -> ModelT:
         retry = (
             ""
             if not previous_error
             else "\n\nReturn the whole object again and fix this validation error: " + previous_error[:1000]
         )
-        schema = self._strict_schema(model.model_json_schema())
+        schema = self._strict_schema(response_schema or model.model_json_schema())
         response = self.llm.complete(
             "Return one valid JSON object without Markdown or explanation.", prompt + retry, schema
         )
@@ -801,6 +838,7 @@ available. Keep fields short, write in Russian, and return only JSON.
             value = values.pop()
             if isinstance(value, dict):
                 if "properties" in value:
+                    value["required"] = list(value["properties"])
                     value["additionalProperties"] = False
                 values.extend(value.values())
             elif isinstance(value, list):
