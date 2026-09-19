@@ -45,6 +45,14 @@ func (s *HypothesisService) ensureHypothesisLaunchResourceActivity(ctx context.C
 	return nil
 }
 
+func (s *HypothesisService) createHypothesisLaunchResourceActivity(ctx context.Context, resource hypothesislaunch.WorkflowResource) error {
+	if err := s.ensureHypothesisLaunchResourceActivity(ctx, resource.ID); err != nil {
+		return fmt.Errorf("create hypothesis launch resource %s: %w", resource.Kind, err)
+	}
+
+	return nil
+}
+
 //nolint:cyclop // Resource kinds require distinct provider APIs and dependency lookups.
 func (s *HypothesisService) findOrCreateLaunchResource(ctx context.Context, resource *hypothesislaunch.Resource) (int64, error) {
 	switch resource.Kind {
@@ -204,6 +212,14 @@ func (s *HypothesisService) deleteHypothesisLaunchResourceActivity(ctx context.C
 
 	if err := s.launches.MarkResourceDeleted(ctx, resource.ID); err != nil {
 		return fmt.Errorf("record deleted hypothesis launch resource %s: %w", resource.ID, err)
+	}
+
+	return nil
+}
+
+func (s *HypothesisService) deleteHypothesisLaunchResourceActivityWithMetadata(ctx context.Context, resource hypothesislaunch.WorkflowResource) error {
+	if err := s.deleteHypothesisLaunchResourceActivity(ctx, resource.ID); err != nil {
+		return fmt.Errorf("delete hypothesis launch resource %s: %w", resource.Kind, err)
 	}
 
 	return nil

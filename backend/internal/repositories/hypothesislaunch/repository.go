@@ -56,9 +56,10 @@ type Resource struct {
 }
 
 type OutboxItem struct {
-	ID         string
-	LaunchID   string
-	WorkflowID string
+	ID           string
+	LaunchID     string
+	HypothesisID string
+	WorkflowID   string
 }
 
 type Stop struct {
@@ -68,9 +69,21 @@ type Stop struct {
 }
 
 type StopOutboxItem struct {
-	ID         string
-	StopID     string
-	WorkflowID string
+	ID             string
+	StopID         string
+	HypothesisID   string
+	SourceLaunchID string
+	WorkflowID     string
+}
+
+type WorkflowResource struct {
+	ID         string  `json:"resource_id"`
+	Kind       string  `json:"kind"`
+	LogicalKey string  `json:"logical_key"`
+	Name       *string `json:"name,omitempty"`
+	Gender     *string `json:"gender,omitempty"`
+	Age        *int    `json:"age,omitempty"`
+	StartDate  *string `json:"start_date,omitempty"`
 }
 
 type Repository struct {
@@ -341,8 +354,8 @@ func (r *Repository) ClaimOutbox(ctx context.Context) (*OutboxItem, error) {
 		SET status = 'starting', attempts = attempts + 1, updated_at = NOW()
 		FROM candidate, hypothesis_launch AS launch
 		WHERE outbox.id = candidate.id AND launch.id = outbox.launch_id
-		RETURNING outbox.id, outbox.launch_id, launch.workflow_id
-	`).Scan(&item.ID, &item.LaunchID, &item.WorkflowID)
+		RETURNING outbox.id, outbox.launch_id, launch.hypothesis_id, launch.workflow_id
+	`).Scan(&item.ID, &item.LaunchID, &item.HypothesisID, &item.WorkflowID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrOutboxEmpty
 	}
@@ -381,8 +394,8 @@ func (r *Repository) ClaimStopOutbox(ctx context.Context) (*StopOutboxItem, erro
 		SET status = 'starting', attempts = attempts + 1, updated_at = NOW()
 		FROM candidate, hypothesis_stop AS stop
 		WHERE outbox.id = candidate.id AND stop.id = outbox.stop_id
-		RETURNING outbox.id, outbox.stop_id, stop.workflow_id
-	`).Scan(&item.ID, &item.StopID, &item.WorkflowID)
+		RETURNING outbox.id, outbox.stop_id, stop.hypothesis_id, stop.source_launch_id, stop.workflow_id
+	`).Scan(&item.ID, &item.StopID, &item.HypothesisID, &item.SourceLaunchID, &item.WorkflowID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrStopOutboxEmpty
 	}
@@ -438,33 +451,38 @@ func (r *Repository) ReleaseStopOutbox(ctx context.Context, outboxID string, cau
 	return nil
 }
 
-func (r *Repository) WorkflowResourceIDs(ctx context.Context, launchID string) ([]string, error) {
-	rows, err := r.db.Pool().Query(ctx, "SELECT id FROM hypothesis_launch_resource WHERE launch_id = $1 ORDER BY position", launchID)
+func (r *Repository) WorkflowResources(ctx context.Context, launchID string) ([]WorkflowResource, error) {
+	rows, err := r.db.Pool().Query(ctx, `
+		SELECT id, kind, logical_key, name, gender, age, start_date
+		FROM hypothesis_launch_resource
+		WHERE launch_id = $1
+		ORDER BY position
+	`, launchID)
 	if err != nil {
-		return nil, fmt.Errorf("list hypothesis launch workflow resources: %w", err)
+		return nil, fmt.Errorf("list hypothesis workflow resources: %w", err)
 	}
 	defer rows.Close()
 
-	var ids []string
+	var resources []WorkflowResource
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var resource WorkflowResource
+		if err := rows.Scan(&resource.ID, &resource.Kind, &resource.LogicalKey, &resource.Name, &resource.Gender, &resource.Age, &resource.StartDate); err != nil {
 			return nil, fmt.Errorf("scan hypothesis launch workflow resource: %w", err)
 		}
 
-		ids = append(ids, id)
+		resources = append(resources, resource)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate hypothesis launch workflow resources: %w", err)
 	}
 
-	return ids, nil
+	return resources, nil
 }
 
-func (r *Repository) StopWorkflowResourceIDs(ctx context.Context, stopID string) ([]string, error) {
+func (r *Repository) StopWorkflowResources(ctx context.Context, stopID string) ([]WorkflowResource, error) {
 	rows, err := r.db.Pool().Query(ctx, `
-		SELECT resource.id
+		SELECT resource.id, resource.kind, resource.logical_key, resource.name, resource.gender, resource.age, resource.start_date
 		FROM hypothesis_launch_resource AS resource
 		JOIN hypothesis_stop AS stop ON stop.source_launch_id = resource.launch_id
 		WHERE stop.id = $1
@@ -475,21 +493,21 @@ func (r *Repository) StopWorkflowResourceIDs(ctx context.Context, stopID string)
 	}
 	defer rows.Close()
 
-	var ids []string
+	var resources []WorkflowResource
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var resource WorkflowResource
+		if err := rows.Scan(&resource.ID, &resource.Kind, &resource.LogicalKey, &resource.Name, &resource.Gender, &resource.Age, &resource.StartDate); err != nil {
 			return nil, fmt.Errorf("scan hypothesis stop workflow resource: %w", err)
 		}
 
-		ids = append(ids, id)
+		resources = append(resources, resource)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate hypothesis stop workflow resources: %w", err)
 	}
 
-	return ids, nil
+	return resources, nil
 }
 
 func (r *Repository) GetResource(ctx context.Context, resourceID string) (*Resource, error) {

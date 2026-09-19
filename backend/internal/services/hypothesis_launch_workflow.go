@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"app/internal/repositories/hypothesislaunch"
+
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/temporal"
@@ -14,19 +16,23 @@ import (
 )
 
 const (
-	hypothesisLaunchTaskQueue                         = "hypothesis-launch"
-	hypothesisLaunchActivityName                      = "hypothesis.launch"
-	resetHypothesisLaunchActivityName                 = "hypothesis.reset-launch-status"
-	markHypothesisLaunchRunningActivityName           = "hypothesis.launch.mark-running"
-	ensureHypothesisLaunchResourceActivityName        = "hypothesis.launch.ensure-resource"
-	deleteHypothesisLaunchResourceActivityName        = "hypothesis.launch.delete-resource"
-	completeHypothesisLaunchActivityName              = "hypothesis.launch.complete"
-	failHypothesisLaunchActivityName                  = "hypothesis.launch.fail"
-	requireHypothesisLaunchReconciliationActivityName = "hypothesis.launch.require-reconciliation"
-	markHypothesisStopRunningActivityName             = "hypothesis.stop.mark-running"
-	completeHypothesisStopActivityName                = "hypothesis.stop.complete"
-	requireHypothesisStopManualActivityName           = "hypothesis.stop.require-manual-intervention"
-	hypothesisLaunchWorkflowChangeID                  = "hypothesis-launch-resource-ledger"
+	hypothesisLaunchTaskQueue                              = "hypothesis-launch"
+	hypothesisLaunchActivityName                           = "hypothesis.launch"
+	resetHypothesisLaunchActivityName                      = "hypothesis.reset-launch-status"
+	markHypothesisLaunchRunningActivityName                = "hypothesis.launch.mark-running"
+	ensureHypothesisLaunchResourceActivityName             = "hypothesis.launch.ensure-resource"
+	deleteHypothesisLaunchResourceActivityName             = "hypothesis.launch.delete-resource"
+	completeHypothesisLaunchActivityName                   = "hypothesis.launch.complete"
+	failHypothesisLaunchActivityName                       = "hypothesis.launch.fail"
+	requireHypothesisLaunchReconciliationActivityName      = "hypothesis.launch.require-reconciliation"
+	markHypothesisStopRunningActivityName                  = "hypothesis.stop.mark-running"
+	completeHypothesisStopActivityName                     = "hypothesis.stop.complete"
+	requireHypothesisStopManualActivityName                = "hypothesis.stop.require-manual-intervention"
+	hypothesisLaunchWorkflowChangeID                       = "hypothesis-launch-resource-ledger"
+	hypothesisLaunchWorkflowMetadataChangeID               = "hypothesis-launch-resource-metadata"
+	hypothesisStopWorkflowMetadataChangeID                 = "hypothesis-stop-resource-metadata"
+	createHypothesisLaunchResourceActivityName             = "hypothesis.launch.create-resource"
+	deleteHypothesisLaunchResourceWithMetadataActivityName = "hypothesis.launch.delete-resource-with-metadata"
 )
 
 type hypothesisLaunchInput struct {
@@ -34,11 +40,15 @@ type hypothesisLaunchInput struct {
 	HypothesisID string
 	LaunchID     string
 	ResourceIDs  []string
+	Resources    []hypothesislaunch.WorkflowResource
 }
 
 type hypothesisStopInput struct {
-	StopID      string
-	ResourceIDs []string
+	HypothesisID   string
+	StopID         string
+	SourceLaunchID string
+	ResourceIDs    []string
+	Resources      []hypothesislaunch.WorkflowResource
 }
 
 type HypothesisLaunchWorker struct {
@@ -56,6 +66,8 @@ func NewHypothesisLaunchWorker(lc fx.Lifecycle, temporalClient client.Client, se
 	launchWorker.worker.RegisterActivityWithOptions(service.markHypothesisLaunchRunningActivity, activity.RegisterOptions{Name: markHypothesisLaunchRunningActivityName})
 	launchWorker.worker.RegisterActivityWithOptions(service.ensureHypothesisLaunchResourceActivity, activity.RegisterOptions{Name: ensureHypothesisLaunchResourceActivityName})
 	launchWorker.worker.RegisterActivityWithOptions(service.deleteHypothesisLaunchResourceActivity, activity.RegisterOptions{Name: deleteHypothesisLaunchResourceActivityName})
+	launchWorker.worker.RegisterActivityWithOptions(service.createHypothesisLaunchResourceActivity, activity.RegisterOptions{Name: createHypothesisLaunchResourceActivityName})
+	launchWorker.worker.RegisterActivityWithOptions(service.deleteHypothesisLaunchResourceActivityWithMetadata, activity.RegisterOptions{Name: deleteHypothesisLaunchResourceWithMetadataActivityName})
 	launchWorker.worker.RegisterActivityWithOptions(service.completeHypothesisLaunchActivity, activity.RegisterOptions{Name: completeHypothesisLaunchActivityName})
 	launchWorker.worker.RegisterActivityWithOptions(service.failHypothesisLaunchActivity, activity.RegisterOptions{Name: failHypothesisLaunchActivityName})
 	launchWorker.worker.RegisterActivityWithOptions(service.requireHypothesisLaunchReconciliationActivity, activity.RegisterOptions{Name: requireHypothesisLaunchReconciliationActivityName})
@@ -102,17 +114,44 @@ func hypothesisLaunchWorkflow(ctx workflow.Context, input hypothesisLaunchInput)
 			MaximumAttempts: 3,
 		},
 	})
-	created := make([]string, 0, len(input.ResourceIDs))
-	for _, resourceID := range input.ResourceIDs {
-		if err := workflow.ExecuteActivity(resourceCtx, ensureHypothesisLaunchResourceActivityName, resourceID).Get(ctx, nil); err != nil {
-			return failHypothesisLaunchWorkflow(ctx, stateCtx, input.LaunchID, created, err, true)
+	metadataVersion := workflow.GetVersion(ctx, hypothesisLaunchWorkflowMetadataChangeID, workflow.DefaultVersion, 1)
+	if metadataVersion == workflow.DefaultVersion {
+		created := make([]string, 0, len(input.ResourceIDs))
+		for _, resourceID := range input.ResourceIDs {
+			if err := workflow.ExecuteActivity(resourceCtx, ensureHypothesisLaunchResourceActivityName, resourceID).Get(ctx, nil); err != nil {
+				return failHypothesisLaunchWorkflow(ctx, stateCtx, input.LaunchID, created, err, true)
+			}
+
+			created = append(created, resourceID)
 		}
 
-		created = append(created, resourceID)
+		if err := workflow.ExecuteActivity(stateCtx, completeHypothesisLaunchActivityName, input.LaunchID).Get(ctx, nil); err != nil {
+			return failHypothesisLaunchWorkflow(ctx, stateCtx, input.LaunchID, created, err, false)
+		}
+
+		return nil
+	}
+
+	created := make([]hypothesislaunch.WorkflowResource, 0, len(input.Resources))
+	for _, resource := range input.Resources {
+		activityCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+			ActivityID:          resourceActivityID("launch-create", resource),
+			StartToCloseTimeout: 5 * time.Minute,
+			RetryPolicy: &temporal.RetryPolicy{
+				InitialInterval: time.Second,
+				MaximumInterval: 5 * time.Second,
+				MaximumAttempts: 3,
+			},
+		})
+		if err := workflow.ExecuteActivity(activityCtx, createHypothesisLaunchResourceActivityName, resource).Get(ctx, nil); err != nil {
+			return failHypothesisLaunchWorkflowWithMetadata(ctx, stateCtx, input.LaunchID, created, err, true)
+		}
+
+		created = append(created, resource)
 	}
 
 	if err := workflow.ExecuteActivity(stateCtx, completeHypothesisLaunchActivityName, input.LaunchID).Get(ctx, nil); err != nil {
-		return failHypothesisLaunchWorkflow(ctx, stateCtx, input.LaunchID, created, err, false)
+		return failHypothesisLaunchWorkflowWithMetadata(ctx, stateCtx, input.LaunchID, created, err, false)
 	}
 
 	return nil
@@ -178,6 +217,42 @@ func failHypothesisLaunchWorkflow(ctx workflow.Context, stateCtx workflow.Contex
 	return fmt.Errorf("launch hypothesis: %w", launchErr)
 }
 
+func failHypothesisLaunchWorkflowWithMetadata(ctx workflow.Context, stateCtx workflow.Context, launchID string, created []hypothesislaunch.WorkflowResource, launchErr error, requiresReconciliation bool) error {
+	if requiresReconciliation {
+		if err := workflow.ExecuteActivity(stateCtx, requireHypothesisLaunchReconciliationActivityName, launchID, launchErr.Error(), true).Get(ctx, nil); err != nil {
+			return fmt.Errorf("launch hypothesis: %w; mark reconciliation required: %w", launchErr, err)
+		}
+
+		return fmt.Errorf("launch hypothesis requires reconciliation: %w", launchErr)
+	}
+
+	for index := len(created) - 1; index >= 0; index-- {
+		resource := created[index]
+		activityCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+			ActivityID:          resourceActivityID("launch-delete", resource),
+			StartToCloseTimeout: time.Minute,
+			RetryPolicy: &temporal.RetryPolicy{
+				InitialInterval: time.Second,
+				MaximumAttempts: 5,
+			},
+		})
+		if err := workflow.ExecuteActivity(activityCtx, deleteHypothesisLaunchResourceWithMetadataActivityName, resource).Get(ctx, nil); err != nil {
+			reconciliationErr := workflow.ExecuteActivity(stateCtx, requireHypothesisLaunchReconciliationActivityName, launchID, launchErr.Error(), false).Get(ctx, nil)
+			if reconciliationErr != nil {
+				return fmt.Errorf("launch hypothesis: %w; compensate resource: %w; mark reconciliation required: %w", launchErr, err, reconciliationErr)
+			}
+
+			return fmt.Errorf("launch hypothesis: %w; compensate resource: %w", launchErr, err)
+		}
+	}
+
+	if err := workflow.ExecuteActivity(stateCtx, failHypothesisLaunchActivityName, launchID, launchErr.Error()).Get(ctx, nil); err != nil {
+		return fmt.Errorf("launch hypothesis: %w; mark failed: %w", launchErr, err)
+	}
+
+	return fmt.Errorf("launch hypothesis: %w", launchErr)
+}
+
 func hypothesisStopWorkflow(ctx workflow.Context, input hypothesisStopInput) error {
 	stateCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 10 * time.Second,
@@ -198,9 +273,27 @@ func hypothesisStopWorkflow(ctx workflow.Context, input hypothesisStopInput) err
 			MaximumAttempts: 3,
 		},
 	})
-	for _, resourceID := range input.ResourceIDs {
-		if err := workflow.ExecuteActivity(deleteCtx, deleteHypothesisLaunchResourceActivityName, resourceID).Get(ctx, nil); err != nil {
-			return requireHypothesisStopManualIntervention(ctx, stateCtx, input.StopID, err)
+	metadataVersion := workflow.GetVersion(ctx, hypothesisStopWorkflowMetadataChangeID, workflow.DefaultVersion, 1)
+	if metadataVersion == workflow.DefaultVersion {
+		for _, resourceID := range input.ResourceIDs {
+			if err := workflow.ExecuteActivity(deleteCtx, deleteHypothesisLaunchResourceActivityName, resourceID).Get(ctx, nil); err != nil {
+				return requireHypothesisStopManualIntervention(ctx, stateCtx, input.StopID, err)
+			}
+		}
+	} else {
+		for _, resource := range input.Resources {
+			activityCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+				ActivityID:          resourceActivityID("stop-delete", resource),
+				StartToCloseTimeout: time.Minute,
+				RetryPolicy: &temporal.RetryPolicy{
+					InitialInterval: time.Second,
+					MaximumInterval: 5 * time.Second,
+					MaximumAttempts: 3,
+				},
+			})
+			if err := workflow.ExecuteActivity(activityCtx, deleteHypothesisLaunchResourceWithMetadataActivityName, resource).Get(ctx, nil); err != nil {
+				return requireHypothesisStopManualIntervention(ctx, stateCtx, input.StopID, err)
+			}
 		}
 	}
 
@@ -209,6 +302,10 @@ func hypothesisStopWorkflow(ctx workflow.Context, input hypothesisStopInput) err
 	}
 
 	return nil
+}
+
+func resourceActivityID(prefix string, resource hypothesislaunch.WorkflowResource) string {
+	return fmt.Sprintf("%s-%s-%s", prefix, resource.Kind, resource.LogicalKey)
 }
 
 func requireHypothesisStopManualIntervention(ctx workflow.Context, stateCtx workflow.Context, stopID string, stopErr error) error {

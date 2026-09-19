@@ -80,16 +80,26 @@ func (s *HypothesisLaunchStarter) startNext(ctx context.Context) error {
 		return err
 	}
 
-	resourceIDs, err := s.launches.WorkflowResourceIDs(ctx, item.LaunchID)
+	resources, err := s.launches.WorkflowResources(ctx, item.LaunchID)
 	if err != nil {
 		return s.release(ctx, item.ID, err)
 	}
 
-	input := hypothesisLaunchInput{LaunchID: item.LaunchID, ResourceIDs: resourceIDs}
+	input := hypothesisLaunchInput{
+		HypothesisID: item.HypothesisID,
+		LaunchID:     item.LaunchID,
+		Resources:    resources,
+	}
 	_, err = s.temporal.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
 		ID:                    item.WorkflowID,
 		TaskQueue:             hypothesisLaunchTaskQueue,
 		WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
+		Memo: map[string]interface{}{
+			"operation":      "launch",
+			"hypothesis_id":  item.HypothesisID,
+			"launch_id":      item.LaunchID,
+			"resource_count": len(resources),
+		},
 	}, hypothesisLaunchWorkflow, input)
 	if err == nil {
 		return s.launches.MarkOutboxDispatched(ctx, item.ID)

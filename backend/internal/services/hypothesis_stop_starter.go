@@ -80,16 +80,28 @@ func (s *HypothesisStopStarter) startNext(ctx context.Context) error {
 		return err
 	}
 
-	resourceIDs, err := s.launches.StopWorkflowResourceIDs(ctx, item.StopID)
+	resources, err := s.launches.StopWorkflowResources(ctx, item.StopID)
 	if err != nil {
 		return s.release(ctx, item.ID, err)
 	}
 
-	input := hypothesisStopInput{StopID: item.StopID, ResourceIDs: resourceIDs}
+	input := hypothesisStopInput{
+		HypothesisID:   item.HypothesisID,
+		StopID:         item.StopID,
+		SourceLaunchID: item.SourceLaunchID,
+		Resources:      resources,
+	}
 	_, err = s.temporal.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
 		ID:                    item.WorkflowID,
 		TaskQueue:             hypothesisLaunchTaskQueue,
 		WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
+		Memo: map[string]interface{}{
+			"operation":        "stop",
+			"hypothesis_id":    item.HypothesisID,
+			"stop_id":          item.StopID,
+			"source_launch_id": item.SourceLaunchID,
+			"resource_count":   len(resources),
+		},
 	}, hypothesisStopWorkflow, input)
 	if err == nil {
 		return s.launches.MarkStopOutboxDispatched(ctx, item.ID)
