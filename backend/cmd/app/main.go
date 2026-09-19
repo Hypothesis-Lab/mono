@@ -14,6 +14,7 @@ import (
 	"app/internal/repositories/audience"
 	"app/internal/repositories/file"
 	"app/internal/repositories/hypothesis"
+	"app/internal/repositories/hypothesislaunch"
 	"app/internal/repositories/product"
 	"app/internal/repositories/user"
 	"app/internal/services"
@@ -33,6 +34,7 @@ func main() {
 		fx.Provide(storage.NewS3),
 		fx.Provide(temporal.NewClient),
 		fx.Provide(hypothesis.NewRepository),
+		fx.Provide(hypothesislaunch.NewRepository),
 		fx.Provide(product.NewRepository),
 		fx.Provide(audience.NewRepository),
 		fx.Provide(adcampaign.NewRepository),
@@ -40,6 +42,7 @@ func main() {
 		fx.Provide(user.NewRepository),
 		fx.Provide(services.NewHypothesisService),
 		fx.Provide(services.NewHypothesisLaunchWorker),
+		fx.Provide(services.NewHypothesisLaunchStarter),
 		fx.Provide(services.NewProductService),
 		fx.Provide(services.NewAudienceGenerationWorker),
 		fx.Provide(services.NewUserAuthService),
@@ -47,6 +50,7 @@ func main() {
 		fx.Provide(handlers.NewServerInterface),
 		fx.Provide(apphttp.NewRouter),
 		fx.Provide(apphttp.NewServer),
-		fx.Invoke(func(*db.DB, *http.Server, *services.AudienceGenerationWorker, *services.HypothesisLaunchWorker) {}),
+		fx.Invoke(func(*db.DB, *http.Server, *services.AudienceGenerationWorker, *services.HypothesisLaunchWorker, *services.HypothesisLaunchStarter) {
+		}),
 	).Run()
 }

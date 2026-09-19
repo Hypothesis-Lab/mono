@@ -142,6 +142,10 @@ func (s *Server) LaunchHypothesis(ctx context.Context, req api.LaunchHypothesisR
 			s.logger.Error("launch hypothesis", zap.String("id", req.Id), zap.Error(err))
 
 			return api.LaunchHypothesis400JSONResponse(errBody(http.StatusBadRequest, "hypothesis has no product")), nil
+		case errors.Is(err, services.ErrHypothesisNoAudience):
+			s.logger.Error("launch hypothesis", zap.String("id", req.Id), zap.Error(err))
+
+			return api.LaunchHypothesis400JSONResponse(errBody(http.StatusBadRequest, "hypothesis product has no generated audiences")), nil
 		default:
 			s.logger.Error("launch hypothesis", zap.String("id", req.Id), zap.Error(err))
 
@@ -199,6 +203,10 @@ func (s *Server) StopHypothesis(ctx context.Context, req api.StopHypothesisReque
 			s.logger.Error("stop hypothesis", zap.String("id", req.Id), zap.Error(err))
 
 			return api.StopHypothesis404JSONResponse(errBody(http.StatusNotFound, "hypothesis not found")), nil
+		case errors.Is(err, services.ErrStopLaunchInProgress):
+			s.logger.Error("stop hypothesis", zap.String("id", req.Id), zap.Error(err))
+
+			return api.StopHypothesis409JSONResponse(errBody(http.StatusConflict, "hypothesis launch is in progress")), nil
 		default:
 			s.logger.Error("stop hypothesis", zap.String("id", req.Id), zap.Error(err))
 

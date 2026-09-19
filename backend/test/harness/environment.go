@@ -30,6 +30,7 @@ const (
 	postgresAlias      = "postgres"
 	appAlias           = "app"
 	s3Alias            = "seaweedfs"
+	temporalAlias      = "temporal"
 	s3Bucket           = "my-bucket"
 	s3AccessKeyID      = "admin"
 	s3SecretKey        = "secret"
@@ -107,6 +108,22 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 		postgresDB,
 	)
 
+	_, err = startContainer(ctx, testNetwork.Name, &cleanupFns, temporalAlias, testcontainers.ContainerRequest{
+		Image:        "temporalio/auto-setup:1.29.1",
+		ExposedPorts: []string{"7233/tcp"},
+		Env: map[string]string{
+			"DB":             "postgres12",
+			"DB_PORT":        "5432",
+			"POSTGRES_USER":  postgresUser,
+			"POSTGRES_PWD":   postgresPassword,
+			"POSTGRES_SEEDS": postgresAlias,
+		},
+		WaitingFor: wait.ForListeningPort("7233/tcp").WithStartupTimeout(2 * time.Minute),
+	})
+	if err != nil {
+		return err
+	}
+
 	s3Container, err := startContainer(ctx, testNetwork.Name, &cleanupFns, "seaweedfs", testcontainers.ContainerRequest{
 		Image:        "chrislusf/seaweedfs:4.40",
 		ExposedPorts: []string{"8333/tcp"},
@@ -168,7 +185,7 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 			"YANDEX_DIRECT_CLIENT_SECRET": yandexClientSecret,
 			"YANDEX_DIRECT_TOKEN":         yandexToken,
 			"GENERATOR_URL":               generatorURL,
-			"TEMPORAL_ADDRESS":            "temporal:7233",
+			"TEMPORAL_ADDRESS":            temporalAlias + ":7233",
 		},
 		WaitingFor: wait.ForHTTP("/healthz").WithPort(appPort + "/tcp").WithStartupTimeout(10 * time.Second),
 	})

@@ -410,6 +410,59 @@ func (c *Client) CreateAudienceTarget(ctx context.Context, adGroupID, retargetin
 	return addResultID(result, "audience target")
 }
 
+func (c *Client) FindCampaignByName(ctx context.Context, name string) (int64, bool, error) {
+	return c.findByName(ctx, "campaigns", "Campaigns", map[string]any{"Types": []string{"CPM_BANNER_CAMPAIGN"}}, name)
+}
+
+func (c *Client) FindDemographicRetargetingListByName(ctx context.Context, name string) (int64, bool, error) {
+	return c.findByName(ctx, "retargetinglists", "RetargetingLists", map[string]any{"Types": []string{"AUDIENCE"}}, name)
+}
+
+func (c *Client) FindUserProfileAdGroup(ctx context.Context, campaignID int64, name string) (int64, bool, error) {
+	return c.findByName(ctx, "adgroups", "AdGroups", map[string]any{"CampaignIds": []int64{campaignID}}, name)
+}
+
+func (c *Client) FindAudienceTarget(ctx context.Context, adGroupID, retargetingListID int64) (int64, bool, error) {
+	result, err := c.Get(ctx, "audiencetargets", "AudienceTargets", GetOptions{
+		SelectionCriteria: map[string]any{"AdGroupIds": []int64{adGroupID}, "RetargetingListIds": []int64{retargetingListID}},
+		FieldNames:        []string{"Id"},
+		Page:              Page{Limit: 2},
+	})
+	if err != nil {
+		return 0, false, fmt.Errorf("find yandex direct audience target: %w", err)
+	}
+
+	if len(result.Objects) == 0 {
+		return 0, false, nil
+	}
+
+	if len(result.Objects) != 1 {
+		return 0, false, fmt.Errorf("find yandex direct audience target returned %d matches", len(result.Objects))
+	}
+
+	var item struct {
+		ID int64 `json:"Id"`
+	}
+	if err := json.Unmarshal(result.Objects[0], &item); err != nil {
+		return 0, false, fmt.Errorf("decode yandex direct audience target: %w", err)
+	}
+
+	return item.ID, true, nil
+}
+
+func (c *Client) Exists(ctx context.Context, service, objectName string, id int64) (bool, error) {
+	result, err := c.Get(ctx, service, objectName, GetOptions{
+		SelectionCriteria: map[string]any{"Ids": []int64{id}},
+		FieldNames:        []string{"Id"},
+		Page:              Page{Limit: 1},
+	})
+	if err != nil {
+		return false, fmt.Errorf("check yandex direct %s %d: %w", objectName, id, err)
+	}
+
+	return len(result.Objects) == 1, nil
+}
+
 func (c *Client) DeleteAdGroup(ctx context.Context, id int64) error {
 	requestBody := yandexAdGroupDeleteRequest{Method: "delete"}
 	requestBody.Params.SelectionCriteria.IDs = []int64{id}
@@ -463,6 +516,49 @@ func (c *Client) Get(ctx context.Context, service, objectName string, options Ge
 	}
 
 	return result, nil
+}
+
+func (c *Client) findByName(ctx context.Context, service, objectName string, criteria map[string]any, name string) (int64, bool, error) {
+	offset := 0
+	var foundID int64
+	for {
+		result, err := c.Get(ctx, service, objectName, GetOptions{
+			SelectionCriteria: criteria,
+			FieldNames:        []string{"Id", "Name"},
+			Page:              Page{Limit: 1000, Offset: offset},
+		})
+		if err != nil {
+			return 0, false, fmt.Errorf("list yandex direct %s by name: %w", objectName, err)
+		}
+
+		for _, raw := range result.Objects {
+			var item struct {
+				ID   int64  `json:"Id"`
+				Name string `json:"Name"`
+			}
+			if err := json.Unmarshal(raw, &item); err != nil {
+				return 0, false, fmt.Errorf("decode yandex direct %s by name: %w", objectName, err)
+			}
+
+			if item.Name != name {
+				continue
+			}
+
+			if foundID != 0 {
+				return 0, false, fmt.Errorf("yandex direct %s name %q is not unique", objectName, name)
+			}
+
+			foundID = item.ID
+		}
+
+		if result.LimitedBy == nil {
+			break
+		}
+
+		offset = *result.LimitedBy
+	}
+
+	return foundID, foundID != 0, nil
 }
 
 func (c *Client) delete(ctx context.Context, service string, requestBody any, name string) error {

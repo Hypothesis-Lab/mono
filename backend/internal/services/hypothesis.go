@@ -12,22 +12,21 @@ import (
 	"app/internal/repositories/audience"
 	"app/internal/repositories/file"
 	"app/internal/repositories/hypothesis"
+	"app/internal/repositories/hypothesislaunch"
 	"app/internal/repositories/product"
 	"app/internal/storage"
-
-	enumspb "go.temporal.io/api/enums/v1"
-	"go.temporal.io/api/serviceerror"
-	"go.temporal.io/sdk/client"
 )
 
 const russiaYandexRegionID int64 = 225
 
 var (
-	ErrAlreadyInProgress   = errors.New("hypothesis already in progress")
-	ErrHypothesisNoProduct = errors.New("hypothesis has no product")
-	ErrUpdateInProgress    = errors.New("cannot update hypothesis in progress")
-	ErrDeleteInProgress    = errors.New("cannot delete hypothesis in progress")
-	ErrLaunchNotFound      = errors.New("hypothesis launch not found")
+	ErrAlreadyInProgress    = errors.New("hypothesis already in progress")
+	ErrHypothesisNoProduct  = errors.New("hypothesis has no product")
+	ErrUpdateInProgress     = errors.New("cannot update hypothesis in progress")
+	ErrDeleteInProgress     = errors.New("cannot delete hypothesis in progress")
+	ErrStopLaunchInProgress = errors.New("cannot stop hypothesis while launch is in progress")
+	ErrLaunchNotFound       = errors.New("hypothesis launch not found")
+	ErrHypothesisNoAudience = errors.New("hypothesis product has no generated audiences")
 )
 
 type HypothesisService struct {
@@ -38,7 +37,7 @@ type HypothesisService struct {
 	storage    *storage.S3
 	campaigns  *adcampaign.Repository
 	yandex     *yandexdirect.Client
-	temporal   client.Client
+	launches   *hypothesislaunch.Repository
 }
 
 type createdAudienceTargeting struct {
@@ -60,7 +59,7 @@ func NewHypothesisService(
 	storage *storage.S3,
 	campaigns *adcampaign.Repository,
 	yandex *yandexdirect.Client,
-	temporal client.Client,
+	launches *hypothesislaunch.Repository,
 ) *HypothesisService {
 	return &HypothesisService{
 		hypotheses: hypotheses,
@@ -70,7 +69,7 @@ func NewHypothesisService(
 		storage:    storage,
 		campaigns:  campaigns,
 		yandex:     yandex,
-		temporal:   temporal,
+		launches:   launches,
 	}
 }
 
@@ -130,49 +129,23 @@ func (s *HypothesisService) GetProduct(ctx context.Context, userID, id string) (
 }
 
 func (s *HypothesisService) StartLaunch(ctx context.Context, userID, id string) (string, error) {
-	h, err := s.hypotheses.Get(ctx, userID, id)
+	launch, err := s.launches.Create(ctx, userID, id, time.Now().Format(time.DateOnly))
 	if err != nil {
-		if errors.Is(err, hypothesis.ErrNotFound) {
+		switch {
+		case errors.Is(err, hypothesislaunch.ErrHypothesisGone):
 			return "", hypothesis.ErrNotFound
-		}
-
-		return "", fmt.Errorf("get hypothesis before launch: %w", err)
-	}
-
-	if h.Status != hypothesis.StatusIdle {
-		return "", ErrAlreadyInProgress
-	}
-
-	if _, err := s.products.GetByHypothesisID(ctx, id); err != nil {
-		if errors.Is(err, product.ErrNotFound) {
-			return "", ErrHypothesisNoProduct
-		}
-
-		return "", fmt.Errorf("get product before launch: %w", err)
-	}
-
-	if _, err := s.hypotheses.SetStatus(ctx, userID, id, hypothesis.StatusLaunching); err != nil {
-		return "", fmt.Errorf("mark hypothesis launching: %w", err)
-	}
-
-	workflowID := hypothesisLaunchWorkflowID(id)
-	if _, err := s.temporal.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
-		ID:        workflowID,
-		TaskQueue: hypothesisLaunchTaskQueue,
-	}, hypothesisLaunchWorkflow, hypothesisLaunchInput{UserID: userID, HypothesisID: id}); err != nil {
-		if _, resetErr := s.hypotheses.SetStatus(ctx, userID, id, hypothesis.StatusIdle); resetErr != nil {
-			return "", fmt.Errorf("start launch workflow: %w", errors.Join(err, fmt.Errorf("reset hypothesis status after start failure: %w", resetErr)))
-		}
-
-		var alreadyStarted *serviceerror.WorkflowExecutionAlreadyStarted
-		if errors.As(err, &alreadyStarted) {
+		case errors.Is(err, hypothesislaunch.ErrAlreadyActive):
 			return "", ErrAlreadyInProgress
+		case errors.Is(err, hypothesislaunch.ErrNoProduct):
+			return "", ErrHypothesisNoProduct
+		case errors.Is(err, hypothesislaunch.ErrNoAudiences):
+			return "", ErrHypothesisNoAudience
+		default:
+			return "", fmt.Errorf("create hypothesis launch: %w", err)
 		}
-
-		return "", fmt.Errorf("start launch workflow: %w", err)
 	}
 
-	return workflowID, nil
+	return launch.WorkflowID, nil
 }
 
 func (s *HypothesisService) GetLaunchStatus(ctx context.Context, userID, id string) (*LaunchStatus, error) {
@@ -184,44 +157,27 @@ func (s *HypothesisService) GetLaunchStatus(ctx context.Context, userID, id stri
 		return nil, fmt.Errorf("get hypothesis launch status: %w", err)
 	}
 
-	workflowID := hypothesisLaunchWorkflowID(id)
-	description, err := s.temporal.DescribeWorkflowExecution(ctx, workflowID, "")
+	launch, err := s.launches.GetLatest(ctx, userID, id)
 	if err != nil {
-		var notFound *serviceerror.NotFound
-		if errors.As(err, &notFound) {
+		if errors.Is(err, hypothesislaunch.ErrNotFound) {
 			return nil, ErrLaunchNotFound
 		}
 
-		return nil, fmt.Errorf("describe hypothesis launch workflow: %w", err)
+		return nil, fmt.Errorf("get hypothesis launch status: %w", err)
 	}
 
-	return &LaunchStatus{WorkflowID: workflowID, Status: launchWorkflowStatus(description.WorkflowExecutionInfo.Status)}, nil
+	return &LaunchStatus{WorkflowID: launch.WorkflowID, Status: launchWorkflowStatus(launch.Status)}, nil
 }
 
-func hypothesisLaunchWorkflowID(hypothesisID string) string {
-	return "hypothesis-launch-" + hypothesisID
-}
-
-func launchWorkflowStatus(status enumspb.WorkflowExecutionStatus) string {
+func launchWorkflowStatus(status string) string {
 	switch status {
-	case enumspb.WORKFLOW_EXECUTION_STATUS_RUNNING:
-		return "running"
-	case enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED:
+	case "queued", "running":
+		return status
+	case "succeeded":
 		return "completed"
-	case enumspb.WORKFLOW_EXECUTION_STATUS_CANCELED:
-		return "canceled"
-	case enumspb.WORKFLOW_EXECUTION_STATUS_TIMED_OUT:
-		return "timed_out"
-	case enumspb.WORKFLOW_EXECUTION_STATUS_TERMINATED:
-		return "terminated"
-	case enumspb.WORKFLOW_EXECUTION_STATUS_UNSPECIFIED,
-		enumspb.WORKFLOW_EXECUTION_STATUS_FAILED,
-		enumspb.WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW,
-		enumspb.WORKFLOW_EXECUTION_STATUS_PAUSED:
+	default:
 		return "failed"
 	}
-
-	return "failed"
 }
 
 func (s *HypothesisService) Stop(ctx context.Context, userID, id string) (*hypothesis.Hypothesis, error) {
@@ -234,8 +190,12 @@ func (s *HypothesisService) Stop(ctx context.Context, userID, id string) (*hypot
 		return nil, fmt.Errorf("getting hypothesis: %w", err)
 	}
 
-	if h.Status == hypothesis.StatusIdle || h.Status == hypothesis.StatusLaunching {
+	if h.Status == hypothesis.StatusIdle {
 		return h, nil
+	}
+
+	if h.Status == hypothesis.StatusLaunching {
+		return nil, ErrStopLaunchInProgress
 	}
 
 	p, err := s.products.GetByHypothesisID(ctx, id)
