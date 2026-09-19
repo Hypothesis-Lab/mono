@@ -523,6 +523,18 @@ type ProductFact struct {
 	Text   string `json:"text"`
 }
 
+// ProductFeedbackSurveyResultResponse defines model for ProductFeedbackSurveyResultResponse.
+type ProductFeedbackSurveyResultResponse struct {
+	PersonaId   string      `json:"persona_id"`
+	PersonaName string      `json:"persona_name"`
+	Response    interface{} `json:"response"`
+}
+
+// ProductFeedbackSurveyRunResponse defines model for ProductFeedbackSurveyRunResponse.
+type ProductFeedbackSurveyRunResponse struct {
+	Count int `json:"count"`
+}
+
 // ProductFileResponse defines model for ProductFileResponse.
 type ProductFileResponse struct {
 	ContentType  string                  `json:"content_type"`
@@ -735,6 +747,12 @@ type ServerInterface interface {
 	// List audiences for a product
 	// (GET /api/v1/product/{id}/audiences)
 	ListProductAudiences(w http.ResponseWriter, r *http.Request, id string)
+	// Run the product feedback survey for every persona
+	// (POST /api/v1/testing/product-feedback-survey)
+	RunProductFeedbackSurvey(w http.ResponseWriter, r *http.Request)
+	// List stored product feedback survey results
+	// (GET /api/v1/testing/product-feedback-survey/results)
+	ListProductFeedbackSurveyResults(w http.ResponseWriter, r *http.Request)
 	// Liveness probe
 	// (GET /healthz)
 	Healthz(w http.ResponseWriter, r *http.Request)
@@ -867,6 +885,18 @@ func (_ Unimplemented) RetryProductAudienceGeneration(w http.ResponseWriter, r *
 // List audiences for a product
 // (GET /api/v1/product/{id}/audiences)
 func (_ Unimplemented) ListProductAudiences(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Run the product feedback survey for every persona
+// (POST /api/v1/testing/product-feedback-survey)
+func (_ Unimplemented) RunProductFeedbackSurvey(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List stored product feedback survey results
+// (GET /api/v1/testing/product-feedback-survey/results)
+func (_ Unimplemented) ListProductFeedbackSurveyResults(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1485,6 +1515,34 @@ func (siw *ServerInterfaceWrapper) ListProductAudiences(w http.ResponseWriter, r
 	handler.ServeHTTP(w, r)
 }
 
+// RunProductFeedbackSurvey operation middleware
+func (siw *ServerInterfaceWrapper) RunProductFeedbackSurvey(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RunProductFeedbackSurvey(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListProductFeedbackSurveyResults operation middleware
+func (siw *ServerInterfaceWrapper) ListProductFeedbackSurveyResults(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListProductFeedbackSurveyResults(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // Healthz operation middleware
 func (siw *ServerInterfaceWrapper) Healthz(w http.ResponseWriter, r *http.Request) {
 
@@ -1674,6 +1732,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/product/{id}/audiences", wrapper.ListProductAudiences)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/testing/product-feedback-survey", wrapper.RunProductFeedbackSurvey)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/testing/product-feedback-survey/results", wrapper.ListProductFeedbackSurveyResults)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/healthz", wrapper.Healthz)
@@ -2912,6 +2976,76 @@ func (response ListProductAudiences500JSONResponse) VisitListProductAudiencesRes
 	return err
 }
 
+type RunProductFeedbackSurveyRequestObject struct {
+}
+
+type RunProductFeedbackSurveyResponseObject interface {
+	VisitRunProductFeedbackSurveyResponse(w http.ResponseWriter) error
+}
+
+type RunProductFeedbackSurvey200JSONResponse ProductFeedbackSurveyRunResponse
+
+func (response RunProductFeedbackSurvey200JSONResponse) VisitRunProductFeedbackSurveyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RunProductFeedbackSurvey500JSONResponse ErrBody
+
+func (response RunProductFeedbackSurvey500JSONResponse) VisitRunProductFeedbackSurveyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProductFeedbackSurveyResultsRequestObject struct {
+}
+
+type ListProductFeedbackSurveyResultsResponseObject interface {
+	VisitListProductFeedbackSurveyResultsResponse(w http.ResponseWriter) error
+}
+
+type ListProductFeedbackSurveyResults200JSONResponse []ProductFeedbackSurveyResultResponse
+
+func (response ListProductFeedbackSurveyResults200JSONResponse) VisitListProductFeedbackSurveyResultsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProductFeedbackSurveyResults500JSONResponse ErrBody
+
+func (response ListProductFeedbackSurveyResults500JSONResponse) VisitListProductFeedbackSurveyResultsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type HealthzRequestObject struct {
 }
 
@@ -2992,6 +3126,12 @@ type StrictServerInterface interface {
 	// List audiences for a product
 	// (GET /api/v1/product/{id}/audiences)
 	ListProductAudiences(ctx context.Context, request ListProductAudiencesRequestObject) (ListProductAudiencesResponseObject, error)
+	// Run the product feedback survey for every persona
+	// (POST /api/v1/testing/product-feedback-survey)
+	RunProductFeedbackSurvey(ctx context.Context, request RunProductFeedbackSurveyRequestObject) (RunProductFeedbackSurveyResponseObject, error)
+	// List stored product feedback survey results
+	// (GET /api/v1/testing/product-feedback-survey/results)
+	ListProductFeedbackSurveyResults(ctx context.Context, request ListProductFeedbackSurveyResultsRequestObject) (ListProductFeedbackSurveyResultsResponseObject, error)
 	// Liveness probe
 	// (GET /healthz)
 	Healthz(ctx context.Context, request HealthzRequestObject) (HealthzResponseObject, error)
@@ -3611,6 +3751,54 @@ func (sh *strictHandler) ListProductAudiences(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// RunProductFeedbackSurvey operation middleware
+func (sh *strictHandler) RunProductFeedbackSurvey(w http.ResponseWriter, r *http.Request) {
+	var request RunProductFeedbackSurveyRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RunProductFeedbackSurvey(ctx, request.(RunProductFeedbackSurveyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RunProductFeedbackSurvey")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RunProductFeedbackSurveyResponseObject); ok {
+		if err := validResponse.VisitRunProductFeedbackSurveyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListProductFeedbackSurveyResults operation middleware
+func (sh *strictHandler) ListProductFeedbackSurveyResults(w http.ResponseWriter, r *http.Request) {
+	var request ListProductFeedbackSurveyResultsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListProductFeedbackSurveyResults(ctx, request.(ListProductFeedbackSurveyResultsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListProductFeedbackSurveyResults")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListProductFeedbackSurveyResultsResponseObject); ok {
+		if err := validResponse.VisitListProductFeedbackSurveyResultsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Healthz operation middleware
 func (sh *strictHandler) Healthz(w http.ResponseWriter, r *http.Request) {
 	var request HealthzRequestObject
@@ -3640,53 +3828,56 @@ func (sh *strictHandler) Healthz(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"7F3dc9u4Ef9XMGwfactO0pvWb9f7bm/m0uRu+nDj4UDkSsKZBBgAtK3L6H/vLACKX6BIxRbFNH6JJZEg",
+	"Fru//QaYj0Esslxw4FoFNx8DFW8go+bj10XCgMfwA3CQVDPB32uqC/UOVC64ArwnlyIHqRnYweY6fgJe",
+	"ZMHN70EsgWpIgjB4EPKO8XUQBivKUkiC2zDQ2xyCm0BpiVd2uzCQ8KFgEhIc655W3SeWf0Csg124J62f",
+	"FDdxRDV+WwmZ4acgoRouNMsg6MweBmu7UCGjP8QyYgmO7Ny02eZCb0CZaXZh0HNbBlqy2N2Tg1SC08aX",
+	"vufnUiRFrPsuS8rvahcY17AGaa6AAirjjZ1FxUJC7UZeZEu8r8VjlgSNKT1MaFC8/xLUJqxW22CPI7ak",
+	"JazLxC9UvflV3AHvl6rGyx6+tFZlb/PN8Y0h4UdHJFPv4EMBSndnSkDFkuWIevya0cefga/1Jri5vnr1",
+	"Zgi69dH9ZLy1fO+lgaapeIAkijeUc0jNb0xDZj5kjO8p8mDZ/UClpFv8vpSUJyPGxTTLKVvziAsNXgTG",
+	"VMNayC1e/KuEVXAT/GVRGZGFsyALt7pvyttxqOCaxpouU4gqUD1pXbEouJbbESPjQmmRRXXya1L96k04",
+	"9IA2JA7fDSlbsyVLmd5GskihucpDjPuuGvmuSMG3anjMQbIMuI7WgqYjyFnRWI8nwcnue2rhmjH+kx32",
+	"ukuLeXIUbyC+29tbXqQpSjm40bIAHzlCLlmSAI/ilLKsSdmg0HHNkZBszXjd2SSQiYgqVWRWSGFQKJBR",
+	"LsU9S7wep7JXTPVZ3DvYRrjGY5FaMe26u4I72D4I2X5gE46DbLjj4oFHseBKS8q4PpKLKeN3rWmvX/09",
+	"HBaetfZRAlxkjKOvGMMON4hJiEsVKgXHOLoGBQEqmft42/8MXmTWRY2YltMMevwsi2GkHrw199pBGZXb",
+	"yBIyYnpVxDEoFcWSaZBu2YMM1lSuQUc0HmlrtHgY9+CCG8wcBZSWazMMbRrDmk8oHU1lmLvGqqm/7dV2",
+	"mOyBjgcJXlSWZq+lxKXwfUY67Hrdfr/Vdpceu+bT0poc2gbIFyy0/cFgrDLgCRikYyIBnKFUslJR4UMQ",
+	"BkZoa7Pc1Py7BP0AgL9qWejN1qu7yN6IjZn4nqYFrrKNvPIJ5RJqJJaDwsHI6zsp/ymSbZeJIKWQQ/bg",
+	"Oym/BU1Z2lELO7xnRjemM2csEvAH8y2RHo42zWOGl15FvT/TgsebY/K4DwUUPR4UE7tVKh78/rNFav3m",
+	"8FCG1yb2+NTTkYzI49xmnijRFGw+6rJQVGEeg/2IiWESiULjZ5DGjJxp1c+b2R6GU28SWzH18PrMspoe",
+	"wQ0dTPqqFb/XIp81JH8Wa8Z/UyB7EzbInJrvpWJ/8ZCYU6UwAmzcvf9xKL8sH7sf4KO3nYDV7XgKsZaC",
+	"25w9ToXeuNqMEEY5CsmZLqS17rTQ6MdVLqTxXlps8c9SiDv8SwstMqHZPd69AZrqDX4QBopitbKudk1l",
+	"YnxEDuYhWaGMc19SjnWhKKZm3QgG6RVqPSfpcN759jGxEjzqwdta7C6f7kYfYPb3AMmSxnfvC3kP23eg",
+	"ilT3g3qoFOQu98awsnpym2RfzSZysdt+2PiFFAeKMibS87mxjpvC+w7NydJDFT3BNcaQdrSvMPEJhnHF",
+	"Uuhl73Bu2POzYn/2+PWS+FIRXemtjJtRpYyAViCBG73pUwifCW4S7IbUFhk2megIHbTRjSzoidGnEoWM",
+	"4ZMS6nb+2nUJLqwug+7RJeaO82oReYAp/Xh9qd6duHo3mO2+FOy+yILd2et4UxXuXgp1L4W6/kKdiQBe",
+	"qnWnrNbV9N8XIryDNVMa5FQ5Yw18Xz1LBvlbnjxPt3QA77veuc/SIv1/CqtO3gYdNGVTx1UvkdTISGo+",
+	"jc0ens200TlZxNQbIw0S/kwx06mipMnjopZ3wZVAXEimt++RGdYmLYFKkLgLqfr2felm//XfX81OJrw7",
+	"uHFXKye90ToPdvhgxlfCEMU0riP4+u1P2J4Cqczig+vLq8sr11/jNGfBTfD68urytfHFemMoWdCcLe6v",
+	"F7TQm0UqnK7nwnpA2/Vigv+UBDdVVTqwDh6ULhtcrtiDH2mepyw2oxZ/KCsFi4MhlHSq3rtmKIGCqpUi",
+	"Df2vrq6ebf7urrDdru2FAmQUcI0zQILMffOMFJQtQ8+8jN/TlCXEMZ4szX04/fWU08cSElw+TRXO/rep",
+	"Fq9BcpoSBfIeJLEt0LpyBTe/36LRyNCuWKwSxgnlBB6Z0oyvSWGRq+laoblEQQa3+IyGDkgXSferQT3W",
+	"PpEm+ML5UcpwPa0ylMyChFCekFSs15AQxmehF/+YYnqT3BCaSqDJllT8mLVylPAilHB4GFYMrOqrxUeW",
+	"7GwGloKGrl58a36vNViMn5E0Aw0Sn/wxYNykkaZrZyMMWztowjqs8aSdvt12IP+mkxWWrQ6CdBNLrjPV",
+	"b6YQSGN6LjRZiYLPBBF7DFhpEUrq1NZQYL42UFAVJJC0NfgiBKb0j41t2U/x1aOSKM8+hm5Y1uFQypQm",
+	"YkVqe8jnJR7kJGnscC8FUxPD7S7s8VHtzecn8lN9e9wn9lU+DHTZ7lqPpMbA87opIiSp3UWYInuezQuN",
+	"Vs51zvXg0WsuRnqOBlrP4zgqmptuYxJB1CZnHM3yWoJSE/qtGgEz91rDQAz9DuoH0FPD7GpiM9c2by/Q",
+	"sdD5AfQo3ORUx5suctoNipOB5/m9dF9vZeLyyjj4FnkyLy/9okV1LbJYelIkYNPJgzlELYmcpZU+qr1T",
+	"32p4RGpSz8teTHk3OWrwh1CtabyBhGhBqB+eLqPtS5l+y1NBkynKF30WPitSzXIq9QJb7hcJ1bTJ0tZG",
+	"ZGZP6DT59+sGbOFBC1KYJV2SX3i6JZeJiB9D8yckl3myCk3N7lI/7nkogdA4hlxDcmn3LNiOxJJxanZs",
+	"9LQ/TrDJtKxG4E3d/QLTppdeRfZ5LuQ2JA1kntl5hSRjSmH1G4kJMeMsuCryXEh0sgYoTszntzATlWz3",
+	"yNyXbU2LQCEjiN4w1Y49rl9PQZaRBTzGAIkiuFuapCxjenb+H0HeKhseYX0PhAWpOX11oP1ork+dvr06",
+	"QfzbOhR3WEUsW4g7g3SWckSpJ7WyREg2FNW3xIExLe4n914PbAq5l6e8xC/N+MWK9ElBtIXFRXUyYbje",
+	"UT/e+PnWPryHNEepkOPVWaAoZEnF51EfafHseHyWkeAoZL7dh42fFSjbB3MO9ALrHlJvgMymSmcMd2XH",
+	"94TOEJ3INx8/6dMsqdIi74868Kzwl1MyJjVvj3zJLRBOEwY1jmEfJgtpaYRAX0Ki0rXGQlpONFtERoUz",
+	"yguaEqNL98Bn3lBE0R+ntTV/cqjlXXmS0/W7WycFzlONGNPpLnl2/jY3WsY2HF/ygVZ7vSqelcpQ/uLT",
+	"hOP2Y519L9b5tmHNvJd9SOoD3chTy/ZUrchPMaCTRu1lE3IeBvRFZ9rtx0+wlIuyFnWx3r9k+FBy6lDS",
+	"92bizy0RGHzDsveogx1DKo5NX0MpESkk8dEz52pKP/9Mq4F6YFwOOdCn/A9mQb3onAaX17PD5eTl8X1c",
+	"I8AGljghxSMnaUr2b7a+KLlMzIsE1blN+USZazm3T1K1CkMltBlprtEvL+UjlPYI57OQ4A5O9x0z0nJ7",
+	"Zj2fn/+RUIHmC1CkHgUypNi3Ss5LeQxoHWmn0qFRW8e+3t/8uW4f6/zHE0fsHTtH33XuqYPZNLZnzJFA",
+	"1GDOkJaAvFi5dxZeKPPSwgNWvODe1xwGp09w+9+reOjMmhtE7MLIEusPpHqb7ayPNRa80SNqrwVFDvcg",
+	"t6T6n0VKsTsBHyX1hTQv3Ry3ldXzts5pDsiNeV3oCNOitJD1vW0t3pasmPWZcLQAI9fRhwz70tk/e0X+",
+	"o7vul2xzBb/8e4Dce+CgFNK6rB/NtDQgQc3RzfdK/H67u939bwA=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

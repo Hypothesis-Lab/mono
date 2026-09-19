@@ -20,6 +20,7 @@ type Config struct {
 	YandexDirectClientSecret string
 	YandexDirectToken        string
 	GeneratorURL             string
+	OpenRouterAPIKey         string
 	TemporalAddress          string
 	IsDevLogger              bool
 
@@ -29,6 +30,7 @@ type Config struct {
 	IdleTimeout       time.Duration
 }
 
+//nolint:cyclop // Config must validate every required environment variable.
 func New() (*Config, error) {
 	portStr := os.Getenv("PORT")
 	if portStr == "" {
@@ -95,6 +97,11 @@ func New() (*Config, error) {
 		return nil, errors.New("GENERATOR_URL is required")
 	}
 
+	openRouterAPIKey := os.Getenv("OPENROUTER_API_KEY")
+	if openRouterAPIKey == "" {
+		return nil, errors.New("OPENROUTER_API_KEY is required")
+	}
+
 	temporalAddress := os.Getenv("TEMPORAL_ADDRESS")
 	if temporalAddress == "" {
 		return nil, errors.New("TEMPORAL_ADDRESS is required")
@@ -115,6 +122,7 @@ func New() (*Config, error) {
 		YandexDirectClientSecret: yandexDirectClientSecret,
 		YandexDirectToken:        yandexDirectToken,
 		GeneratorURL:             generatorURL,
+		OpenRouterAPIKey:         openRouterAPIKey,
 		TemporalAddress:          temporalAddress,
 		IsDevLogger:              devLogger == "true",
 		ReadHeaderTimeout:        envDuration("READ_HEADER_TIMEOUT", 10*time.Second),

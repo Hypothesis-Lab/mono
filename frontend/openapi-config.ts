@@ -16,6 +16,7 @@ const config: ConfigFile = {
     { pattern: 'queueProductAudienceGeneration', type: 'mutation' },
     { pattern: 'retryProductAudienceGeneration', type: 'mutation' },
     { pattern: 'uploadProductFile', type: 'mutation' },
+    { pattern: 'runProductFeedbackSurvey', type: 'mutation' },
     {
       pattern: /.*/,
       parameterFilter: (_name, parameter) => parameter.in !== 'header',

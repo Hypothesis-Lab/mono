@@ -1,0 +1,1 @@
+DROP TABLE product_feedback_survey_result;

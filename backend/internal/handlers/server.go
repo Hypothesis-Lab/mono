@@ -16,16 +16,17 @@ import (
 var _ api.StrictServerInterface = (*Server)(nil)
 
 type Server struct {
-	hypotheses        *hypothesis.Repository
-	products          *product.Repository
-	audiences         *audience.Repository
-	files             *file.Repository
-	storage           *storage.S3
-	generator         *clients.GeneratorClient
-	hypothesisService *services.HypothesisService
-	productService    *services.ProductService
-	userAuth          *services.UserAuthService
-	logger            *zap.Logger
+	hypotheses            *hypothesis.Repository
+	products              *product.Repository
+	audiences             *audience.Repository
+	files                 *file.Repository
+	storage               *storage.S3
+	generator             *clients.GeneratorClient
+	hypothesisService     *services.HypothesisService
+	productService        *services.ProductService
+	productFeedbackSurvey *services.ProductFeedbackSurveyService
+	userAuth              *services.UserAuthService
+	logger                *zap.Logger
 }
 
 func NewServer(
@@ -37,20 +38,22 @@ func NewServer(
 	generator *clients.GeneratorClient,
 	hypothesisService *services.HypothesisService,
 	productService *services.ProductService,
+	productFeedbackSurvey *services.ProductFeedbackSurveyService,
 	userAuth *services.UserAuthService,
 	logger *zap.Logger,
 ) *Server {
 	return &Server{
-		hypotheses:        hypotheses,
-		products:          products,
-		audiences:         audiences,
-		files:             files,
-		storage:           storage,
-		generator:         generator,
-		hypothesisService: hypothesisService,
-		productService:    productService,
-		userAuth:          userAuth,
-		logger:            logger,
+		hypotheses:            hypotheses,
+		products:              products,
+		audiences:             audiences,
+		files:                 files,
+		storage:               storage,
+		generator:             generator,
+		hypothesisService:     hypothesisService,
+		productService:        productService,
+		productFeedbackSurvey: productFeedbackSurvey,
+		userAuth:              userAuth,
+		logger:                logger,
 	}
 }
 

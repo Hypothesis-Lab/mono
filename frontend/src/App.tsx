@@ -8,6 +8,7 @@ import { HypothesisPage } from './pages/Hypothesis/page'
 import { LoginPage } from './pages/Login/page'
 import { ProductPage } from './pages/Product/page'
 import { RegisterPage } from './pages/Register/page'
+import { TestingPage } from './pages/Testing/page'
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/testing" element={<TestingPage />} />
         <Route
           path="/"
           element={

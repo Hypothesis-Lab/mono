@@ -15,6 +15,21 @@ const injectedRtkApi = api.injectEndpoints({
         body: queryArg.loginUserRequest,
       }),
     }),
+    runProductFeedbackSurvey: build.mutation<
+      RunProductFeedbackSurveyApiResponse,
+      RunProductFeedbackSurveyApiArg
+    >({
+      query: () => ({
+        url: `/api/v1/testing/product-feedback-survey`,
+        method: "POST",
+      }),
+    }),
+    listProductFeedbackSurveyResults: build.query<
+      ListProductFeedbackSurveyResultsApiResponse,
+      ListProductFeedbackSurveyResultsApiArg
+    >({
+      query: () => ({ url: `/api/v1/testing/product-feedback-survey/results` }),
+    }),
     listHypotheses: build.query<
       ListHypothesesApiResponse,
       ListHypothesesApiArg
@@ -189,6 +204,12 @@ export type LoginUserApiResponse =
 export type LoginUserApiArg = {
   loginUserRequest: LoginUserRequest;
 };
+export type RunProductFeedbackSurveyApiResponse =
+  /** status 200 product feedback survey batch completed */ ProductFeedbackSurveyRunResponse;
+export type RunProductFeedbackSurveyApiArg = void;
+export type ListProductFeedbackSurveyResultsApiResponse =
+  /** status 200 stored product feedback survey results */ ProductFeedbackSurveyResultResponse[];
+export type ListProductFeedbackSurveyResultsApiArg = void;
 export type ListHypothesesApiResponse =
   /** status 200 list of hypotheses */ HypothesisResponse[];
 export type ListHypothesesApiArg = void;
@@ -304,6 +325,14 @@ export type RegisterUserRequest = {
 export type LoginUserRequest = {
   email: string;
   password: string;
+};
+export type ProductFeedbackSurveyRunResponse = {
+  count: number;
+};
+export type ProductFeedbackSurveyResultResponse = {
+  persona_id: string;
+  persona_name: string;
+  response: any;
 };
 export type HypothesisResponse = {
   id: string;
@@ -491,6 +520,8 @@ export type ProductFileResponse = {
 export const {
   useRegisterUserMutation,
   useLoginUserMutation,
+  useRunProductFeedbackSurveyMutation,
+  useListProductFeedbackSurveyResultsQuery,
   useListHypothesesQuery,
   useCreateHypothesisMutation,
   useGetHypothesisQuery,

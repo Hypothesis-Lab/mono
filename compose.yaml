@@ -27,11 +27,12 @@ services:
       GENERATOR_URL: http://generator:8000
       TEMPORAL_ADDRESS: temporal:7233
       DEV_LOGGER: "true"
+      WRITE_TIMEOUT: 5m
     depends_on:
       postgres:
         condition: service_healthy
       seaweedfs:
-        condition: service_started
+        condition: service_healthy
       temporal:
         condition: service_started
 
@@ -99,6 +100,12 @@ services:
     command: server -s3
     volumes:
       - seaweedfs-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8333/healthz"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
 
 volumes:
   postgres-data:

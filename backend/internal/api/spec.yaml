@@ -88,6 +88,46 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrBody"
+  /api/v1/testing/product-feedback-survey:
+    post:
+      operationId: runProductFeedbackSurvey
+      tags: [testing]
+      summary: Run the product feedback survey for every persona
+      security: []
+      responses:
+        "200":
+          description: product feedback survey batch completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductFeedbackSurveyRunResponse"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+  /api/v1/testing/product-feedback-survey/results:
+    get:
+      operationId: listProductFeedbackSurveyResults
+      tags: [testing]
+      summary: List stored product feedback survey results
+      security: []
+      responses:
+        "200":
+          description: stored product feedback survey results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProductFeedbackSurveyResultResponse"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
   /api/v1/hypothesis:
     get:
       operationId: listHypotheses
@@ -760,6 +800,18 @@ components:
       properties:
         workflow_id: { type: string }
         status: { type: string, enum: [queued] }
+    ProductFeedbackSurveyRunResponse:
+      type: object
+      required: [count]
+      properties:
+        count: { type: integer }
+    ProductFeedbackSurveyResultResponse:
+      type: object
+      required: [persona_id, persona_name, response]
+      properties:
+        persona_id: { type: string }
+        persona_name: { type: string }
+        response: {}
     HypothesisLaunchStatusResponse:
       type: object
       required: [workflow_id, status]
