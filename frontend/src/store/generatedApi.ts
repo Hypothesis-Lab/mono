@@ -208,7 +208,7 @@ export type RunProductFeedbackSurveyApiResponse =
   /** status 200 product feedback survey batch completed */ ProductFeedbackSurveyRunResponse;
 export type RunProductFeedbackSurveyApiArg = void;
 export type ListProductFeedbackSurveyResultsApiResponse =
-  /** status 200 stored product feedback survey results */ ProductFeedbackSurveyResultResponse[];
+  /** status 200 stored product feedback survey results */ ProductFeedbackSurveyResultsResponse;
 export type ListProductFeedbackSurveyResultsApiArg = void;
 export type ListHypothesesApiResponse =
   /** status 200 list of hypotheses */ HypothesisResponse[];
@@ -326,13 +326,36 @@ export type LoginUserRequest = {
   email: string;
   password: string;
 };
+export type ProductFeedbackSurveyQuestion = {
+  type: string;
+  instructions: string;
+  criteria?: any;
+};
+export type ProductFeedbackSurveyQuestionnaire = {
+  [key: string]: ProductFeedbackSurveyQuestion;
+};
 export type ProductFeedbackSurveyRunResponse = {
   count: number;
+  questionnaire: ProductFeedbackSurveyQuestionnaire;
+};
+export type ProductFeedbackSurveyPersona = {
+  id: string;
+  version?: string;
+  source?: string;
+  display_name: string;
+  dimensions?: {
+    [key: string]: string;
+  };
 };
 export type ProductFeedbackSurveyResultResponse = {
   persona_id: string;
   persona_name: string;
+  persona: ProductFeedbackSurveyPersona;
   response: any;
+};
+export type ProductFeedbackSurveyResultsResponse = {
+  questionnaire: ProductFeedbackSurveyQuestionnaire;
+  results: ProductFeedbackSurveyResultResponse[];
 };
 export type HypothesisResponse = {
   id: string;

@@ -28,6 +28,8 @@ services:
       TEMPORAL_ADDRESS: temporal:7233
       DEV_LOGGER: "true"
       WRITE_TIMEOUT: 5m
+    volumes:
+      - ./backend/datasets/personas-1m:/app/datasets/personas-1m:ro
     depends_on:
       postgres:
         condition: service_healthy

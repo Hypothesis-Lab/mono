@@ -119,9 +119,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ProductFeedbackSurveyResultResponse"
+                $ref: "#/components/schemas/ProductFeedbackSurveyResultsResponse"
         "500":
           description: internal server error
           content:
@@ -779,6 +777,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrBody"
+  /api/v1/personas/query:
+    post:
+      operationId: queryPersonas
+      tags: [personas]
+      summary: Query the public persona dataset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonaQueryRequest"
+      responses:
+        "200":
+          description: matching personas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonaQueryResponse"
+        "400":
+          description: invalid query
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "503":
+          description: persona dataset unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
 components:
   securitySchemes:
     bearerAuth:
@@ -802,16 +837,52 @@ components:
         status: { type: string, enum: [queued] }
     ProductFeedbackSurveyRunResponse:
       type: object
-      required: [count]
+      required: [count, questionnaire]
       properties:
         count: { type: integer }
+        questionnaire:
+          $ref: "#/components/schemas/ProductFeedbackSurveyQuestionnaire"
+    ProductFeedbackSurveyQuestionnaire:
+      type: object
+      additionalProperties:
+        $ref: "#/components/schemas/ProductFeedbackSurveyQuestion"
+    ProductFeedbackSurveyQuestion:
+      type: object
+      required: [type, instructions]
+      properties:
+        type: { type: string }
+        instructions: { type: string }
+        criteria: {}
+    ProductFeedbackSurveyResultsResponse:
+      type: object
+      required: [questionnaire, results]
+      properties:
+        questionnaire:
+          $ref: "#/components/schemas/ProductFeedbackSurveyQuestionnaire"
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductFeedbackSurveyResultResponse"
     ProductFeedbackSurveyResultResponse:
       type: object
-      required: [persona_id, persona_name, response]
+      required: [persona_id, persona_name, persona, response]
       properties:
         persona_id: { type: string }
         persona_name: { type: string }
+        persona:
+          $ref: "#/components/schemas/ProductFeedbackSurveyPersona"
         response: {}
+    ProductFeedbackSurveyPersona:
+      type: object
+      required: [id, display_name]
+      properties:
+        id: { type: string }
+        version: { type: string }
+        source: { type: string }
+        display_name: { type: string }
+        dimensions:
+          type: object
+          additionalProperties: { type: string }
     HypothesisLaunchStatusResponse:
       type: object
       required: [workflow_id, status]
@@ -1095,3 +1166,36 @@ components:
       required: [token]
       properties:
         token: { type: string }
+    PersonaQueryRequest:
+      type: object
+      required: [sample_size]
+      properties:
+        sample_size: { type: integer, minimum: 1, maximum: 10000 }
+        seed: { type: integer, default: 42 }
+        sources:
+          type: array
+          items: { type: string, minLength: 1 }
+        dimension_filters:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string, minLength: 1 }
+    PersonaQueryResponse:
+      type: object
+      required: [matched_count, personas]
+      properties:
+        matched_count: { type: integer }
+        personas:
+          type: array
+          items:
+            $ref: "#/components/schemas/PersonaQueryPersona"
+    PersonaQueryPersona:
+      type: object
+      required: [id, source, source_row_index, dimensions]
+      properties:
+        id: { type: string }
+        source: { type: string }
+        source_row_index: { type: integer, format: int64 }
+        dimensions:
+          type: object
+          additionalProperties: { type: string }

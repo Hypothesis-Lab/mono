@@ -191,6 +191,58 @@ export const ResultBody = styled.div`
   border-top: 1px solid #e8e8e8;
 `
 
+export const PersonaCard = styled.section`
+  margin: 16px 16px 0;
+  padding: 14px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: #fcfcfc;
+`
+
+export const PersonaTitle = styled.h3`
+  margin: 0 0 8px;
+  color: #202020;
+  font-size: 14px;
+`
+
+export const PersonaFacts = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  color: #666;
+  font-size: 12px;
+`
+
+export const PersonaDimensions = styled.details`
+  margin-top: 12px;
+
+  summary {
+    color: #555;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 650;
+  }
+`
+
+export const PersonaDimensionList = styled.dl`
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr);
+  gap: 6px 12px;
+  margin: 12px 0 0;
+  font-size: 12px;
+`
+
+export const PersonaDimensionKey = styled.dt`
+  color: #777;
+  overflow-wrap: anywhere;
+`
+
+export const PersonaDimensionValue = styled.dd`
+  margin: 0;
+  color: #333;
+  overflow-wrap: anywhere;
+`
+
 export const Tabs = styled.div`
   display: flex;
   gap: 4px;
@@ -270,10 +322,12 @@ export const AnswerHeader = styled.div`
 `
 
 export const AnswerTitle = styled.h3`
+  min-width: 0;
   margin: 0;
   color: #202020;
   font-size: 14px;
   line-height: 1.35;
+  overflow-wrap: anywhere;
 `
 
 export const AnswerKey = styled.span`
@@ -284,6 +338,7 @@ export const AnswerKey = styled.span`
 `
 
 export const SelectedAnswer = styled.p`
+  overflow-wrap: anywhere;
   margin: 0;
   color: #33408f;
   font-size: 14px;
@@ -305,17 +360,17 @@ export const Distribution = styled.div`
 
 export const DistributionRow = styled.div`
   display: grid;
-  grid-template-columns: minmax(90px, 1fr) minmax(80px, 2fr) 42px;
+  grid-template-columns: minmax(0, 1fr) minmax(72px, 104px) 42px;
   align-items: center;
   gap: 8px;
   color: #555;
-  font-size: 11px;
+  font-size: 13px;
+  line-height: 1.3;
 `
 
 export const DistributionLabel = styled.span`
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 `
 
 export const DistributionTrack = styled.span`

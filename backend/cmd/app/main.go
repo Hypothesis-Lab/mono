@@ -16,6 +16,7 @@ import (
 	"app/internal/repositories/hypothesis"
 	"app/internal/repositories/hypothesislaunch"
 	"app/internal/repositories/persona"
+	"app/internal/repositories/persona1m"
 	"app/internal/repositories/product"
 	"app/internal/repositories/productfeedbacksurvey"
 	"app/internal/repositories/user"
@@ -27,10 +28,14 @@ import (
 )
 
 const personaDatasetDirectory = "datasets/matraix-persona-dev-sample"
+const persona1MDatasetDirectory = "datasets/personas-1m"
 
 func main() {
 	fx.New(
 		fx.Supply(personaDatasetDirectory),
+		fx.Provide(func() *persona1m.Repository {
+			return persona1m.NewRepository(persona1MDatasetDirectory)
+		}),
 		fx.Provide(logger.New),
 		fx.Provide(config.New),
 		fx.Provide(clients.NewGeneratorClient),

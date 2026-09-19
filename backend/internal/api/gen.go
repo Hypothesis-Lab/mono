@@ -514,6 +514,28 @@ type LoginUserRequest struct {
 	Password string              `json:"password"`
 }
 
+// PersonaQueryPersona defines model for PersonaQueryPersona.
+type PersonaQueryPersona struct {
+	Dimensions     map[string]string `json:"dimensions"`
+	Id             string            `json:"id"`
+	Source         string            `json:"source"`
+	SourceRowIndex int64             `json:"source_row_index"`
+}
+
+// PersonaQueryRequest defines model for PersonaQueryRequest.
+type PersonaQueryRequest struct {
+	DimensionFilters *map[string][]string `json:"dimension_filters,omitempty"`
+	SampleSize       int                  `json:"sample_size"`
+	Seed             *int                 `json:"seed,omitempty"`
+	Sources          *[]string            `json:"sources,omitempty"`
+}
+
+// PersonaQueryResponse defines model for PersonaQueryResponse.
+type PersonaQueryResponse struct {
+	MatchedCount int                   `json:"matched_count"`
+	Personas     []PersonaQueryPersona `json:"personas"`
+}
+
 // ProductCategory defines model for ProductCategory.
 type ProductCategory string
 
@@ -523,16 +545,43 @@ type ProductFact struct {
 	Text   string `json:"text"`
 }
 
+// ProductFeedbackSurveyPersona defines model for ProductFeedbackSurveyPersona.
+type ProductFeedbackSurveyPersona struct {
+	Dimensions  *map[string]string `json:"dimensions,omitempty"`
+	DisplayName string             `json:"display_name"`
+	Id          string             `json:"id"`
+	Source      *string            `json:"source,omitempty"`
+	Version     *string            `json:"version,omitempty"`
+}
+
+// ProductFeedbackSurveyQuestion defines model for ProductFeedbackSurveyQuestion.
+type ProductFeedbackSurveyQuestion struct {
+	Criteria     interface{} `json:"criteria,omitempty"`
+	Instructions string      `json:"instructions"`
+	Type         string      `json:"type"`
+}
+
+// ProductFeedbackSurveyQuestionnaire defines model for ProductFeedbackSurveyQuestionnaire.
+type ProductFeedbackSurveyQuestionnaire map[string]ProductFeedbackSurveyQuestion
+
 // ProductFeedbackSurveyResultResponse defines model for ProductFeedbackSurveyResultResponse.
 type ProductFeedbackSurveyResultResponse struct {
-	PersonaId   string      `json:"persona_id"`
-	PersonaName string      `json:"persona_name"`
-	Response    interface{} `json:"response"`
+	Persona     ProductFeedbackSurveyPersona `json:"persona"`
+	PersonaId   string                       `json:"persona_id"`
+	PersonaName string                       `json:"persona_name"`
+	Response    interface{}                  `json:"response"`
+}
+
+// ProductFeedbackSurveyResultsResponse defines model for ProductFeedbackSurveyResultsResponse.
+type ProductFeedbackSurveyResultsResponse struct {
+	Questionnaire ProductFeedbackSurveyQuestionnaire    `json:"questionnaire"`
+	Results       []ProductFeedbackSurveyResultResponse `json:"results"`
 }
 
 // ProductFeedbackSurveyRunResponse defines model for ProductFeedbackSurveyRunResponse.
 type ProductFeedbackSurveyRunResponse struct {
-	Count int `json:"count"`
+	Count         int                                `json:"count"`
+	Questionnaire ProductFeedbackSurveyQuestionnaire `json:"questionnaire"`
 }
 
 // ProductFileResponse defines model for ProductFileResponse.
@@ -676,6 +725,9 @@ type UpdateHypothesisJSONRequestBody = UpdateHypothesisRequest
 // UploadProductFileMultipartRequestBody defines body for UploadProductFile for multipart/form-data ContentType.
 type UploadProductFileMultipartRequestBody UploadProductFileMultipartBody
 
+// QueryPersonasJSONRequestBody defines body for QueryPersonas for application/json ContentType.
+type QueryPersonasJSONRequestBody = PersonaQueryRequest
+
 // CreateProductJSONRequestBody defines body for CreateProduct for application/json ContentType.
 type CreateProductJSONRequestBody = CreateProductRequest
 
@@ -726,6 +778,9 @@ type ServerInterface interface {
 	// Stop hypothesis
 	// (POST /api/v1/hypothesis/{id}/stop)
 	StopHypothesis(w http.ResponseWriter, r *http.Request, id string)
+	// Query the public persona dataset
+	// (POST /api/v1/personas/query)
+	QueryPersonas(w http.ResponseWriter, r *http.Request)
 	// Create product
 	// (POST /api/v1/product)
 	CreateProduct(w http.ResponseWriter, r *http.Request)
@@ -843,6 +898,12 @@ func (_ Unimplemented) GetHypothesisProduct(w http.ResponseWriter, r *http.Reque
 // Stop hypothesis
 // (POST /api/v1/hypothesis/{id}/stop)
 func (_ Unimplemented) StopHypothesis(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Query the public persona dataset
+// (POST /api/v1/personas/query)
+func (_ Unimplemented) QueryPersonas(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1303,6 +1364,20 @@ func (siw *ServerInterfaceWrapper) StopHypothesis(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// QueryPersonas operation middleware
+func (siw *ServerInterfaceWrapper) QueryPersonas(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.QueryPersonas(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CreateProduct operation middleware
 func (siw *ServerInterfaceWrapper) CreateProduct(w http.ResponseWriter, r *http.Request) {
 
@@ -1711,6 +1786,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/hypothesis/{id}/stop", wrapper.StopHypothesis)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/personas/query", wrapper.QueryPersonas)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/product", wrapper.CreateProduct)
@@ -2561,6 +2639,70 @@ func (response StopHypothesis500JSONResponse) VisitStopHypothesisResponse(w http
 	return err
 }
 
+type QueryPersonasRequestObject struct {
+	Body *QueryPersonasJSONRequestBody
+}
+
+type QueryPersonasResponseObject interface {
+	VisitQueryPersonasResponse(w http.ResponseWriter) error
+}
+
+type QueryPersonas200JSONResponse PersonaQueryResponse
+
+func (response QueryPersonas200JSONResponse) VisitQueryPersonasResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type QueryPersonas400JSONResponse ErrBody
+
+func (response QueryPersonas400JSONResponse) VisitQueryPersonasResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type QueryPersonas500JSONResponse ErrBody
+
+func (response QueryPersonas500JSONResponse) VisitQueryPersonasResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type QueryPersonas503JSONResponse ErrBody
+
+func (response QueryPersonas503JSONResponse) VisitQueryPersonasResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CreateProductRequestObject struct {
 	Body *CreateProductJSONRequestBody
 }
@@ -3018,7 +3160,7 @@ type ListProductFeedbackSurveyResultsResponseObject interface {
 	VisitListProductFeedbackSurveyResultsResponse(w http.ResponseWriter) error
 }
 
-type ListProductFeedbackSurveyResults200JSONResponse []ProductFeedbackSurveyResultResponse
+type ListProductFeedbackSurveyResults200JSONResponse ProductFeedbackSurveyResultsResponse
 
 func (response ListProductFeedbackSurveyResults200JSONResponse) VisitListProductFeedbackSurveyResultsResponse(w http.ResponseWriter) error {
 
@@ -3105,6 +3247,9 @@ type StrictServerInterface interface {
 	// Stop hypothesis
 	// (POST /api/v1/hypothesis/{id}/stop)
 	StopHypothesis(ctx context.Context, request StopHypothesisRequestObject) (StopHypothesisResponseObject, error)
+	// Query the public persona dataset
+	// (POST /api/v1/personas/query)
+	QueryPersonas(ctx context.Context, request QueryPersonasRequestObject) (QueryPersonasResponseObject, error)
 	// Create product
 	// (POST /api/v1/product)
 	CreateProduct(ctx context.Context, request CreateProductRequestObject) (CreateProductResponseObject, error)
@@ -3557,6 +3702,37 @@ func (sh *strictHandler) StopHypothesis(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
+// QueryPersonas operation middleware
+func (sh *strictHandler) QueryPersonas(w http.ResponseWriter, r *http.Request) {
+	var request QueryPersonasRequestObject
+
+	var body QueryPersonasJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.QueryPersonas(ctx, request.(QueryPersonasRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "QueryPersonas")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(QueryPersonasResponseObject); ok {
+		if err := validResponse.VisitQueryPersonasResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // CreateProduct operation middleware
 func (sh *strictHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	var request CreateProductRequestObject
@@ -3828,56 +4004,62 @@ func (sh *strictHandler) Healthz(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

@@ -3,10 +3,13 @@ package services
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"app/internal/clients"
 	"app/internal/repositories/persona"
 	"app/internal/repositories/productfeedbacksurvey"
+
+	"go.uber.org/zap"
 )
 
 const productFeedbackContext = `FocusLoop is a concept-stage family coordination app for urban professionals aged 28-45 with at least one school-age child. It combines a shared family calendar, weekly digest, lightweight task handoffs, and optional school email parsing.
@@ -17,17 +20,25 @@ type ProductFeedbackSurveyService struct {
 	jev      *clients.JevClient
 	personas *persona.Repository
 	results  *productfeedbacksurvey.Repository
+	logger   *zap.Logger
+}
+
+type ProductFeedbackSurveyResult struct {
+	Result  *productfeedbacksurvey.Result
+	Persona *persona.Persona
 }
 
 func NewProductFeedbackSurveyService(
 	jev *clients.JevClient,
 	personas *persona.Repository,
 	results *productfeedbacksurvey.Repository,
+	logger *zap.Logger,
 ) *ProductFeedbackSurveyService {
 	return &ProductFeedbackSurveyService{
 		jev:      jev,
 		personas: personas,
 		results:  results,
+		logger:   logger,
 	}
 }
 
@@ -41,11 +52,12 @@ func (s *ProductFeedbackSurveyService) Run(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("clear product feedback survey results: %w", err)
 	}
 
+	questions := productFeedbackQuestions()
 	responses := make([]productfeedbacksurvey.Result, 0, len(personas))
 	for _, selected := range personas {
-		result, err := s.runPersona(ctx, selected)
+		result, err := s.runPersona(ctx, selected, questions)
 		if err != nil {
-			if saveErr := s.results.Save(ctx, responses); saveErr != nil {
+			if saveErr := s.saveResults(ctx, responses); saveErr != nil {
 				return len(responses), fmt.Errorf("save accumulated product feedback survey results after persona %s failed: %w", selected.ID, saveErr)
 			}
 
@@ -59,30 +71,84 @@ func (s *ProductFeedbackSurveyService) Run(ctx context.Context) (int, error) {
 		})
 	}
 
-	if err := s.results.Save(ctx, responses); err != nil {
+	if err := s.saveResults(ctx, responses); err != nil {
 		return len(responses), fmt.Errorf("save product feedback survey results: %w", err)
 	}
 
 	return len(responses), nil
 }
 
-func (s *ProductFeedbackSurveyService) List(ctx context.Context) ([]*productfeedbacksurvey.Result, error) {
-	return s.results.List(ctx)
+func (s *ProductFeedbackSurveyService) Questionnaire() map[string]clients.JevDecisionQuestion {
+	return productFeedbackQuestions()
 }
 
-func (s *ProductFeedbackSurveyService) runPersona(ctx context.Context, selected *persona.Persona) (*clients.JevDecisionResponse, error) {
+func (s *ProductFeedbackSurveyService) List(ctx context.Context) ([]ProductFeedbackSurveyResult, error) {
+	results, err := s.results.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	personasByID := make(map[string]*persona.Persona)
+	for _, selected := range s.personas.Query(persona.Query{}) {
+		personasByID[selected.ID] = selected
+	}
+
+	response := make([]ProductFeedbackSurveyResult, 0, len(results))
+	for _, result := range results {
+		response = append(response, ProductFeedbackSurveyResult{
+			Result:  result,
+			Persona: personasByID[result.PersonaID],
+		})
+	}
+
+	return response, nil
+}
+
+func (s *ProductFeedbackSurveyService) runPersona(
+	ctx context.Context,
+	selected *persona.Persona,
+	questions map[string]clients.JevDecisionQuestion,
+) (*clients.JevDecisionResponse, error) {
+	startedAt := time.Now()
 	result, err := s.jev.Decide(ctx, clients.JevDecisionRequest{
 		State: map[string]any{
 			"persona_profile": selected.Profile,
 			"product_context": productFeedbackContext,
 		},
-		Questions: productFeedbackQuestions(),
+		Questions: questions,
 	})
 	if err != nil {
+		s.logger.Error("jev request failed",
+			zap.String("persona_id", selected.ID),
+			zap.Duration("duration", time.Since(startedAt)),
+			zap.Error(err),
+		)
+
 		return nil, err
 	}
 
+	s.logger.Info("jev request completed",
+		zap.String("persona_id", selected.ID),
+		zap.Duration("duration", time.Since(startedAt)),
+	)
+
 	return result, nil
+}
+
+func (s *ProductFeedbackSurveyService) saveResults(ctx context.Context, results []productfeedbacksurvey.Result) error {
+	startedAt := time.Now()
+	err := s.results.Save(ctx, results)
+	fields := []zap.Field{
+		zap.Int("count", len(results)),
+		zap.Duration("duration", time.Since(startedAt)),
+	}
+	if err != nil {
+		s.logger.Error("save product feedback survey results failed", append(fields, zap.Error(err))...)
+		return err
+	}
+
+	s.logger.Info("saved product feedback survey results", fields...)
+	return nil
 }
 
 func productFeedbackQuestions() map[string]clients.JevDecisionQuestion {

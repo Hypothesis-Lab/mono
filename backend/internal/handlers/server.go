@@ -6,6 +6,7 @@ import (
 	"app/internal/repositories/audience"
 	"app/internal/repositories/file"
 	"app/internal/repositories/hypothesis"
+	"app/internal/repositories/persona1m"
 	"app/internal/repositories/product"
 	"app/internal/services"
 	"app/internal/storage"
@@ -20,6 +21,7 @@ type Server struct {
 	products              *product.Repository
 	audiences             *audience.Repository
 	files                 *file.Repository
+	personas1m            *persona1m.Repository
 	storage               *storage.S3
 	generator             *clients.GeneratorClient
 	hypothesisService     *services.HypothesisService
@@ -34,6 +36,7 @@ func NewServer(
 	products *product.Repository,
 	audiences *audience.Repository,
 	files *file.Repository,
+	personas1m *persona1m.Repository,
 	storage *storage.S3,
 	generator *clients.GeneratorClient,
 	hypothesisService *services.HypothesisService,
@@ -47,6 +50,7 @@ func NewServer(
 		products:              products,
 		audiences:             audiences,
 		files:                 files,
+		personas1m:            personas1m,
 		storage:               storage,
 		generator:             generator,
 		hypothesisService:     hypothesisService,

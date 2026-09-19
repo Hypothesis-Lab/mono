@@ -1,69 +1,16 @@
-import { useState } from 'react'
-import type { ProductFeedbackSurveyResultResponse } from '../../../../store/generatedApi'
+import { Fragment, useState } from 'react'
+import type {
+  ProductFeedbackSurveyPersona,
+  ProductFeedbackSurveyQuestionnaire,
+  ProductFeedbackSurveyResultResponse,
+} from '../../../../store/generatedApi'
 import * as S from '../../styles'
 
 type JsonObject = Record<string, unknown>
 
 type SurveyResultProps = {
+  questionnaire: ProductFeedbackSurveyQuestionnaire
   result: ProductFeedbackSurveyResultResponse
-}
-
-const questionLabels: Record<string, string> = {
-  overall_interest: 'Overall interest in the product',
-  q0: 'Plan after trying the free version',
-  q1: 'Plus vs Pro preference',
-  q2: 'Annual vs monthly billing',
-  q3: 'Response to the $1 first-month promo',
-  q4: 'Reaction to a paid organizer app',
-  q5: 'Value of removing ads',
-  q6: 'Perception of the product pricing',
-  would_try_beta: 'Likelihood of trying a beta',
-}
-
-const choiceLabels: Record<string, Record<string, string>> = {
-  q0: {
-    q0_use_free_wont_pay: 'Keep using free and only upgrade if necessary',
-    q0_pay_when_roi_clear: 'Upgrade once time savings justify the price',
-    q0_subscribe_paid_launch: 'Subscribe to Plus or better at launch',
-    q0_free_never_decide_tier: 'Use free and never think much about tiers',
-    q0_not_interested: 'Skip the product because it is not relevant',
-  },
-  q1: {
-    q1_reject_both_tiers: 'Would not pay for either tier',
-    q1_plus_after_sustained_use: 'Choose Plus after sustained use proves value',
-    q1_happy_plus_or_pro: 'Happy with Plus or Pro',
-    q1_wont_compare_tiers: 'Would not spend effort comparing tiers',
-  },
-  q2: {
-    q2_monthly_cancel_anytime: 'Monthly only, with the ability to cancel anytime',
-    q2_annual_after_long_use: 'Prepay annually after a long trial',
-    q2_prepay_annual_plus: 'Prepay annually on Plus immediately',
-    q2_billing_no_preference: 'No preference between monthly and annual billing',
-  },
-  q3: {
-    q3_skip_even_one_dollar: 'Skip it because it is not worth $1 or the hassle',
-    q3_one_dollar_try_cancel: 'Try it for $1 and cancel unless value is clear',
-    q3_grab_dollar_promo: 'Grab the $1 Plus month immediately',
-    q3_ignore_promo: 'Ignore it unless already planning to upgrade',
-  },
-  q4: {
-    q4_seek_free_alternative: 'Look for a free alternative first',
-    q4_compare_pay_if_wins: 'Compare options and pay only if one clearly wins',
-    q4_pay_best_no_hunt: 'Pay for the best app without hunting for free options',
-    q4_switch_only_effortless: 'Switch only if setup is effortless',
-  },
-  q5: {
-    q5_ads_not_worth_paying: 'Ads are annoying but not worth paying to remove',
-    q5_ads_pay_if_plus_useful: 'Pay only if Plus is useful beyond being ad-free',
-    q5_pay_primarily_adfree: 'Removing ads alone is enough value to pay',
-    q5_ads_irrelevant_to_tier: 'Ads do not affect the upgrade decision',
-  },
-  q6: {
-    q6_too_expensive_stay_free: 'Too expensive, so stay free',
-    q6_fair_if_use_justifies: 'Fair only if daily use clearly justifies it',
-    q6_premium_price_ok: 'Reasonable price for premium convenience',
-    q6_pricing_unnoticed: 'Does not really notice or care about pricing',
-  },
 }
 
 function asObject(value: unknown): JsonObject {
@@ -89,23 +36,35 @@ function formatScore(value: unknown, answer: JsonObject): string {
   return `${displayedScore.toFixed(2)} / 5`
 }
 
-function questionLabel(key: string): string {
-  return questionLabels[key] ?? key.replaceAll('_', ' ')
+function questionLabel(questionnaire: ProductFeedbackSurveyQuestionnaire, key: string): string {
+  return questionnaire[key]?.instructions ?? key.replaceAll('_', ' ')
 }
 
-function answerLabel(questionKey: string, value: unknown): string {
+function answerLabel(questionnaire: ProductFeedbackSurveyQuestionnaire, questionKey: string, value: unknown): string {
   if (typeof value !== 'string') {
     return formatJson(value)
   }
 
-  return choiceLabels[questionKey]?.[value] ?? value.replaceAll('_', ' ')
+  const criteria = questionnaire[questionKey]?.criteria
+  if (criteria !== null && typeof criteria === 'object' && !Array.isArray(criteria)) {
+    const label = (criteria as Record<string, unknown>)[value]
+    if (typeof label === 'string') {
+      return label
+    }
+  }
+
+  return value.replaceAll('_', ' ')
 }
 
 function confidenceNote(answer: JsonObject): string | null {
   return typeof answer.confidence === 'number' ? `${formatPercent(answer.confidence)} confidence` : null
 }
 
-function Distribution({ answer, questionKey }: { answer: JsonObject; questionKey: string }) {
+function Distribution({ answer, questionnaire, questionKey }: {
+  answer: JsonObject
+  questionnaire: ProductFeedbackSurveyQuestionnaire
+  questionKey: string
+}) {
   const probabilities = asObject(answer.probabilities)
   const legend = asObject(answer.legend)
   const selected = typeof answer.choice === 'string' ? answer.choice : null
@@ -123,7 +82,7 @@ function Distribution({ answer, questionKey }: { answer: JsonObject; questionKey
     <S.Distribution aria-label="Probability distribution">
       {entries.map(([key, value]) => {
         const probability = typeof value === 'number' ? value : 0
-        const label = legend[key] ?? answerLabel(questionKey, key)
+        const label = legend[key] ?? answerLabel(questionnaire, questionKey, key)
 
         return (
           <S.DistributionRow key={key}>
@@ -141,7 +100,11 @@ function Distribution({ answer, questionKey }: { answer: JsonObject; questionKey
   )
 }
 
-function AnswerCard({ questionKey, answer }: { questionKey: string; answer: unknown }) {
+function AnswerCard({ answer, questionnaire, questionKey }: {
+  answer: unknown
+  questionnaire: ProductFeedbackSurveyQuestionnaire
+  questionKey: string
+}) {
   const answerObject = asObject(answer)
   const type = answerObject.type
   const confidence = confidenceNote(answerObject)
@@ -150,7 +113,7 @@ function AnswerCard({ questionKey, answer }: { questionKey: string; answer: unkn
   if (type === 'score') {
     selectedAnswer = formatScore(answerObject.score, answerObject)
   } else if (type === 'choice') {
-    selectedAnswer = answerLabel(questionKey, answerObject.choice)
+    selectedAnswer = answerLabel(questionnaire, questionKey, answerObject.choice)
   } else if (type === 'noul') {
     selectedAnswer = `${formatPercent(answerObject.noul)} estimated likelihood`
   }
@@ -158,18 +121,21 @@ function AnswerCard({ questionKey, answer }: { questionKey: string; answer: unkn
   return (
     <S.AnswerCard>
       <S.AnswerHeader>
-        <S.AnswerTitle>{questionLabel(questionKey)}</S.AnswerTitle>
+        <S.AnswerTitle>{questionLabel(questionnaire, questionKey)}</S.AnswerTitle>
         <S.AnswerKey>{questionKey}</S.AnswerKey>
       </S.AnswerHeader>
       {selectedAnswer !== null ? <S.SelectedAnswer>{selectedAnswer}</S.SelectedAnswer> : null}
       {confidence !== null ? <S.AnswerNote>{confidence}</S.AnswerNote> : null}
-      <Distribution answer={answerObject} questionKey={questionKey} />
+      <Distribution answer={answerObject} questionnaire={questionnaire} questionKey={questionKey} />
       {selectedAnswer === null ? <S.UnknownValue>{formatJson(answer)}</S.UnknownValue> : null}
     </S.AnswerCard>
   )
 }
 
-function RenderedResponse({ response }: { response: unknown }) {
+function RenderedResponse({ questionnaire, response }: {
+  questionnaire: ProductFeedbackSurveyQuestionnaire
+  response: unknown
+}) {
   const responseObject = asObject(response)
   const answers = asObject(responseObject.answers)
   const usage = asObject(responseObject.usage)
@@ -185,7 +151,7 @@ function RenderedResponse({ response }: { response: unknown }) {
       {Object.keys(answers).length > 0 ? (
         <S.AnswerList>
           {Object.entries(answers).map(([questionKey, answer]) => (
-            <AnswerCard key={questionKey} questionKey={questionKey} answer={answer} />
+            <AnswerCard key={questionKey} questionnaire={questionnaire} questionKey={questionKey} answer={answer} />
           ))}
         </S.AnswerList>
       ) : (
@@ -195,7 +161,36 @@ function RenderedResponse({ response }: { response: unknown }) {
   )
 }
 
-export function SurveyResult({ result }: SurveyResultProps) {
+function PersonaProfile({ persona }: { persona: ProductFeedbackSurveyPersona }) {
+  const dimensions = Object.entries(persona.dimensions ?? {})
+
+  return (
+    <S.PersonaCard>
+      <S.PersonaTitle>Persona profile</S.PersonaTitle>
+      <S.PersonaFacts>
+        <span>{persona.display_name}</span>
+        {persona.source ? <span>Source: {persona.source}</span> : null}
+        {persona.version ? <span>Version: {persona.version}</span> : null}
+        <span>ID: {persona.id}</span>
+      </S.PersonaFacts>
+      {dimensions.length > 0 ? (
+        <S.PersonaDimensions>
+          <summary>{dimensions.length} dimensions</summary>
+          <S.PersonaDimensionList>
+            {dimensions.map(([key, value]) => (
+              <Fragment key={key}>
+                <S.PersonaDimensionKey>{key}</S.PersonaDimensionKey>
+                <S.PersonaDimensionValue>{value}</S.PersonaDimensionValue>
+              </Fragment>
+            ))}
+          </S.PersonaDimensionList>
+        </S.PersonaDimensions>
+      ) : null}
+    </S.PersonaCard>
+  )
+}
+
+export function SurveyResult({ questionnaire, result }: SurveyResultProps) {
   const [activeTab, setActiveTab] = useState<'rendered' | 'raw'>('rendered')
   const response = result.response as unknown
   const responseObject = asObject(response)
@@ -214,6 +209,7 @@ export function SurveyResult({ result }: SurveyResultProps) {
           {score !== 'n/a' ? <S.SummaryScore>Interest {score}</S.SummaryScore> : null}
         </S.ResultSummary>
         <S.ResultBody>
+          <PersonaProfile persona={result.persona} />
           <S.Tabs role="tablist" aria-label={`${result.persona_name} response views`}>
             <S.Tab
               type="button"
@@ -239,7 +235,7 @@ export function SurveyResult({ result }: SurveyResultProps) {
               <S.RawOutput>{formatJson(response)}</S.RawOutput>
             </S.Panel>
           ) : (
-            <RenderedResponse response={response} />
+            <RenderedResponse questionnaire={questionnaire} response={response} />
           )}
         </S.ResultBody>
       </S.ResultDetails>
