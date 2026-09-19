@@ -317,14 +317,20 @@ paths:
           schema:
             type: string
       responses:
+        "202":
+          description: hypothesis stop queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HypothesisStopResponse"
         "200":
-          description: stopped hypothesis
+          description: hypothesis is already stopped
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/HypothesisResponse"
         "409":
-          description: hypothesis launch is in progress
+          description: hypothesis launch or stop is in progress, or manual intervention is required
           content:
             application/json:
               schema:
@@ -762,6 +768,12 @@ components:
         status:
           type: string
           enum: [queued, running, completed, failed, canceled, timed_out, terminated]
+    HypothesisStopResponse:
+      type: object
+      required: [workflow_id, status]
+      properties:
+        workflow_id: { type: string }
+        status: { type: string, enum: [queued] }
     CreateHypothesisRequest:
       type: object
       required: [description]

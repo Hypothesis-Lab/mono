@@ -25,6 +25,8 @@ var (
 	ErrUpdateInProgress     = errors.New("cannot update hypothesis in progress")
 	ErrDeleteInProgress     = errors.New("cannot delete hypothesis in progress")
 	ErrStopLaunchInProgress = errors.New("cannot stop hypothesis while launch is in progress")
+	ErrStopInProgress       = errors.New("hypothesis stop is already in progress")
+	ErrStopManual           = errors.New("hypothesis requires manual intervention")
 	ErrLaunchNotFound       = errors.New("hypothesis launch not found")
 	ErrHypothesisNoAudience = errors.New("hypothesis product has no generated audiences")
 )
@@ -49,6 +51,11 @@ type createdAudienceTargeting struct {
 type LaunchStatus struct {
 	WorkflowID string
 	Status     string
+}
+
+type StopStatus struct {
+	Hypothesis *hypothesis.Hypothesis
+	WorkflowID string
 }
 
 func NewHypothesisService(
@@ -180,7 +187,7 @@ func launchWorkflowStatus(status string) string {
 	}
 }
 
-func (s *HypothesisService) Stop(ctx context.Context, userID, id string) (*hypothesis.Hypothesis, error) {
+func (s *HypothesisService) Stop(ctx context.Context, userID, id string) (*StopStatus, error) {
 	h, err := s.hypotheses.Get(ctx, userID, id)
 	if err != nil {
 		if errors.Is(err, hypothesis.ErrNotFound) {
@@ -191,50 +198,36 @@ func (s *HypothesisService) Stop(ctx context.Context, userID, id string) (*hypot
 	}
 
 	if h.Status == hypothesis.StatusIdle {
-		return h, nil
+		return &StopStatus{Hypothesis: h}, nil
 	}
 
 	if h.Status == hypothesis.StatusLaunching {
 		return nil, ErrStopLaunchInProgress
 	}
 
-	p, err := s.products.GetByHypothesisID(ctx, id)
+	if h.Status == hypothesis.StatusStopping {
+		return nil, ErrStopInProgress
+	}
+
+	if h.Status == hypothesis.StatusManual {
+		return nil, ErrStopManual
+	}
+
+	stop, err := s.launches.CreateStop(ctx, userID, id)
 	if err != nil {
-		if errors.Is(err, product.ErrNotFound) {
-			return s.hypotheses.SetStatus(ctx, userID, id, hypothesis.StatusIdle)
+		switch {
+		case errors.Is(err, hypothesislaunch.ErrHypothesisGone):
+			return nil, hypothesis.ErrNotFound
+		case errors.Is(err, hypothesislaunch.ErrStopActive):
+			return nil, ErrStopInProgress
+		case errors.Is(err, hypothesislaunch.ErrStopManual):
+			return nil, ErrStopManual
+		default:
+			return nil, fmt.Errorf("create hypothesis stop: %w", err)
 		}
-
-		return nil, fmt.Errorf("getting product: %w", err)
 	}
 
-	campaign, err := s.campaigns.GetByProductID(ctx, p.ID, adcampaign.ProviderYandex)
-	if err != nil {
-		if errors.Is(err, adcampaign.ErrNotFound) {
-			stopped, err := s.hypotheses.SetStatus(ctx, userID, id, hypothesis.StatusIdle)
-			if err != nil {
-				return nil, fmt.Errorf("set status without yandex campaign: %w", err)
-			}
-
-			return stopped, nil
-		}
-
-		return nil, fmt.Errorf("getting yandex campaign: %w", err)
-	}
-
-	if err := s.yandex.DeleteCampaign(ctx, campaign.ExternalID); err != nil {
-		return nil, fmt.Errorf("delete yandex campaign: %w", err)
-	}
-
-	if err := s.campaigns.Delete(ctx, p.ID, adcampaign.ProviderYandex); err != nil {
-		return nil, fmt.Errorf("delete local yandex campaign: %w", err)
-	}
-
-	stopped, err := s.hypotheses.SetStatus(ctx, userID, id, hypothesis.StatusIdle)
-	if err != nil {
-		return nil, fmt.Errorf("setting status: %w", err)
-	}
-
-	return stopped, nil
+	return &StopStatus{WorkflowID: stop.WorkflowID}, nil
 }
 
 func (s *HypothesisService) Update(ctx context.Context, userID, id string, in hypothesis.UpdateInput) (*hypothesis.Hypothesis, error) {

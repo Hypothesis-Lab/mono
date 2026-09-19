@@ -19,13 +19,18 @@ const (
 )
 
 var (
-	ErrNotFound         = errors.New("hypothesis launch not found")
-	ErrHypothesisGone   = errors.New("hypothesis not found")
-	ErrAlreadyActive    = errors.New("hypothesis launch already active")
-	ErrNoProduct        = errors.New("hypothesis has no product")
-	ErrNoAudiences      = errors.New("product has no generated audiences")
-	ErrResourceNotFound = errors.New("hypothesis launch resource not found")
-	ErrOutboxEmpty      = errors.New("temporal outbox is empty")
+	ErrNotFound          = errors.New("hypothesis launch not found")
+	ErrHypothesisGone    = errors.New("hypothesis not found")
+	ErrAlreadyActive     = errors.New("hypothesis launch already active")
+	ErrNoProduct         = errors.New("hypothesis has no product")
+	ErrNoAudiences       = errors.New("product has no generated audiences")
+	ErrResourceNotFound  = errors.New("hypothesis launch resource not found")
+	ErrOutboxEmpty       = errors.New("temporal outbox is empty")
+	ErrStopNotActive     = errors.New("hypothesis is not in progress")
+	ErrStopActive        = errors.New("hypothesis stop already active")
+	ErrStopManual        = errors.New("hypothesis stop requires manual intervention")
+	ErrNoSucceededLaunch = errors.New("hypothesis has no successful launch to stop")
+	ErrStopOutboxEmpty   = errors.New("temporal stop outbox is empty")
 )
 
 type Launch struct {
@@ -53,6 +58,18 @@ type Resource struct {
 type OutboxItem struct {
 	ID         string
 	LaunchID   string
+	WorkflowID string
+}
+
+type Stop struct {
+	ID         string
+	WorkflowID string
+	Status     string
+}
+
+type StopOutboxItem struct {
+	ID         string
+	StopID     string
 	WorkflowID string
 }
 
@@ -226,6 +243,81 @@ func (r *Repository) GetLatest(ctx context.Context, userID, hypothesisID string)
 	return launch, nil
 }
 
+func (r *Repository) CreateStop(ctx context.Context, userID, hypothesisID string) (*Stop, error) {
+	tx, err := r.db.Pool().Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin create hypothesis stop transaction: %w", err)
+	}
+
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var currentStatus string
+	if err := tx.QueryRow(ctx, "SELECT status FROM hypothesis WHERE id = $1 AND user_id = $2 FOR UPDATE", hypothesisID, userID).Scan(&currentStatus); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrHypothesisGone
+		}
+
+		return nil, fmt.Errorf("get hypothesis before stop: %w", err)
+	}
+
+	switch currentStatus {
+	case "in_progress":
+	case "stopping":
+		return nil, ErrStopActive
+	case "requires_manual_intervention":
+		return nil, ErrStopManual
+	default:
+		return nil, ErrStopNotActive
+	}
+
+	var sourceLaunchID string
+	if err := tx.QueryRow(ctx, `
+		SELECT id
+		FROM hypothesis_launch
+		WHERE hypothesis_id = $1 AND user_id = $2 AND status = 'succeeded'
+		ORDER BY completed_at DESC, created_at DESC
+		LIMIT 1
+	`, hypothesisID, userID).Scan(&sourceLaunchID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNoSucceededLaunch
+		}
+
+		return nil, fmt.Errorf("get successful hypothesis launch before stop: %w", err)
+	}
+
+	stop := &Stop{ID: uuid.NewString(), Status: "queued"}
+	stop.WorkflowID = "hypothesis-stop-" + stop.ID
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO hypothesis_stop (id, hypothesis_id, user_id, source_launch_id, workflow_id, status)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, stop.ID, hypothesisID, userID, sourceLaunchID, stop.WorkflowID, stop.Status); err != nil {
+		return nil, fmt.Errorf("insert hypothesis stop: %w", err)
+	}
+
+	command, err := tx.Exec(ctx, `
+		UPDATE hypothesis
+		SET status = 'stopping', active_stop_id = $1
+		WHERE id = $2 AND user_id = $3 AND status = 'in_progress'
+	`, stop.ID, hypothesisID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("claim hypothesis stop: %w", err)
+	}
+
+	if command.RowsAffected() != 1 {
+		return nil, ErrStopNotActive
+	}
+
+	if _, err := tx.Exec(ctx, "INSERT INTO temporal_stop_outbox (id, stop_id, status) VALUES ($1, $2, 'pending')", uuid.NewString(), stop.ID); err != nil {
+		return nil, fmt.Errorf("insert temporal stop outbox item: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit create hypothesis stop: %w", err)
+	}
+
+	return stop, nil
+}
+
 func (r *Repository) ClaimOutbox(ctx context.Context) (*OutboxItem, error) {
 	tx, err := r.db.Pool().Begin(ctx)
 	if err != nil {
@@ -266,6 +358,46 @@ func (r *Repository) ClaimOutbox(ctx context.Context) (*OutboxItem, error) {
 	return item, nil
 }
 
+func (r *Repository) ClaimStopOutbox(ctx context.Context) (*StopOutboxItem, error) {
+	tx, err := r.db.Pool().Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin claim temporal stop outbox transaction: %w", err)
+	}
+
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	item := &StopOutboxItem{}
+	err = tx.QueryRow(ctx, `
+		WITH candidate AS (
+			SELECT id
+			FROM temporal_stop_outbox
+			WHERE (status = 'pending' AND available_at <= NOW())
+				OR (status = 'starting' AND updated_at <= NOW() - INTERVAL '1 minute')
+			ORDER BY available_at, id
+			FOR UPDATE SKIP LOCKED
+			LIMIT 1
+		)
+		UPDATE temporal_stop_outbox AS outbox
+		SET status = 'starting', attempts = attempts + 1, updated_at = NOW()
+		FROM candidate, hypothesis_stop AS stop
+		WHERE outbox.id = candidate.id AND stop.id = outbox.stop_id
+		RETURNING outbox.id, outbox.stop_id, stop.workflow_id
+	`).Scan(&item.ID, &item.StopID, &item.WorkflowID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrStopOutboxEmpty
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("claim temporal stop outbox item: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit claim temporal stop outbox item: %w", err)
+	}
+
+	return item, nil
+}
+
 func (r *Repository) MarkOutboxDispatched(ctx context.Context, outboxID string) error {
 	if _, err := r.db.Pool().Exec(ctx, "UPDATE temporal_outbox SET status = 'dispatched', updated_at = NOW(), last_error = NULL WHERE id = $1", outboxID); err != nil {
 		return fmt.Errorf("mark temporal outbox dispatched: %w", err)
@@ -281,6 +413,26 @@ func (r *Repository) ReleaseOutbox(ctx context.Context, outboxID string, cause e
 		WHERE id = $1
 	`, outboxID, cause.Error()); err != nil {
 		return fmt.Errorf("release temporal outbox item: %w", err)
+	}
+
+	return nil
+}
+
+func (r *Repository) MarkStopOutboxDispatched(ctx context.Context, outboxID string) error {
+	if _, err := r.db.Pool().Exec(ctx, "UPDATE temporal_stop_outbox SET status = 'dispatched', updated_at = NOW(), last_error = NULL WHERE id = $1", outboxID); err != nil {
+		return fmt.Errorf("mark temporal stop outbox dispatched: %w", err)
+	}
+
+	return nil
+}
+
+func (r *Repository) ReleaseStopOutbox(ctx context.Context, outboxID string, cause error) error {
+	if _, err := r.db.Pool().Exec(ctx, `
+		UPDATE temporal_stop_outbox
+		SET status = 'pending', available_at = NOW() + INTERVAL '5 seconds', updated_at = NOW(), last_error = $2
+		WHERE id = $1
+	`, outboxID, cause.Error()); err != nil {
+		return fmt.Errorf("release temporal stop outbox item: %w", err)
 	}
 
 	return nil
@@ -305,6 +457,36 @@ func (r *Repository) WorkflowResourceIDs(ctx context.Context, launchID string) (
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate hypothesis launch workflow resources: %w", err)
+	}
+
+	return ids, nil
+}
+
+func (r *Repository) StopWorkflowResourceIDs(ctx context.Context, stopID string) ([]string, error) {
+	rows, err := r.db.Pool().Query(ctx, `
+		SELECT resource.id
+		FROM hypothesis_launch_resource AS resource
+		JOIN hypothesis_stop AS stop ON stop.source_launch_id = resource.launch_id
+		WHERE stop.id = $1
+		ORDER BY resource.position DESC
+	`, stopID)
+	if err != nil {
+		return nil, fmt.Errorf("list hypothesis stop workflow resources: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan hypothesis stop workflow resource: %w", err)
+		}
+
+		ids = append(ids, id)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate hypothesis stop workflow resources: %w", err)
 	}
 
 	return ids, nil
@@ -399,6 +581,14 @@ func (r *Repository) MarkRunning(ctx context.Context, launchID string) error {
 	return nil
 }
 
+func (r *Repository) MarkStopRunning(ctx context.Context, stopID string) error {
+	if _, err := r.db.Pool().Exec(ctx, "UPDATE hypothesis_stop SET status = 'running' WHERE id = $1 AND status = 'queued'", stopID); err != nil {
+		return fmt.Errorf("mark hypothesis stop running: %w", err)
+	}
+
+	return nil
+}
+
 func (r *Repository) Complete(ctx context.Context, launchID string) error {
 	tx, err := r.db.Pool().Begin(ctx)
 	if err != nil {
@@ -444,6 +634,56 @@ func (r *Repository) Complete(ctx context.Context, launchID string) error {
 
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit complete hypothesis launch: %w", err)
+	}
+
+	return nil
+}
+
+func (r *Repository) CompleteStop(ctx context.Context, stopID string) error {
+	tx, err := r.db.Pool().Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin complete hypothesis stop transaction: %w", err)
+	}
+
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var productID, stopStatus string
+	if err := tx.QueryRow(ctx, `
+		SELECT launch.product_id, stop.status
+		FROM hypothesis_stop AS stop
+		JOIN hypothesis_launch AS launch ON launch.id = stop.source_launch_id
+		WHERE stop.id = $1
+	`, stopID).Scan(&productID, &stopStatus); err != nil {
+		return fmt.Errorf("get completed stop product: %w", err)
+	}
+
+	if stopStatus == "succeeded" {
+		return nil
+	}
+
+	if _, err := tx.Exec(ctx, "DELETE FROM ad_campaign WHERE product_id = $1 AND provider = 'yandex'", productID); err != nil {
+		return fmt.Errorf("delete local campaign after stop: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, "UPDATE hypothesis_stop SET status = 'succeeded', completed_at = NOW(), last_error = NULL WHERE id = $1", stopID); err != nil {
+		return fmt.Errorf("mark hypothesis stop succeeded: %w", err)
+	}
+
+	command, err := tx.Exec(ctx, `
+		UPDATE hypothesis
+		SET status = 'idle', active_stop_id = NULL
+		WHERE active_stop_id = $1 AND status = 'stopping'
+	`, stopID)
+	if err != nil {
+		return fmt.Errorf("mark hypothesis idle after stop: %w", err)
+	}
+
+	if command.RowsAffected() != 1 {
+		return fmt.Errorf("complete hypothesis stop %s lost its hypothesis claim", stopID)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit complete hypothesis stop: %w", err)
 	}
 
 	return nil
@@ -496,6 +736,47 @@ func (r *Repository) RequireReconciliation(ctx context.Context, launchID, reason
 
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit require hypothesis launch reconciliation: %w", err)
+	}
+
+	return nil
+}
+
+func (r *Repository) RequireStopManualIntervention(ctx context.Context, stopID, reason string) error {
+	tx, err := r.db.Pool().Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin require hypothesis stop manual intervention transaction: %w", err)
+	}
+
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var stopStatus string
+	if err := tx.QueryRow(ctx, "SELECT status FROM hypothesis_stop WHERE id = $1", stopID).Scan(&stopStatus); err != nil {
+		return fmt.Errorf("get hypothesis stop before requiring manual intervention: %w", err)
+	}
+
+	if stopStatus == "requires_manual_intervention" {
+		return nil
+	}
+
+	if _, err := tx.Exec(ctx, "UPDATE hypothesis_stop SET status = 'requires_manual_intervention', last_error = $2, completed_at = NOW() WHERE id = $1", stopID, reason); err != nil {
+		return fmt.Errorf("mark hypothesis stop manual intervention required: %w", err)
+	}
+
+	command, err := tx.Exec(ctx, `
+		UPDATE hypothesis
+		SET status = 'requires_manual_intervention', active_stop_id = NULL
+		WHERE active_stop_id = $1 AND status = 'stopping'
+	`, stopID)
+	if err != nil {
+		return fmt.Errorf("mark hypothesis manual intervention required after stop: %w", err)
+	}
+
+	if command.RowsAffected() != 1 {
+		return fmt.Errorf("require manual intervention for hypothesis stop %s lost its hypothesis claim", stopID)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit require hypothesis stop manual intervention: %w", err)
 	}
 
 	return nil

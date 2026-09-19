@@ -43,6 +43,7 @@ func main() {
 		fx.Provide(services.NewHypothesisService),
 		fx.Provide(services.NewHypothesisLaunchWorker),
 		fx.Provide(services.NewHypothesisLaunchStarter),
+		fx.Provide(services.NewHypothesisStopStarter),
 		fx.Provide(services.NewProductService),
 		fx.Provide(services.NewAudienceGenerationWorker),
 		fx.Provide(services.NewUserAuthService),
@@ -50,7 +51,7 @@ func main() {
 		fx.Provide(handlers.NewServerInterface),
 		fx.Provide(apphttp.NewRouter),
 		fx.Provide(apphttp.NewServer),
-		fx.Invoke(func(*db.DB, *http.Server, *services.AudienceGenerationWorker, *services.HypothesisLaunchWorker, *services.HypothesisLaunchStarter) {
+		fx.Invoke(func(*db.DB, *http.Server, *services.AudienceGenerationWorker, *services.HypothesisLaunchWorker, *services.HypothesisLaunchStarter, *services.HypothesisStopStarter) {
 		}),
 	).Run()
 }

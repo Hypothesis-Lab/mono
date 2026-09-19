@@ -45,7 +45,7 @@ export function isApiNotFound(err: unknown): boolean {
   )
 }
 
-export type HypothesisStatus = 'idle' | 'launching' | 'in_progress'
+export type HypothesisStatus = 'idle' | 'launching' | 'in_progress' | 'stopping' | 'requires_manual_intervention'
 
 export type Hypothesis = {
   id: string
@@ -142,6 +142,8 @@ const statusLabels: Record<HypothesisStatus, string> = {
 	idle: 'В ожидании',
 	launching: 'Запускается',
 	in_progress: 'В процессе',
+	stopping: 'Останавливается',
+	requires_manual_intervention: 'Требуется ручное вмешательство',
 }
 
 export function getStatusLabel(status: string): string {

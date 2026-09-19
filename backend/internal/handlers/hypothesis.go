@@ -153,7 +153,7 @@ func (s *Server) LaunchHypothesis(ctx context.Context, req api.LaunchHypothesisR
 		}
 	}
 
-	return api.LaunchHypothesis202JSONResponse(api.HypothesisLaunchResponse{WorkflowId: workflowID, Status: api.Queued}), nil
+	return api.LaunchHypothesis202JSONResponse(api.HypothesisLaunchResponse{WorkflowId: workflowID, Status: api.HypothesisLaunchResponseStatusQueued}), nil
 }
 
 func (s *Server) GetHypothesisLaunchStatus(ctx context.Context, req api.GetHypothesisLaunchStatusRequestObject) (api.GetHypothesisLaunchStatusResponseObject, error) {
@@ -196,7 +196,7 @@ func (s *Server) StopHypothesis(ctx context.Context, req api.StopHypothesisReque
 		return api.StopHypothesis500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
 	}
 
-	stopped, err := s.hypothesisService.Stop(ctx, userID, req.Id)
+	stop, err := s.hypothesisService.Stop(ctx, userID, req.Id)
 	if err != nil {
 		switch {
 		case errors.Is(err, hypothesis.ErrNotFound):
@@ -207,6 +207,14 @@ func (s *Server) StopHypothesis(ctx context.Context, req api.StopHypothesisReque
 			s.logger.Error("stop hypothesis", zap.String("id", req.Id), zap.Error(err))
 
 			return api.StopHypothesis409JSONResponse(errBody(http.StatusConflict, "hypothesis launch is in progress")), nil
+		case errors.Is(err, services.ErrStopInProgress):
+			s.logger.Error("stop hypothesis", zap.String("id", req.Id), zap.Error(err))
+
+			return api.StopHypothesis409JSONResponse(errBody(http.StatusConflict, "hypothesis stop is already in progress")), nil
+		case errors.Is(err, services.ErrStopManual):
+			s.logger.Error("stop hypothesis", zap.String("id", req.Id), zap.Error(err))
+
+			return api.StopHypothesis409JSONResponse(errBody(http.StatusConflict, "hypothesis requires manual intervention")), nil
 		default:
 			s.logger.Error("stop hypothesis", zap.String("id", req.Id), zap.Error(err))
 
@@ -214,7 +222,11 @@ func (s *Server) StopHypothesis(ctx context.Context, req api.StopHypothesisReque
 		}
 	}
 
-	return api.StopHypothesis200JSONResponse(newHypothesisResponse(stopped)), nil
+	if stop.Hypothesis != nil {
+		return api.StopHypothesis200JSONResponse(newHypothesisResponse(stop.Hypothesis)), nil
+	}
+
+	return api.StopHypothesis202JSONResponse(api.HypothesisStopResponse{WorkflowId: stop.WorkflowID, Status: api.HypothesisStopResponseStatusQueued}), nil
 }
 
 func (s *Server) UpdateHypothesis(ctx context.Context, req api.UpdateHypothesisRequestObject) (api.UpdateHypothesisResponseObject, error) {

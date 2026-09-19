@@ -223,7 +223,8 @@ export type GetHypothesisLaunchStatusApiArg = {
   id: string;
 };
 export type StopHypothesisApiResponse =
-  /** status 200 stopped hypothesis */ HypothesisResponse;
+  | /** status 200 hypothesis is already stopped */ HypothesisResponse
+  | /** status 202 hypothesis stop queued */ HypothesisStopResponse;
 export type StopHypothesisApiArg = {
   id: string;
 };
@@ -323,12 +324,17 @@ export type HypothesisLaunchResponse = {
 export type HypothesisLaunchStatusResponse = {
   workflow_id: string;
   status:
+    | "queued"
     | "running"
     | "completed"
     | "failed"
     | "canceled"
     | "timed_out"
     | "terminated";
+};
+export type HypothesisStopResponse = {
+  workflow_id: string;
+  status: "queued";
 };
 export type ProductCategory =
   | "electronics"

@@ -2,6 +2,10 @@ when installing packages, don't guess their versions, install latest
 
 after making changes, run linter, tests, and API generation (USE commands from Taskfile.yml if possible, e.g. when not running a specific test) (docker socket is available, so you can and should run integration tests)
 
+after changing a Temporal workflow, run `task workflowcheck`
+
+Yandex Direct Inspector: `go run ./cmd/yandex_inspect`
+
 when running go test or linter commands, filter out 'go: downloading'
 
 make sure that members that don't really need to be exported are not exported
@@ -44,4 +48,3 @@ Standard `cmd/` + `internal/` Go layout, wired with uber/fx dependency injection
 - `internal/http/` — chi router, HTTP server lifecycle, and auth middleware.
 
 Stack: chi, pgx/v5, zap, fx, oapi-codegen. Flow: repo (db structs) -> `handlers.Server` (generated response structs) -> json.
-

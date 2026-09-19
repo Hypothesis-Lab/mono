@@ -16,6 +16,7 @@ export function HypothesisPage() {
 
   const { data: hypothesis, isLoading: loading, error } = useGetHypothesisQuery(
     id ? { id } : skipToken,
+    { pollingInterval: 2000 },
   )
   const { data: product, isLoading: productLoading } = useGetHypothesisProductQuery(
     id ? { id } : skipToken,

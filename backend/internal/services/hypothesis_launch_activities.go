@@ -15,6 +15,14 @@ func (s *HypothesisService) markHypothesisLaunchRunningActivity(ctx context.Cont
 	return nil
 }
 
+func (s *HypothesisService) markHypothesisStopRunningActivity(ctx context.Context, stopID string) error {
+	if err := s.launches.MarkStopRunning(ctx, stopID); err != nil {
+		return fmt.Errorf("mark hypothesis stop running activity: %w", err)
+	}
+
+	return nil
+}
+
 func (s *HypothesisService) ensureHypothesisLaunchResourceActivity(ctx context.Context, resourceID string) error {
 	resource, err := s.launches.GetResource(ctx, resourceID)
 	if err != nil {
@@ -224,6 +232,14 @@ func (s *HypothesisService) completeHypothesisLaunchActivity(ctx context.Context
 	return nil
 }
 
+func (s *HypothesisService) completeHypothesisStopActivity(ctx context.Context, stopID string) error {
+	if err := s.launches.CompleteStop(ctx, stopID); err != nil {
+		return fmt.Errorf("complete hypothesis stop activity: %w", err)
+	}
+
+	return nil
+}
+
 func (s *HypothesisService) failHypothesisLaunchActivity(ctx context.Context, launchID, reason string) error {
 	if err := s.launches.Fail(ctx, launchID, reason); err != nil {
 		return fmt.Errorf("fail hypothesis launch activity: %w", err)
@@ -235,6 +251,14 @@ func (s *HypothesisService) failHypothesisLaunchActivity(ctx context.Context, la
 func (s *HypothesisService) requireHypothesisLaunchReconciliationActivity(ctx context.Context, launchID, reason string, retry bool) error {
 	if err := s.launches.RequireReconciliation(ctx, launchID, reason, retry); err != nil {
 		return fmt.Errorf("require hypothesis launch reconciliation activity: %w", err)
+	}
+
+	return nil
+}
+
+func (s *HypothesisService) requireHypothesisStopManualActivity(ctx context.Context, stopID, reason string) error {
+	if err := s.launches.RequireStopManualIntervention(ctx, stopID, reason); err != nil {
+		return fmt.Errorf("require hypothesis stop manual intervention activity: %w", err)
 	}
 
 	return nil

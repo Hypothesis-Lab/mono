@@ -17,6 +17,8 @@ const (
 	StatusIdle       Status = "idle"
 	StatusLaunching  Status = "launching"
 	StatusInProgress Status = "in_progress"
+	StatusStopping   Status = "stopping"
+	StatusManual     Status = "requires_manual_intervention"
 )
 
 var (

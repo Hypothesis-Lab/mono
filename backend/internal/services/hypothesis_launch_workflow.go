@@ -23,6 +23,9 @@ const (
 	completeHypothesisLaunchActivityName              = "hypothesis.launch.complete"
 	failHypothesisLaunchActivityName                  = "hypothesis.launch.fail"
 	requireHypothesisLaunchReconciliationActivityName = "hypothesis.launch.require-reconciliation"
+	markHypothesisStopRunningActivityName             = "hypothesis.stop.mark-running"
+	completeHypothesisStopActivityName                = "hypothesis.stop.complete"
+	requireHypothesisStopManualActivityName           = "hypothesis.stop.require-manual-intervention"
 	hypothesisLaunchWorkflowChangeID                  = "hypothesis-launch-resource-ledger"
 )
 
@@ -31,6 +34,11 @@ type hypothesisLaunchInput struct {
 	HypothesisID string
 	LaunchID     string
 	ResourceIDs  []string
+}
+
+type hypothesisStopInput struct {
+	StopID      string
+	ResourceIDs []string
 }
 
 type HypothesisLaunchWorker struct {
@@ -42,6 +50,7 @@ func NewHypothesisLaunchWorker(lc fx.Lifecycle, temporalClient client.Client, se
 		worker: worker.New(temporalClient, hypothesisLaunchTaskQueue, worker.Options{}),
 	}
 	launchWorker.worker.RegisterWorkflow(hypothesisLaunchWorkflow)
+	launchWorker.worker.RegisterWorkflow(hypothesisStopWorkflow)
 	launchWorker.worker.RegisterActivityWithOptions(service.launchHypothesisActivity, activity.RegisterOptions{Name: hypothesisLaunchActivityName})
 	launchWorker.worker.RegisterActivityWithOptions(service.resetHypothesisLaunchStatusActivity, activity.RegisterOptions{Name: resetHypothesisLaunchActivityName})
 	launchWorker.worker.RegisterActivityWithOptions(service.markHypothesisLaunchRunningActivity, activity.RegisterOptions{Name: markHypothesisLaunchRunningActivityName})
@@ -50,6 +59,9 @@ func NewHypothesisLaunchWorker(lc fx.Lifecycle, temporalClient client.Client, se
 	launchWorker.worker.RegisterActivityWithOptions(service.completeHypothesisLaunchActivity, activity.RegisterOptions{Name: completeHypothesisLaunchActivityName})
 	launchWorker.worker.RegisterActivityWithOptions(service.failHypothesisLaunchActivity, activity.RegisterOptions{Name: failHypothesisLaunchActivityName})
 	launchWorker.worker.RegisterActivityWithOptions(service.requireHypothesisLaunchReconciliationActivity, activity.RegisterOptions{Name: requireHypothesisLaunchReconciliationActivityName})
+	launchWorker.worker.RegisterActivityWithOptions(service.markHypothesisStopRunningActivity, activity.RegisterOptions{Name: markHypothesisStopRunningActivityName})
+	launchWorker.worker.RegisterActivityWithOptions(service.completeHypothesisStopActivity, activity.RegisterOptions{Name: completeHypothesisStopActivityName})
+	launchWorker.worker.RegisterActivityWithOptions(service.requireHypothesisStopManualActivity, activity.RegisterOptions{Name: requireHypothesisStopManualActivityName})
 
 	lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
@@ -164,4 +176,45 @@ func failHypothesisLaunchWorkflow(ctx workflow.Context, stateCtx workflow.Contex
 	}
 
 	return fmt.Errorf("launch hypothesis: %w", launchErr)
+}
+
+func hypothesisStopWorkflow(ctx workflow.Context, input hypothesisStopInput) error {
+	stateCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+		StartToCloseTimeout: 10 * time.Second,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval: time.Second,
+			MaximumAttempts: 5,
+		},
+	})
+	if err := workflow.ExecuteActivity(stateCtx, markHypothesisStopRunningActivityName, input.StopID).Get(ctx, nil); err != nil {
+		return fmt.Errorf("mark hypothesis stop running: %w", err)
+	}
+
+	deleteCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+		StartToCloseTimeout: time.Minute,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval: time.Second,
+			MaximumInterval: 5 * time.Second,
+			MaximumAttempts: 3,
+		},
+	})
+	for _, resourceID := range input.ResourceIDs {
+		if err := workflow.ExecuteActivity(deleteCtx, deleteHypothesisLaunchResourceActivityName, resourceID).Get(ctx, nil); err != nil {
+			return requireHypothesisStopManualIntervention(ctx, stateCtx, input.StopID, err)
+		}
+	}
+
+	if err := workflow.ExecuteActivity(stateCtx, completeHypothesisStopActivityName, input.StopID).Get(ctx, nil); err != nil {
+		return requireHypothesisStopManualIntervention(ctx, stateCtx, input.StopID, err)
+	}
+
+	return nil
+}
+
+func requireHypothesisStopManualIntervention(ctx workflow.Context, stateCtx workflow.Context, stopID string, stopErr error) error {
+	if err := workflow.ExecuteActivity(stateCtx, requireHypothesisStopManualActivityName, stopID, stopErr.Error()).Get(ctx, nil); err != nil {
+		return fmt.Errorf("stop hypothesis: %w; require manual intervention: %w", stopErr, err)
+	}
+
+	return fmt.Errorf("stop hypothesis requires manual intervention: %w", stopErr)
 }
