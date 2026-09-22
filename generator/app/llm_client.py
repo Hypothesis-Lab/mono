@@ -4,15 +4,13 @@ from typing import Any
 
 import httpx
 
-from app.config import Settings
-
 
 class LLMClient:
-    def __init__(self, settings: Settings) -> None:
-        self.base_url = settings.openai_base_url
-        self.api_key = settings.openai_api_key
-        self.model = settings.openai_model
-        self.reasoning_effort = settings.openai_reasoning_effort
+    def __init__(self, base_url: str, api_key: str, model: str, reasoning_effort: str) -> None:
+        self.base_url = base_url
+        self.api_key = api_key
+        self.model = model
+        self.reasoning_effort = reasoning_effort
 
     def complete(
         self,
@@ -20,9 +18,6 @@ class LLMClient:
         user_prompt: str,
         response_schema: dict[str, Any],
     ) -> str:
-        if not self.base_url or not self.api_key or not self.model:
-            raise RuntimeError("OPENAI_BASE_URL, OPENAI_API_KEY, and OPENAI_MODEL are required")
-
         response = httpx.post(
             f"{self.base_url.rstrip('/')}/v1/chat/completions",
             headers={

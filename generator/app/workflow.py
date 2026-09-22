@@ -20,7 +20,7 @@ from app.catalog import (
     TOP_K,
 )
 from app.db import Job, JobRepository
-from app.llm import LLMClient
+from app.llm_client import LLMClient
 from app.models import (
     AnswerBatch,
     CampaignConfig,
