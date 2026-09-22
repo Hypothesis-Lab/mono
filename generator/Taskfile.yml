@@ -5,4 +5,11 @@ tasks:
     cmds:
       - uv run ruff check app
       - uv run pyright app
+      - uv run deptry .
       - uv run flake8 app --select CLB100
+  format:
+    cmds:
+      - uv run ruff format app migrations
+  security:
+    cmds:
+      - uv audit --locked

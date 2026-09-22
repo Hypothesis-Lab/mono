@@ -7,9 +7,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "ALTER TABLE generator.job ADD COLUMN persisted BOOLEAN NOT NULL DEFAULT FALSE"
-    )
+    op.execute("ALTER TABLE generator.job ADD COLUMN persisted BOOLEAN NOT NULL DEFAULT FALSE")
 
 
 def downgrade() -> None:

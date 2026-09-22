@@ -275,9 +275,7 @@ material unknowns prevent product_value_fit=4. Write in Russian and return only 
             key for key, value in catalog.items() if value["kind"] == "needs" and value["present"]
         ]
         properties["supporting_insight_ids"]["items"]["enum"] = [
-            key
-            for key, value in catalog.items()
-            if value["kind"] in {"desires", "objections", "triggers", "use_cases"}
+            key for key, value in catalog.items() if value["kind"] in {"desires", "objections", "triggers", "use_cases"}
         ]
         properties["selected_fact_ids"]["items"]["enum"] = [fact.fact_id for fact in bundle.product.facts]
         prompt = self._prompt(
@@ -290,11 +288,7 @@ available. Keep fields short, write in Russian, and return only JSON.
 """,
             role=HYPOTHESIS_SLOTS[slot_index][1],
             persona=persona,
-            insights={
-                key: value
-                for key, value in catalog.items()
-                if value["kind"] in InsightBatch.model_fields
-            },
+            insights={key: value for key, value in catalog.items() if value["kind"] in InsightBatch.model_fields},
             product=self._product_for_research(bundle.product),
             experiment=bundle.experiment,
             allowed_channels=channels,

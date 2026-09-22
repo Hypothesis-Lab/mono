@@ -6,12 +6,15 @@ dependencies = [
     "alembic>=1.20.0",
     "fastapi",
     "httpx",
+    "pydantic",
     "psycopg[binary]",
+    "sqlalchemy",
     "uvicorn[standard]",
 ]
 
 [dependency-groups]
 dev = [
+    "deptry",
     "flake8-clean-block>=0.1.2",
     "pyright>=1.1.414",
     "ruff>=0.16.7",
@@ -27,5 +30,11 @@ pythonVersion = "3.13"
 typeCheckingMode = "standard"
 exclude = ["collab"]
 
+[tool.deptry]
+extend_exclude = ["collab"]
+
+[tool.deptry.per_rule_ignores]
+DEP002 = ["uvicorn"]
+
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+select = ["E", "F", "I", "UP", "B", "SIM", "PIE", "RET", "ASYNC", "DTZ", "S"]
