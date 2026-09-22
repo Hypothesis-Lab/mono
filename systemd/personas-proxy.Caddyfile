@@ -1,0 +1,25 @@
+{
+	admin off
+	auto_https off
+}
+
+http://:5176 {
+	bind 127.0.0.1
+
+	@query {
+		method POST
+		path /api/v1/personas/query
+	}
+
+	handle @query {
+		reverse_proxy 127.0.0.1:5175
+	}
+
+	respond 404
+}
+
+http://:5177 {
+	bind 127.0.0.1
+
+	reverse_proxy 10.8.0.4:5173
+}

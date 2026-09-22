@@ -1,0 +1,13 @@
+[Unit]
+Description=Personas public reverse proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/caddy run --config /home/clanker/projects/startup/code/systemd/personas-proxy.Caddyfile --adapter caddyfile
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target
