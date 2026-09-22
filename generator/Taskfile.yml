@@ -1,0 +1,8 @@
+version: "3"
+
+tasks:
+  lint:
+    cmds:
+      - uv run ruff check app
+      - uv run pyright app
+      - uv run flake8 app --select CLB100

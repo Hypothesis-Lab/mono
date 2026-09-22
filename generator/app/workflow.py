@@ -57,6 +57,7 @@ class Workflow:
         questions, _ = self._readiness(bundle)
         if questions:
             raise ValueError("input is not ready: " + "; ".join(questions))
+
         progress = deepcopy(job.progress)
         node_id = self._next_node(progress)
         if node_id is None:
@@ -90,13 +91,16 @@ class Workflow:
                 node_id = f"{kind}:{persona.persona_id}"
                 if not self._completed(nodes, node_id):
                     return node_id
+
         if not self._completed(nodes, "ranking"):
             return "ranking"
+
         for item in self._output(nodes, "ranking")["top_3"]:
             for index in range(len(HYPOTHESIS_SLOTS)):
                 node_id = f"hypothesis:{item['persona_id']}:{index}"
                 if not self._completed(nodes, node_id):
                     return node_id
+
         return "diversity" if not self._completed(nodes, "diversity") else None
 
     def _run_node(
@@ -113,27 +117,35 @@ class Workflow:
         retry_message = previous_error if isinstance(previous_error, str) else None
         if kind == "eligibility" and persona_id:
             return self._eligibility(bundle.product, self.personas[persona_id])
+
         if kind == "interview_pre" and persona_id:
             return self._interview(
                 bundle.product, self.personas[persona_id], INTERVIEW_QUESTIONS[:5], None, retry_message
             )
+
         if kind == "interview_post" and persona_id:
             prior = self._output(nodes, f"interview_pre:{persona_id}")["answers"]
             return self._interview(
                 bundle.product, self.personas[persona_id], INTERVIEW_QUESTIONS[5:], prior, retry_message
             )
+
         if kind == "insights" and persona_id:
             return self._insights(self._answers(nodes, persona_id), retry_message)
+
         if kind == "score" and persona_id:
             persona = self.personas[persona_id]
             research = self._research(bundle.product, nodes, persona)
             return self._score(bundle.product, persona, research, retry_message)
+
         if kind == "ranking":
             return self._ranking(bundle.product, nodes)
+
         if kind == "hypothesis" and persona_id and len(parts) == 3:
             return self._hypothesis(bundle, nodes, self.personas[persona_id], int(parts[2]), retry_message)
+
         if kind == "diversity":
             return {"warnings": self._diversity_warnings(nodes)}
+
         raise ValueError(f"unknown workflow node {node_id}")
 
     def _interview(
@@ -302,17 +314,22 @@ available. Keep fields short, write in Russian, and return only JSON.
                 research
             ):
                 raise ValueError(f"stale score for {persona.persona_id}")
+
             self._validate_score(score.scores, product, persona, research)
             final_score = self._weighted_score(score.scores)
             reasons = []
             if not eligibility["hard_eligible"]:
                 reasons.append("formal eligibility failed or is unknown")
+
             if score.scores.need_strength.value < MIN_NEED_LEVEL:
                 reasons.append("need is below the minimum")
+
             if score.scores.product_value_fit.value < MIN_FIT_LEVEL:
                 reasons.append("product fit is below the minimum")
+
             if final_score < MIN_TOTAL_SCORE:
                 reasons.append("total score is below the minimum")
+
             rows.append(
                 {
                     "persona_id": persona.persona_id,
@@ -325,6 +342,7 @@ available. Keep fields short, write in Russian, and return only JSON.
                     "research_signature": score.research_signature,
                 }
             )
+
         rows.sort(
             key=lambda item: (
                 -item["final_score"],
@@ -339,17 +357,22 @@ available. Keep fields short, write in Russian, and return only JSON.
         for index, row in enumerate(rows, 1):
             if row["final_score"] != previous_score:
                 score_rank = index
+
             row["score_rank"] = score_rank
             previous_score = row["final_score"]
+
         top = deepcopy([row for row in rows if row["selection_eligible"]][:TOP_K])
         for index, row in enumerate(top, 1):
             row["selection_order"] = index
+
         warnings = []
         if len(top) < TOP_K:
             warnings.append(f"only {len(top)} of {len(PERSONAS)} personas meet the selection criteria")
+
         candidates = [row for row in rows if row["selection_eligible"]]
         if len(candidates) > TOP_K and candidates[TOP_K - 1]["final_score"] - candidates[TOP_K]["final_score"] <= 5:
             warnings.append("the top-three boundary is within five points and needs human review")
+
         return {"ranking": rows, "top_3": top, "warnings": warnings}
 
     def _eligibility(self, product: Product, persona: SyntheticPersona) -> dict[str, Any]:
@@ -381,15 +404,20 @@ available. Keep fields short, write in Russian, and return only JSON.
     def _matches_rule(actual: object, operator: str, expected: object) -> bool | None:
         if actual is None:
             return None
+
         try:
             if operator == "eq":
                 return actual == expected
+
             if operator == "in":
                 return isinstance(expected, list) and actual in expected
+
             if operator == "gte":
                 return isinstance(actual, int) and isinstance(expected, int) and actual >= expected
+
             if operator == "lte":
                 return isinstance(actual, int) and isinstance(expected, int) and actual <= expected
+
             if operator == "between":
                 return (
                     isinstance(actual, int)
@@ -398,10 +426,12 @@ available. Keep fields short, write in Russian, and return only JSON.
                     and all(isinstance(item, int) for item in expected)
                     and expected[0] <= actual <= expected[1]
                 )
+
             if operator == "truthy":
                 return bool(actual) is bool(expected)
         except TypeError as error:
             raise ValueError(f"incompatible eligibility rule types for {operator}") from error
+
         raise ValueError(f"unknown eligibility operator {operator}")
 
     def _research(self, product: Product, nodes: dict[str, Any], persona: SyntheticPersona) -> ResearchRecord:
@@ -440,10 +470,12 @@ available. Keep fields short, write in Russian, and return only JSON.
                         answer_map[evidence.question_id]
                     ):
                         raise ValueError(f"{group} evidence must be a literal quote from its answer")
+
                 if group in {"pains", "needs"} and any(
                     evidence.question_id not in {"Q01", "Q02", "Q03", "Q04", "Q05"} for evidence in insight.evidence
                 ):
                     raise ValueError(f"{group} must be grounded before product exposure")
+
             if len(texts) != len(set(texts)):
                 raise ValueError(f"duplicate insights in {group}")
 
@@ -465,6 +497,7 @@ available. Keep fields short, write in Russian, and return only JSON.
                     "evidence": [item.model_dump() for item in insight.evidence],
                     "synthetic": True,
                 }
+
         for field in (
             "financial_behavior",
             "credit_attitude",
@@ -478,6 +511,7 @@ available. Keep fields short, write in Russian, and return only JSON.
                 "text": str(getattr(persona, field)),
                 "synthetic": True,
             }
+
         return catalog
 
     def _validate_score(
@@ -489,16 +523,21 @@ available. Keep fields short, write in Russian, and return only JSON.
             vote = MetricVote.model_validate(getattr(scores, name).model_dump())
             if set(vote.evidence_ids) - set(catalog):
                 raise ValueError(f"{name} references unknown evidence")
+
             if set(vote.fact_ids) - allowed_facts:
                 raise ValueError(f"{name} references unknown facts")
+
             if name in {"need_strength", "product_value_fit"}:
                 kinds = {catalog[evidence_id]["kind"] for evidence_id in vote.evidence_ids}
                 if not {"pains", "needs"}.issubset(kinds):
                     raise ValueError(f"{name} must cite both pain and need")
+
             if name == "product_value_fit" and not vote.fact_ids:
                 raise ValueError("product_value_fit requires fact_ids")
+
         if (product.price.status == "unknown" or product.unknowns) and scores.product_value_fit.value == 4:
             raise ValueError("unknown conditions prevent product_value_fit=4")
+
         if (
             not any(item.present for item in research.insights.pains)
             or not any(item.present for item in research.insights.needs)
@@ -514,9 +553,12 @@ available. Keep fields short, write in Russian, and return only JSON.
         for channel in campaign.allowed_channels:
             if channel == "in_app_banner" and not persona.has_cifra_debit_or_salary_card:
                 continue
+
             if channel in {"push", "email", "sms"} and persona.persona_id not in campaign.contactable_persona_ids:
                 continue
+
             channels.append(channel)
+
         return sorted(set(channels))
 
     def _validate_hypothesis(
@@ -531,6 +573,7 @@ available. Keep fields short, write in Russian, and return only JSON.
         for insight_id, kind in ((draft.pain_id, "pains"), (draft.need_id, "needs")):
             if insight_id not in catalog or catalog[insight_id]["kind"] != kind or not catalog[insight_id]["present"]:
                 raise ValueError(f"{kind} must be a present insight for this persona")
+
         for insight_id in draft.supporting_insight_ids:
             if insight_id not in catalog or catalog[insight_id]["kind"] not in {
                 "desires",
@@ -539,27 +582,33 @@ available. Keep fields short, write in Russian, and return only JSON.
                 "use_cases",
             }:
                 raise ValueError("supporting insight is invalid")
+
         fact_ids = {fact.fact_id for fact in bundle.product.facts}
         if not set(draft.selected_fact_ids).issubset(fact_ids) or len(draft.selected_fact_ids) != len(
             set(draft.selected_fact_ids)
         ):
             raise ValueError("hypothesis references unknown or duplicate facts")
+
         if draft.channel is not None and draft.channel not in self._available_channels(
             bundle.product, persona, bundle.campaign
         ):
             raise ValueError("hypothesis uses an unavailable channel")
+
         free_text = " ".join(
             (draft.headline, draft.offer_value, draft.change_to_test, draft.mechanism, draft.why_for_persona)
         )
         if re.search(r"\d", draft.headline + draft.offer_value):
             raise ValueError("headline and offer_value cannot contain numbers")
+
         for claim in bundle.product.forbidden_claims + ["гарантированно", "бесплатные деньги"]:
             if self._norm(claim) in self._norm(free_text):
                 raise ValueError(f"hypothesis contains forbidden claim {claim}")
+
         if bundle.product.price.status == "unknown" and re.search(
             r"бесплатн|без комисси|без переплат", self._norm(draft.headline + " " + draft.offer_value)
         ):
             raise ValueError("unknown price cannot be presented as free")
+
         for item in previous:
             if (
                 self._norm(item["headline"]) == self._norm(draft.headline)
@@ -648,6 +697,7 @@ available. Keep fields short, write in Russian, and return only JSON.
                     and self._word_similarity(left["change_to_test"], right["change_to_test"]) >= 0.85
                 ):
                     warnings.append(f"{left['hypothesis_id']} and {right['hypothesis_id']} may duplicate meaning")
+
         return warnings
 
     def _result(self, bundle: InputBundle, progress: dict[str, Any]) -> dict[str, Any]:
@@ -702,10 +752,12 @@ available. Keep fields short, write in Russian, and return only JSON.
     def _verify_result(self, result: dict[str, Any], bundle: InputBundle, progress: dict[str, Any]) -> None:
         if result["pipeline_version"] != PIPELINE_VERSION or result["input_signature"] != self._fingerprint(bundle):
             raise ValueError("result does not match current input")
+
         nodes = self._nodes(progress)
         expected = self._ranking(bundle.product, nodes)
         if result["ranking"] != expected["ranking"] or result["top_3"] != expected["top_3"]:
             raise ValueError("ranking changed before persistence")
+
         for row in result["top_3"]:
             persona = self.personas[row["persona_id"]]
             research = self._research(bundle.product, nodes, persona)
@@ -713,11 +765,13 @@ available. Keep fields short, write in Russian, and return only JSON.
             hypotheses = result["hypotheses_by_persona"].get(persona.persona_id, [])
             if len(hypotheses) != len(HYPOTHESIS_SLOTS):
                 raise ValueError("selected persona is missing hypotheses")
+
             for index, hypothesis in enumerate(hypotheses):
                 draft = HypothesisDraft.model_validate({key: hypothesis[key] for key in HypothesisDraft.model_fields})
                 self._validate_hypothesis(draft, bundle, persona, research, previous)
                 if hypothesis != self._materialize_hypothesis(bundle, persona, research, row, draft, index):
                     raise ValueError("hypothesis was modified after validation")
+
                 previous.append(hypothesis)
 
     @staticmethod
@@ -726,17 +780,23 @@ available. Keep fields short, write in Russian, and return only JSON.
         questions = []
         if len(product.facts) < 3:
             questions.append("add at least three confirmed product facts")
+
         if not product.key_fact_ids:
             questions.append("identify key product fact IDs")
+
         if re.search(r"выбрать.*(?:три|3).*персон|сформировать.*гипотез", experiment.business_goal.lower()):
             questions.append("replace the technical generation task with a business goal")
+
         warnings = list(product.unknowns)
         if product.price.status == "unknown":
             warnings.append("price is unknown: do not claim that the product is free or has no fee")
+
         if not bundle.campaign.allowed_channels:
             warnings.append("no campaign channels are configured; hypotheses will use channel=null")
+
         if not experiment.success_criterion:
             warnings.append("success criterion is not set; define it after baseline and power analysis")
+
         return questions, warnings
 
     def _research_signature(self, product: Product, persona: SyntheticPersona) -> str:
@@ -802,6 +862,7 @@ available. Keep fields short, write in Russian, and return only JSON.
     def _fingerprint(value: object) -> str:
         if isinstance(value, BaseModel):
             value = value.model_dump(mode="json")
+
         return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True, default=str).encode()).hexdigest()
 
     @staticmethod
@@ -827,8 +888,10 @@ available. Keep fields short, write in Russian, and return only JSON.
             value = json.loads(cleaned)
         except json.JSONDecodeError as error:
             raise ValueError(f"model output was not valid JSON: {error.msg}") from error
+
         if not isinstance(value, dict):
             raise ValueError("model output JSON must be an object")
+
         return value
 
     @staticmethod
@@ -840,9 +903,11 @@ available. Keep fields short, write in Russian, and return only JSON.
                 if "properties" in value:
                     value["required"] = list(value["properties"])
                     value["additionalProperties"] = False
+
                 values.extend(value.values())
             elif isinstance(value, list):
                 values.extend(value)
+
         return schema
 
     @staticmethod
@@ -850,6 +915,7 @@ available. Keep fields short, write in Russian, and return only JSON.
         nodes = progress.setdefault("nodes", {})
         if not isinstance(nodes, dict):
             raise ValueError("job progress nodes must be an object")
+
         return nodes
 
     @staticmethod
@@ -857,6 +923,7 @@ available. Keep fields short, write in Russian, and return only JSON.
         state = nodes.get(node_id, {})
         if not isinstance(state, dict):
             raise ValueError(f"job progress node {node_id} must be an object")
+
         return state
 
     def _completed(self, nodes: dict[str, Any], node_id: str) -> bool:
@@ -867,4 +934,5 @@ available. Keep fields short, write in Russian, and return only JSON.
         output = state.get("output")
         if state.get("completed") is not True or not isinstance(output, dict):
             raise ValueError(f"workflow node {node_id} has no completed output")
+
         return output

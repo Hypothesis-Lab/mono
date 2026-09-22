@@ -39,6 +39,7 @@ class Worker:
                 if job is None:
                     self._stop.wait(0.5)
                     continue
+
                 self.current_job_id = str(job.id)
                 self.current_product_id = job.product_id
                 self.workflow.process_one_node(job)

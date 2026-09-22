@@ -55,8 +55,10 @@ class JobRepository:
                 row = cursor.fetchone()
         except psycopg.errors.UniqueViolation as error:
             raise JobAlreadyQueuedError from error
+
         if row is None:
             raise RuntimeError("creating generator job returned no row")
+
         return self._job(dict(row))
 
     def get(self, job_id: UUID) -> Job | None:
@@ -73,6 +75,7 @@ class JobRepository:
                 (job_id,),
             )
             row = cursor.fetchone()
+
         return self._job(dict(row)) if row else None
 
     def generation_status(self, product_id: str) -> Literal["created", "failed"] | None:
@@ -89,10 +92,13 @@ class JobRepository:
                 (product_id,),
             )
             row = cursor.fetchone()
+
         if row is None:
             return None
+
         if row[0]:
             return "failed"
+
         return "created"
 
     def retry(self, product_id: str) -> bool:
@@ -147,8 +153,10 @@ class JobRepository:
                 """
             )
             row = cursor.fetchone()
+
         if row is None:
             return None
+
         return CompletedJob(
             id=cast(UUID, row["id"]),
             product_id=cast(str, row["product_id"]),
@@ -186,6 +194,7 @@ class JobRepository:
                 """
             )
             row = cursor.fetchone()
+
         return self._job(dict(row)) if row else None
 
     def save_progress(self, job_id: UUID, progress: dict[str, Any]) -> None:
@@ -228,8 +237,10 @@ class JobRepository:
                 """
             )
             row = cursor.fetchone()
+
         if row is None:
             raise RuntimeError("counting generator jobs returned no row")
+
         queued, blocked = row
         return int(queued), int(blocked)
 

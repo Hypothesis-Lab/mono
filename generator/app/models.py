@@ -25,6 +25,7 @@ class ProductPrice(StrictModel):
     def known_price_has_sources(self) -> ProductPrice:
         if self.status == "known" and not self.source_fact_ids:
             raise ValueError("known price requires source_fact_ids")
+
         return self
 
 
@@ -60,13 +61,17 @@ class Product(StrictModel):
         fact_ids = [fact.fact_id for fact in self.facts]
         if len(fact_ids) != len(set(fact_ids)):
             raise ValueError("product contains duplicate fact_id")
+
         for fact_id in self.key_fact_ids + self.price.source_fact_ids:
             if fact_id not in fact_ids:
                 raise ValueError(f"unknown fact_id {fact_id}")
+
         if self.category == "other" and self.custom_category is None:
             raise ValueError("custom_category is required when category is other")
+
         if self.category != "other" and self.custom_category is not None:
             raise ValueError("custom_category is only allowed when category is other")
+
         return self
 
 

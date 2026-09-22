@@ -22,10 +22,13 @@ class Settings:
         openai_reasoning_effort = os.environ.get("OPENAI_REASONING_EFFORT")
         if not openai_base_url:
             raise RuntimeError("OPENAI_BASE_URL is required")
+
         if not openai_api_key:
             raise RuntimeError("OPENAI_API_KEY is required")
+
         if not openai_model:
             raise RuntimeError("OPENAI_MODEL is required")
+
         if not openai_reasoning_effort:
             raise RuntimeError("OPENAI_REASONING_EFFORT is required")
 

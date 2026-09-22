@@ -47,7 +47,9 @@ class LLMClient:
             message = f"LLM returned {response.status_code} {response.reason_phrase}"
             if body:
                 message += f": {body}"
+
             raise RuntimeError(message)
+
         body = response.json()
 
         try:
@@ -57,4 +59,5 @@ class LLMClient:
 
         if not isinstance(content, str):
             raise ValueError("OpenAI-compatible response content was not a string")
+
         return content

@@ -28,6 +28,7 @@ def create_job(request: Request, body: CreateJobRequest) -> CreateJobResponse:
         job = repository.create(body.product_id, body.input.model_dump(mode="json"))
     except JobAlreadyQueuedError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="product already queued") from error
+
     return CreateJobResponse(id=str(job.id), finished=job.finished)
 
 
@@ -36,6 +37,7 @@ def get_job(request: Request, job_id: UUID) -> JobResponse:
     job = _repository(request).get(job_id)
     if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found")
+
     return _job_response(job)
 
 
@@ -50,6 +52,7 @@ def product_generation_status(request: Request, product_id: str) -> ProductGener
     generation_status = _repository(request).generation_status(product_id)
     if generation_status is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="generation job not found")
+
     return ProductGenerationStatusResponse(status=generation_status)
 
 
@@ -60,6 +63,7 @@ def product_generation_status(request: Request, product_id: str) -> ProductGener
 def retry_product_generation(request: Request, product_id: str) -> ProductGenerationStatusResponse:
     if not _repository(request).retry(product_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="failed generation job not found")
+
     return ProductGenerationStatusResponse(status="created")
 
 
@@ -72,6 +76,7 @@ def next_completed_job(request: Request) -> CompletedJobResponse | Response:
     job = _repository(request).next_completed()
     if job is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
     return CompletedJobResponse(id=str(job.id), product_id=job.product_id, result=job.result)
 
 
@@ -79,6 +84,7 @@ def next_completed_job(request: Request) -> CompletedJobResponse | Response:
 def mark_completed_job_persisted(request: Request, job_id: UUID) -> Response:
     if not _repository(request).mark_persisted(job_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="completed job not found")
+
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

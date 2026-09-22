@@ -12,6 +12,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "flake8-clean-block>=0.1.2",
     "pyright>=1.1.414",
     "ruff>=0.16.7",
 ]
