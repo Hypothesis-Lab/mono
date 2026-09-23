@@ -9,6 +9,7 @@ class Settings:
     openai_api_key: str
     openai_model: str
     openai_reasoning_effort: str
+    worker_concurrency: int
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -32,10 +33,15 @@ class Settings:
         if not openai_reasoning_effort:
             raise RuntimeError("OPENAI_REASONING_EFFORT is required")
 
+        worker_concurrency = int(os.environ.get("GENERATOR_WORKER_CONCURRENCY", "1"))
+        if worker_concurrency < 1:
+            raise ValueError("GENERATOR_WORKER_CONCURRENCY must be positive")
+
         return cls(
             database_url=database_url,
             openai_base_url=openai_base_url,
             openai_api_key=openai_api_key,
             openai_model=openai_model,
             openai_reasoning_effort=openai_reasoning_effort,
+            worker_concurrency=worker_concurrency,
         )

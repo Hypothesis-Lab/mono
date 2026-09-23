@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
 import re
 from copy import deepcopy
 from datetime import UTC, datetime
@@ -19,8 +18,7 @@ from app.catalog import (
     PERSONAS,
     TOP_K,
 )
-from app.db import Job, JobRepository
-from app.llm_client import LLMClient
+from app.llm_client import LLM
 from app.models import (
     AnswerBatch,
     CampaignConfig,
@@ -35,118 +33,73 @@ from app.models import (
     ScoreRecord,
     SyntheticPersona,
 )
+from app.pipeline.blueprint import HypothesisAngle, Stage
+from app.pipeline.graph import PipelineNode
 
-logger = logging.getLogger(__name__)
 ModelT = TypeVar("ModelT", bound=BaseModel)
 PIPELINE_VERSION = "5.0_pain_need_grounded"
-HYPOTHESIS_SLOTS = [
-    ("pain_relief", "Test a message about relieving the selected pain."),
-    ("need_solution", "Test a different message about the selected need."),
-    ("decision_support", "Test decision support without replacing the pain or need."),
-]
+HYPOTHESIS_ROLES = {
+    HypothesisAngle.PAIN_RELIEF: "Test a message about relieving the selected pain.",
+    HypothesisAngle.NEED_SOLUTION: "Test a different message about the selected need.",
+    HypothesisAngle.DECISION_SUPPORT: "Test decision support without replacing the pain or need.",
+}
 
 
 class Workflow:
-    def __init__(self, repository: JobRepository, llm: LLMClient) -> None:
-        self.repository = repository
+    def __init__(self, llm: LLM) -> None:
         self.llm = llm
         self.personas = {persona.persona_id: persona for persona in PERSONAS}
 
-    def process_one_node(self, job: Job) -> None:
-        bundle = InputBundle.model_validate(job.input)
+    def validate_input(self, bundle: InputBundle) -> None:
         questions, _ = self._readiness(bundle)
         if questions:
             raise ValueError("input is not ready: " + "; ".join(questions))
 
-        progress = deepcopy(job.progress)
-        node_id = self._next_node(progress)
-        if node_id is None:
-            result = self._result(bundle, progress)
-            self._verify_result(result, bundle, progress)
-            self.repository.finish(job.id, result)
-            return
-
-        nodes = self._nodes(progress)
-        previous = self._node_state(nodes, node_id)
-        retry_count = int(previous.get("retry_count", 0))
-        try:
-            output = self._run_node(bundle, progress, node_id, previous.get("last_error"))
-        except Exception as error:
-            nodes[node_id] = {
-                "completed": False,
-                "retry_count": retry_count + 1,
-                "last_error": str(error)[:1000],
-            }
-            self.repository.save_progress(job.id, progress)
-            logger.exception("generation node failed", extra={"job_id": str(job.id), "node_id": node_id})
-            return
-
-        nodes[node_id] = {"completed": True, "retry_count": retry_count, "output": output}
-        self.repository.save_progress(job.id, progress)
-
-    def _next_node(self, progress: dict[str, Any]) -> str | None:
-        nodes = self._nodes(progress)
-        for persona in PERSONAS:
-            for kind in ("eligibility", "interview_pre", "interview_post", "insights", "score"):
-                node_id = f"{kind}:{persona.persona_id}"
-                if not self._completed(nodes, node_id):
-                    return node_id
-
-        if not self._completed(nodes, "ranking"):
-            return "ranking"
-
-        for item in self._output(nodes, "ranking")["top_3"]:
-            for index in range(len(HYPOTHESIS_SLOTS)):
-                node_id = f"hypothesis:{item['persona_id']}:{index}"
-                if not self._completed(nodes, node_id):
-                    return node_id
-
-        return "diversity" if not self._completed(nodes, "diversity") else None
-
-    def _run_node(
+    def execute(
         self,
         bundle: InputBundle,
-        progress: dict[str, Any],
-        node_id: str,
-        previous_error: object,
+        nodes: dict[str, Any],
+        node: PipelineNode,
+        previous_error: str | None,
     ) -> dict[str, Any]:
-        nodes = self._nodes(progress)
-        parts = node_id.split(":")
-        kind = parts[0]
-        persona_id = parts[1] if len(parts) > 1 else None
-        retry_message = previous_error if isinstance(previous_error, str) else None
-        if kind == "eligibility" and persona_id:
+        kind, persona_id = node.ref.stage, node.ref.entity_id
+        if kind == Stage.ELIGIBILITY and persona_id:
             return self._eligibility(bundle.product, self.personas[persona_id])
 
-        if kind == "interview_pre" and persona_id:
+        if kind == Stage.INTERVIEW_PRE and persona_id:
             return self._interview(
-                bundle.product, self.personas[persona_id], INTERVIEW_QUESTIONS[:5], None, retry_message
+                bundle.product, self.personas[persona_id], INTERVIEW_QUESTIONS[:5], None, previous_error
             )
 
-        if kind == "interview_post" and persona_id:
+        if kind == Stage.INTERVIEW_POST and persona_id:
             prior = self._output(nodes, f"interview_pre:{persona_id}")["answers"]
             return self._interview(
-                bundle.product, self.personas[persona_id], INTERVIEW_QUESTIONS[5:], prior, retry_message
+                bundle.product, self.personas[persona_id], INTERVIEW_QUESTIONS[5:], prior, previous_error
             )
 
-        if kind == "insights" and persona_id:
-            return self._insights(self._answers(nodes, persona_id), retry_message)
+        if kind == Stage.INSIGHTS and persona_id:
+            return self._insights(self._answers(nodes, persona_id), previous_error)
 
-        if kind == "score" and persona_id:
+        if kind == Stage.SCORE and persona_id:
             persona = self.personas[persona_id]
             research = self._research(bundle.product, nodes, persona)
-            return self._score(bundle.product, persona, research, retry_message)
+            return self._score(bundle.product, persona, research, previous_error)
 
-        if kind == "ranking":
+        if kind == Stage.RANKING:
             return self._ranking(bundle.product, nodes)
 
-        if kind == "hypothesis" and persona_id and len(parts) == 3:
-            return self._hypothesis(bundle, nodes, self.personas[persona_id], int(parts[2]), retry_message)
+        if kind == Stage.HYPOTHESIS and persona_id and node.ref.variant is not None:
+            return self._hypothesis(bundle, nodes, self.personas[persona_id], node.ref.variant, previous_error)
 
-        if kind == "diversity":
+        if kind == Stage.DIVERSITY:
             return {"warnings": self._diversity_warnings(nodes)}
 
-        raise ValueError(f"unknown workflow node {node_id}")
+        if kind == Stage.RESULT:
+            result = self._result(bundle, {"nodes": nodes})
+            self._verify_result(result, bundle, {"nodes": nodes})
+            return result
+
+        raise ValueError(f"unknown workflow node {node.id}")
 
     def _interview(
         self,
@@ -286,7 +239,7 @@ invent audiences, rates, prices, approval, features, or numerical results. In he
 do not use numbers: confirmed conditions are added separately. A channel may be null when none is
 available. Keep fields short, write in Russian, and return only JSON.
 """,
-            role=HYPOTHESIS_SLOTS[slot_index][1],
+            role=HYPOTHESIS_ROLES[list(HypothesisAngle)[slot_index]],
             persona=persona,
             insights={key: value for key, value in catalog.items() if value["kind"] in InsightBatch.model_fields},
             product=self._product_for_research(bundle.product),
@@ -631,7 +584,7 @@ available. Keep fields short, write in Russian, and return only JSON.
                 "persona_score": row["final_score"],
                 "input_signature": research.input_signature,
                 "research_signature": self._fingerprint(research),
-                "angle": HYPOTHESIS_SLOTS[slot_index][0],
+                "angle": list(HypothesisAngle)[slot_index].value,
                 "insight_type": "pain_and_need",
                 "insight_basis": [
                     {"insight_id": insight_id, **catalog[insight_id]} for insight_id in (draft.pain_id, draft.need_id)
@@ -681,7 +634,7 @@ available. Keep fields short, write in Russian, and return only JSON.
         hypotheses = [
             self._output(nodes, f"hypothesis:{row['persona_id']}:{index}")
             for row in top
-            for index in range(len(HYPOTHESIS_SLOTS))
+            for index in range(len(HypothesisAngle))
         ]
         warnings = []
         for index, left in enumerate(hypotheses):
@@ -724,7 +677,7 @@ available. Keep fields short, write in Russian, and return only JSON.
             "hypotheses_by_persona": {
                 row["persona_id"]: [
                     self._output(nodes, f"hypothesis:{row['persona_id']}:{index}")
-                    for index in range(len(HYPOTHESIS_SLOTS))
+                    for index in range(len(HypothesisAngle))
                 ]
                 for row in ranking["top_3"]
             },
@@ -757,7 +710,7 @@ available. Keep fields short, write in Russian, and return only JSON.
             research = self._research(bundle.product, nodes, persona)
             previous = []
             hypotheses = result["hypotheses_by_persona"].get(persona.persona_id, [])
-            if len(hypotheses) != len(HYPOTHESIS_SLOTS):
+            if len(hypotheses) != len(HypothesisAngle):
                 raise ValueError("selected persona is missing hypotheses")
 
             for index, hypothesis in enumerate(hypotheses):
@@ -919,9 +872,6 @@ available. Keep fields short, write in Russian, and return only JSON.
             raise ValueError(f"job progress node {node_id} must be an object")
 
         return state
-
-    def _completed(self, nodes: dict[str, Any], node_id: str) -> bool:
-        return self._node_state(nodes, node_id).get("completed") is True
 
     def _output(self, nodes: dict[str, Any], node_id: str) -> dict[str, Any]:
         state = self._node_state(nodes, node_id)

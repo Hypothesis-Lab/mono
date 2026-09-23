@@ -9,21 +9,11 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from app.pipeline.storage import Job
+
 
 class JobAlreadyQueuedError(Exception):
     pass
-
-
-@dataclass(frozen=True)
-class Job:
-    id: UUID
-    product_id: str
-    input: dict[str, Any]
-    progress: dict[str, Any]
-    result: dict[str, Any] | None
-    finished: bool
-    created_at: datetime
-    finished_at: datetime | None
 
 
 @dataclass(frozen=True)
@@ -78,14 +68,13 @@ class JobRepository:
 
         return self._job(dict(row)) if row else None
 
-    def generation_status(self, product_id: str) -> Literal["created", "failed"] | None:
+    def generation_status(self, product_id: str) -> Literal["created", "working", "failed"] | None:
         with self._connection() as connection, connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT jsonb_path_exists(
-                    progress,
-                    '$.nodes.* ? (@.completed == false && @.retry_count >= 2)'
-                )
+                SELECT
+                    jsonb_path_exists(progress, '$.nodes.* ? (@.completed == false && @.retry_count >= 2)'),
+                    claim_until > NOW()
                 FROM generator.job
                 WHERE product_id = %s AND NOT finished
                 """,
@@ -99,7 +88,7 @@ class JobRepository:
         if row[0]:
             return "failed"
 
-        return "created"
+        return "working" if row[1] else "created"
 
     def retry(self, product_id: str) -> bool:
         with (
@@ -112,6 +101,7 @@ class JobRepository:
                 FROM generator.job
                 WHERE product_id = %s
                   AND NOT finished
+                  AND (claim_until IS NULL OR claim_until <= NOW())
                   AND jsonb_path_exists(
                       progress,
                       '$.nodes.* ? (@.completed == false && @.retry_count >= 2)'
@@ -133,7 +123,8 @@ class JobRepository:
                     break
 
             cursor.execute(
-                "UPDATE generator.job SET progress = %s WHERE id = %s AND NOT finished",
+                """UPDATE generator.job SET progress = %s, claim_token = NULL, claim_until = NULL
+                   WHERE id = %s AND NOT finished""",
                 (Jsonb(progress), row["id"]),
             )
             return cursor.rowcount > 0
@@ -175,45 +166,62 @@ class JobRepository:
             )
             return cursor.rowcount > 0
 
-    def next_eligible(self) -> Job | None:
+    def claim_next(self, max_attempts: int) -> tuple[Job, UUID] | None:
+        token = uuid4()
         with (
             self._connection() as connection,
             connection.cursor(row_factory=dict_row) as cursor,
         ):
             cursor.execute(
                 """
-                SELECT id, product_id, input, progress, result, finished, created_at, finished_at
-                FROM generator.job
-                WHERE NOT finished
-                  AND NOT jsonb_path_exists(
-                      progress,
-                      '$.nodes.* ? (@.completed == false && @.retry_count >= 2)'
-                  )
-                ORDER BY created_at
-                LIMIT 1
-                """
+                WITH next_job AS (
+                    SELECT id FROM generator.job
+                    WHERE NOT finished
+                      AND (claim_until IS NULL OR claim_until <= NOW())
+                      AND NOT jsonb_path_exists(
+                          progress,
+                          '$.nodes.* ? (@.completed == false && @.retry_count >= $limit)',
+                          jsonb_build_object('limit', %s)
+                      )
+                    ORDER BY created_at
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED
+                )
+                UPDATE generator.job AS job
+                SET claim_token = %s, claim_until = NOW() + INTERVAL '5 minutes'
+                FROM next_job
+                WHERE job.id = next_job.id
+                RETURNING job.id, job.product_id, job.input, job.progress, job.result,
+                          job.finished, job.created_at, job.finished_at
+                """,
+                (max_attempts, token),
             )
             row = cursor.fetchone()
 
-        return self._job(dict(row)) if row else None
+        return (self._job(dict(row)), token) if row else None
 
-    def save_progress(self, job_id: UUID, progress: dict[str, Any]) -> None:
+    def save_progress(self, job_id: UUID, token: UUID, progress: dict[str, Any]) -> None:
         with self._connection() as connection, connection.cursor() as cursor:
             cursor.execute(
-                "UPDATE generator.job SET progress = %s WHERE id = %s AND NOT finished",
-                (Jsonb(progress), job_id),
+                """UPDATE generator.job SET progress = %s, claim_token = NULL, claim_until = NULL
+                   WHERE id = %s AND claim_token = %s AND NOT finished""",
+                (Jsonb(progress), job_id, token),
             )
+            if cursor.rowcount != 1:
+                raise RuntimeError(f"lost claim while saving generator job {job_id}")
 
-    def finish(self, job_id: UUID, result: dict[str, Any]) -> None:
+    def finish(self, job_id: UUID, token: UUID, result: dict[str, Any]) -> None:
         with self._connection() as connection, connection.cursor() as cursor:
             cursor.execute(
                 """
                 UPDATE generator.job
-                SET result = %s, finished = TRUE, finished_at = NOW()
-                WHERE id = %s AND NOT finished
+                SET result = %s, finished = TRUE, finished_at = NOW(), claim_token = NULL, claim_until = NULL
+                WHERE id = %s AND claim_token = %s AND NOT finished
                 """,
-                (Jsonb(result), job_id),
+                (Jsonb(result), job_id, token),
             )
+            if cursor.rowcount != 1:
+                raise RuntimeError(f"lost claim while finishing generator job {job_id}")
 
     def counts(self) -> tuple[int, int]:
         with self._connection() as connection, connection.cursor() as cursor:
@@ -243,6 +251,17 @@ class JobRepository:
 
         queued, blocked = row
         return int(queued), int(blocked)
+
+    def current_job_id(self) -> str | None:
+        with self._connection() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT id FROM generator.job
+                   WHERE NOT finished AND claim_until > NOW()
+                   ORDER BY created_at LIMIT 1"""
+            )
+            row = cursor.fetchone()
+
+        return str(row[0]) if row else None
 
     def _connection(self) -> psycopg.Connection[Any]:
         return cast(psycopg.Connection[Any], psycopg.connect(self.database_url))

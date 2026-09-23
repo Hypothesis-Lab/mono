@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
 
-from app.db import Job, JobAlreadyQueuedError, JobRepository
+from app.db import JobAlreadyQueuedError, JobRepository
 from app.models import (
     CompletedJobResponse,
     CreateJobRequest,
@@ -12,6 +12,7 @@ from app.models import (
     ProductGenerationStatusResponse,
     WorkerStatusResponse,
 )
+from app.pipeline.storage import Job
 
 router = APIRouter()
 
@@ -46,9 +47,6 @@ def get_job(request: Request, job_id: UUID) -> JobResponse:
     response_model=ProductGenerationStatusResponse,
 )
 def product_generation_status(request: Request, product_id: str) -> ProductGenerationStatusResponse:
-    if _worker(request).current_product_id == product_id:
-        return ProductGenerationStatusResponse(status="working")
-
     generation_status = _repository(request).generation_status(product_id)
     if generation_status is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="generation job not found")
@@ -93,7 +91,7 @@ def worker_status(request: Request) -> WorkerStatusResponse:
     repository = _repository(request)
     queued_jobs, blocked_jobs = repository.counts()
     return WorkerStatusResponse(
-        current_job_id=_worker(request).current_job_id,
+        current_job_id=repository.current_job_id(),
         queued_jobs=queued_jobs,
         blocked_jobs=blocked_jobs,
     )
@@ -101,10 +99,6 @@ def worker_status(request: Request) -> WorkerStatusResponse:
 
 def _repository(request: Request) -> JobRepository:
     return request.app.state.repository
-
-
-def _worker(request: Request):
-    return request.app.state.worker
 
 
 def _job_response(job: Job) -> JobResponse:
