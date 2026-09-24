@@ -29,6 +29,7 @@ type GeneratorClient struct {
 
 type generatorJobRequest struct {
 	ProductID string         `json:"product_id"`
+	Kind      string         `json:"kind"`
 	Input     generatorInput `json:"input"`
 }
 
@@ -133,6 +134,7 @@ func NewGeneratorClient(cfg *config.Config) *GeneratorClient {
 func (c *GeneratorClient) QueueProduct(ctx context.Context, p *product.Product) (string, error) {
 	requestBody, err := json.Marshal(generatorJobRequest{
 		ProductID: p.ID,
+		Kind:      "audiences",
 		Input: generatorInput{
 			Product: generatorProduct{
 				Brand:            p.Brand,

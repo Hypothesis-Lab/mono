@@ -1,4 +1,4 @@
-from app.models import InterviewQuestion, SyntheticPersona
+from app.pipelines.audiences.models import InterviewQuestion, SyntheticPersona
 
 PERSONAS = [
     SyntheticPersona(

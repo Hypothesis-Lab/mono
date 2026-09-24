@@ -98,43 +98,6 @@ class InputBundle(StrictModel):
     campaign: CampaignConfig = Field(default_factory=CampaignConfig)
 
 
-class CreateJobRequest(StrictModel):
-    product_id: str = Field(min_length=1)
-    input: InputBundle
-
-
-class CreateJobResponse(StrictModel):
-    id: str
-    finished: bool
-
-
-class JobResponse(StrictModel):
-    id: str
-    product_id: str
-    input: InputBundle
-    progress: dict[str, object]
-    result: dict[str, object] | None
-    finished: bool
-    created_at: str
-    finished_at: str | None
-
-
-class CompletedJobResponse(StrictModel):
-    id: str
-    product_id: str
-    result: dict[str, object]
-
-
-class WorkerStatusResponse(StrictModel):
-    current_job_id: str | None
-    queued_jobs: int
-    blocked_jobs: int
-
-
-class ProductGenerationStatusResponse(StrictModel):
-    status: Literal["created", "working", "failed"]
-
-
 class SyntheticPersona(StrictModel):
     persona_id: str
     label: str

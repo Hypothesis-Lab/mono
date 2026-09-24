@@ -10,6 +10,7 @@ class Settings:
     openai_model: str
     openai_reasoning_effort: str
     worker_concurrency: int
+    graph_max_concurrency: int
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -33,9 +34,13 @@ class Settings:
         if not openai_reasoning_effort:
             raise RuntimeError("OPENAI_REASONING_EFFORT is required")
 
-        worker_concurrency = int(os.environ.get("GENERATOR_WORKER_CONCURRENCY", "1"))
+        worker_concurrency = int(os.environ.get("GENERATOR_WORKER_CONCURRENCY", "2"))
         if worker_concurrency < 1:
             raise ValueError("GENERATOR_WORKER_CONCURRENCY must be positive")
+
+        graph_max_concurrency = int(os.environ.get("GENERATOR_GRAPH_MAX_CONCURRENCY", "2"))
+        if graph_max_concurrency < 1:
+            raise ValueError("GENERATOR_GRAPH_MAX_CONCURRENCY must be positive")
 
         return cls(
             database_url=database_url,
@@ -44,4 +49,5 @@ class Settings:
             openai_model=openai_model,
             openai_reasoning_effort=openai_reasoning_effort,
             worker_concurrency=worker_concurrency,
+            graph_max_concurrency=graph_max_concurrency,
         )

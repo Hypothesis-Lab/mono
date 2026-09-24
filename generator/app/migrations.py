@@ -3,6 +3,9 @@ from pathlib import Path
 import psycopg
 from alembic import command
 from alembic.config import Config
+from langgraph.checkpoint.postgres import PostgresSaver
+
+from app.db import connect
 
 
 def apply(database_url: str) -> None:
@@ -12,6 +15,8 @@ def apply(database_url: str) -> None:
         config = Config(str(_project_root() / "alembic.ini"))
         config.set_main_option("sqlalchemy.url", _sqlalchemy_url(database_url))
         command.upgrade(config, "head")
+        with connect(database_url, autocommit=True) as saver_connection:
+            PostgresSaver(saver_connection).setup()
 
 
 def _project_root() -> Path:

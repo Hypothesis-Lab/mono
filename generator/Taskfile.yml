@@ -3,13 +3,13 @@ version: "3"
 tasks:
   lint:
     cmds:
-      - uv run ruff check app prototypes
-      - uv run pyright app prototypes
-      - uv run deptry . prototypes
-      - uv run flake8 app prototypes --select CLB100
+      - uv run ruff check app
+      - uv run pyright app
+      - uv run deptry .
+      - uv run flake8 app --select CLB100
   format:
     cmds:
-      - uv run ruff format app migrations prototypes
+      - uv run ruff format app migrations
   security:
     cmds:
       - uv audit --locked

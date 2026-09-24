@@ -3,13 +3,14 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from contextvars import ContextVar
 from copy import deepcopy
 from datetime import UTC, datetime
 from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from app.catalog import (
+from app.pipelines.audiences.catalog import (
     INTERVIEW_QUESTIONS,
     METRIC_WEIGHTS,
     MIN_FIT_LEVEL,
@@ -18,8 +19,8 @@ from app.catalog import (
     PERSONAS,
     TOP_K,
 )
-from app.llm_client import LLM
-from app.models import (
+from app.pipelines.audiences.llm import AudienceModel
+from app.pipelines.audiences.models import (
     AnswerBatch,
     CampaignConfig,
     HypothesisDraft,
@@ -33,10 +34,10 @@ from app.models import (
     ScoreRecord,
     SyntheticPersona,
 )
-from app.pipeline.blueprint import HypothesisAngle, Stage
-from app.pipeline.graph import PipelineNode
+from app.pipelines.audiences.state import AudienceOperation, HypothesisAngle, Stage
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
+_last_raw_response: ContextVar[str | None] = ContextVar("audience_last_raw_response", default=None)
 PIPELINE_VERSION = "5.0_pain_need_grounded"
 HYPOTHESIS_ROLES = {
     HypothesisAngle.PAIN_RELIEF: "Test a message about relieving the selected pain.",
@@ -45,24 +46,31 @@ HYPOTHESIS_ROLES = {
 }
 
 
-class Workflow:
-    def __init__(self, llm: LLM) -> None:
+class AudienceOperations:
+    def __init__(self, llm: AudienceModel) -> None:
         self.llm = llm
         self.personas = {persona.persona_id: persona for persona in PERSONAS}
+
+    @property
+    def last_raw_response(self) -> str | None:
+        return _last_raw_response.get()
+
+    def clear_last_raw_response(self) -> None:
+        _last_raw_response.set(None)
 
     def validate_input(self, bundle: InputBundle) -> None:
         questions, _ = self._readiness(bundle)
         if questions:
             raise ValueError("input is not ready: " + "; ".join(questions))
 
-    def execute(
+    def execute_operation(
         self,
         bundle: InputBundle,
         nodes: dict[str, Any],
-        node: PipelineNode,
+        node: AudienceOperation,
         previous_error: str | None,
     ) -> dict[str, Any]:
-        kind, persona_id = node.ref.stage, node.ref.entity_id
+        kind, persona_id = node.stage, node.audience_id
         if kind == Stage.ELIGIBILITY and persona_id:
             return self._eligibility(bundle.product, self.personas[persona_id])
 
@@ -88,8 +96,8 @@ class Workflow:
         if kind == Stage.RANKING:
             return self._ranking(bundle.product, nodes)
 
-        if kind == Stage.HYPOTHESIS and persona_id and node.ref.variant is not None:
-            return self._hypothesis(bundle, nodes, self.personas[persona_id], node.ref.variant, previous_error)
+        if kind == Stage.HYPOTHESIS and persona_id and node.angle is not None:
+            return self._hypothesis(bundle, nodes, self.personas[persona_id], node.angle, previous_error)
 
         if kind == Stage.DIVERSITY:
             return {"warnings": self._diversity_warnings(nodes)}
@@ -792,6 +800,7 @@ available. Keep fields short, write in Russian, and return only JSON.
         response = self.llm.complete(
             "Return one valid JSON object without Markdown or explanation.", prompt + retry, schema
         )
+        _last_raw_response.set(response)
         try:
             return model.model_validate(self._parse_json(response))
         except ValidationError as error:

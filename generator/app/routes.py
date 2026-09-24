@@ -1,20 +1,25 @@
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from app.db import JobAlreadyQueuedError, JobRepository
-from app.models import (
+from app.api_models import (
     CompletedJobResponse,
     CreateJobRequest,
     CreateJobResponse,
-    InputBundle,
     JobResponse,
     ProductGenerationStatusResponse,
     WorkerStatusResponse,
 )
-from app.pipeline.storage import Job
+from app.pipelines.audiences.models import InputBundle
+from app.repositories.jobs import Job, JobAlreadyQueuedError, JobRepository
 
 router = APIRouter()
+
+
+@router.get("/metrics", include_in_schema=False)
+def metrics() -> Response:
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @router.get("/healthz")
@@ -26,11 +31,11 @@ def healthz() -> None:
 def create_job(request: Request, body: CreateJobRequest) -> CreateJobResponse:
     repository = _repository(request)
     try:
-        job = repository.create(body.product_id, body.input.model_dump(mode="json"))
+        job = repository.create(body.product_id, body.kind, body.input.model_dump(mode="json"))
     except JobAlreadyQueuedError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="product already queued") from error
 
-    return CreateJobResponse(id=str(job.id), finished=job.finished)
+    return CreateJobResponse(id=str(job.id), kind="audiences", status="queued")
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
@@ -75,7 +80,7 @@ def next_completed_job(request: Request) -> CompletedJobResponse | Response:
     if job is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    return CompletedJobResponse(id=str(job.id), product_id=job.product_id, result=job.result)
+    return CompletedJobResponse(id=str(job.id), product_id=job.product_id, kind=job.kind, result=job.result)
 
 
 @router.post("/completed-jobs/{job_id}/persisted", status_code=status.HTTP_204_NO_CONTENT)
@@ -89,11 +94,11 @@ def mark_completed_job_persisted(request: Request, job_id: UUID) -> Response:
 @router.get("/status", response_model=WorkerStatusResponse)
 def worker_status(request: Request) -> WorkerStatusResponse:
     repository = _repository(request)
-    queued_jobs, blocked_jobs = repository.counts()
+    queued_jobs, failed_jobs = repository.counts()
     return WorkerStatusResponse(
         current_job_id=repository.current_job_id(),
         queued_jobs=queued_jobs,
-        blocked_jobs=blocked_jobs,
+        failed_jobs=failed_jobs,
     )
 
 
@@ -105,10 +110,10 @@ def _job_response(job: Job) -> JobResponse:
     return JobResponse(
         id=str(job.id),
         product_id=job.product_id,
+        kind=job.kind,
         input=InputBundle.model_validate(job.input),
-        progress=job.progress,
         result=job.result,
-        finished=job.finished,
+        status=job.status,
         created_at=job.created_at.isoformat(),
         finished_at=job.finished_at.isoformat() if job.finished_at else None,
     )
