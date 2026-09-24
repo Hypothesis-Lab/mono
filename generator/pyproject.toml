@@ -12,6 +12,12 @@ dependencies = [
     "uvicorn[standard]",
 ]
 
+[project.optional-dependencies]
+prototype = [
+    "langgraph>=1.2.12",
+    "langgraph-checkpoint-sqlite>=3.1.1",
+]
+
 [dependency-groups]
 dev = [
     "deptry",
