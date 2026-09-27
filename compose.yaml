@@ -12,6 +12,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    restart: on-failure
     env_file: .env
     ports:
       - "127.0.0.1:8000:8000"
@@ -34,6 +35,8 @@ services:
       postgres:
         condition: service_healthy
       seaweedfs:
+        condition: service_healthy
+      generator:
         condition: service_healthy
       temporal:
         condition: service_started
@@ -78,6 +81,12 @@ services:
       OPENAI_MODEL: gpt-5.6-luna
       OPENAI_REASONING_EFFORT: low
       OPENAI_TIMEOUT_SECONDS: "120"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/healthz')\""]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
     depends_on:
       postgres:
         condition: service_healthy
