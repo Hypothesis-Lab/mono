@@ -21,6 +21,7 @@ import (
 	"app/internal/repositories/productfeedbacksurvey"
 	"app/internal/repositories/user"
 	"app/internal/services"
+	servicepipelines "app/internal/services/pipelines"
 	"app/internal/storage"
 	"app/internal/temporal"
 
@@ -58,6 +59,11 @@ func main() {
 		fx.Provide(services.NewHypothesisLaunchStarter),
 		fx.Provide(services.NewHypothesisStopStarter),
 		fx.Provide(services.NewProductService),
+		fx.Provide(fx.Annotate(
+			servicepipelines.NewAudiencePipeline,
+			fx.As(new(services.GeneratorPipeline)),
+			fx.ResultTags(`group:"generator-pipelines"`),
+		)),
 		fx.Provide(services.NewGeneratorWorker),
 		fx.Provide(services.NewUserAuthService),
 		fx.Provide(services.NewProductFeedbackSurveyService),

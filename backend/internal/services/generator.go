@@ -6,34 +6,41 @@ import (
 	"time"
 
 	"app/internal/clients"
-	"app/internal/repositories/audience"
-	"app/internal/services/pipelines"
 
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 )
 
-type generatorPipeline interface {
+type GeneratorPipeline interface {
 	Kind() string
 	Persist(context.Context, *clients.CompletedJob) error
 }
 
+type GeneratorWorkerParams struct {
+	fx.In
+
+	Lifecycle fx.Lifecycle
+	Generator *clients.GeneratorClient
+	Pipelines []GeneratorPipeline `group:"generator-pipelines"`
+	Logger    *zap.Logger
+}
+
 type GeneratorWorker struct {
 	generator *clients.GeneratorClient
-	pipelines []generatorPipeline
+	pipelines []GeneratorPipeline
 	logger    *zap.Logger
 	cancel    context.CancelFunc
 	done      chan struct{}
 }
 
-func NewGeneratorWorker(lc fx.Lifecycle, generator *clients.GeneratorClient, audiences *audience.Repository, logger *zap.Logger) *GeneratorWorker {
+func NewGeneratorWorker(params GeneratorWorkerParams) *GeneratorWorker {
 	worker := &GeneratorWorker{
-		generator: generator,
-		pipelines: []generatorPipeline{pipelines.NewAudiencePipeline(audiences)},
-		logger:    logger,
+		generator: params.Generator,
+		pipelines: params.Pipelines,
+		logger:    params.Logger,
 		done:      make(chan struct{}),
 	}
-	lc.Append(fx.Hook{
+	params.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			workerCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 			worker.cancel = cancel
