@@ -15,31 +15,32 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.checkpoint.sqlite import SqliteSaver
 
+from app.config import ModelConfig
 from app.db import connect
+from app.language_model_client.client import ModelClient
 from app.observability import Measurement, RunCollector
 from app.pipelines.audiences.graph import build_graph
-from app.pipelines.audiences.input import validate_input
-from app.pipelines.audiences.llm import ModelClient, ModelConfig
 from app.pipelines.audiences.models import InputBundle
-from app.pipelines.audiences.operations import AudienceOperations
+from app.pipelines.audiences.stages import AudienceStages
+from app.pipelines.audiences.stages.input import validate_input
 
 
 def main() -> None:
     args = _parser().parse_args()
     bundle = InputBundle.model_validate_json(args.input.read_text(encoding="utf-8"))
     observer = RunCollector()
-    model_config = ModelConfig(
-        base_url=args.base_url or _required_env("OPENAI_BASE_URL"),
-        api_key=args.api_key or _required_env("OPENAI_API_KEY"),
-        model=args.model or _required_env("OPENAI_MODEL"),
-        reasoning_effort=args.reasoning_effort or _required_env("OPENAI_REASONING_EFFORT"),
+    model_config = ModelConfig.from_environment(
+        base_url=args.base_url,
+        api_key=args.api_key,
+        model=args.model,
+        reasoning_effort=args.reasoning_effort,
     )
-    operations = AudienceOperations(ModelClient(model_config, observer))
+    stages = AudienceStages(ModelClient(model_config, observer))
     validate_input(bundle)
 
     with ExitStack() as stack:
         checkpointer, thread_id = _checkpointer(args, stack)
-        graph = build_graph(operations, checkpointer=checkpointer, observer=observer)
+        graph = build_graph(stages, checkpointer=checkpointer, observer=observer)
         config: RunnableConfig | None = {"configurable": {"thread_id": thread_id}} if thread_id else None
         if args.resume and (config is None or not graph.get_state(config).values):
             raise ValueError("--resume requires an existing checkpointed evaluation thread")
@@ -60,7 +61,7 @@ def main() -> None:
                     kind="run",
                     name="audiences",
                     model=None,
-                    duration_seconds=perf_counter() - started,
+                    duration_ms=(perf_counter() - started) * 1000,
                     outcome=outcome,
                 )
             )
@@ -130,14 +131,6 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path, default=Path("audience-result.json"))
     parser.add_argument("--report", type=Path)
     return parser
-
-
-def _required_env(name: str) -> str:
-    value = os.environ.get(name)
-    if not value:
-        raise ValueError(f"{name} or its matching CLI option is required")
-
-    return value
 
 
 def _known_sum(values: Iterable[int | None]) -> int | None:

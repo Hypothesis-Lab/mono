@@ -18,7 +18,7 @@ class Measurement:
     kind: str
     name: str
     model: str | None
-    duration_seconds: float
+    duration_ms: float
     operation_id: str | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
@@ -49,15 +49,15 @@ class PrometheusObserver:
         self.tokens = Counter("generator_tokens_total", "Provider-reported model tokens", ("model", "direction"))
         self.failures = Counter("generator_failures_total", "Failed generator operations", ("kind", "stage", "model"))
         self.durations = Histogram(
-            "generator_operation_duration_seconds",
-            "Generator operation duration",
+            "generator_operation_duration_ms",
+            "Generator operation duration in milliseconds",
             ("kind", "stage", "model", "outcome"),
         )
 
     def observe(self, measurement: Measurement) -> None:
         model = measurement.model or "none"
         self.durations.labels(measurement.kind, measurement.name, model, measurement.outcome).observe(
-            measurement.duration_seconds
+            measurement.duration_ms
         )
         if measurement.outcome == "error":
             self.failures.labels(measurement.kind, measurement.name, model).inc()
@@ -89,7 +89,7 @@ def observe_operation(observer: Observer | None, operation_id: str) -> Iterator[
                     kind="node",
                     name=operation_id.split(":", maxsplit=1)[0],
                     model=None,
-                    duration_seconds=perf_counter() - started,
+                    duration_ms=(perf_counter() - started) * 1000,
                     operation_id=operation_id,
                     outcome=outcome,
                 )

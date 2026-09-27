@@ -8,13 +8,14 @@ from langgraph.types import Send
 
 from app.observability import Observer, observe_operation
 from app.pipelines.audiences.catalog import PERSONAS
-from app.pipelines.audiences.input import validate_input
+from app.pipelines.audiences.graph.state import AudienceOperation, AudiencePipelineState, RepairContext, Stage
 from app.pipelines.audiences.models import InputBundle
-from app.pipelines.audiences.operations import AudienceOperations
-from app.pipelines.audiences.state import AudienceOperation, AudiencePipelineState, RepairContext, Stage
+from app.pipelines.audiences.stages import AudienceStages
+from app.pipelines.audiences.stages.errors import CorrectionRequired
+from app.pipelines.audiences.stages.input import validate_input as validate_bundle_input
 
 
-def build_graph(operations: AudienceOperations, *, checkpointer: Any = None, observer: Observer | None = None):
+def build_graph(stages: AudienceStages, *, checkpointer: Any = None, observer: Observer | None = None):
     """Build the resumable audience pipeline with caller-owned model and persistence dependencies."""
     builder = StateGraph(AudiencePipelineState)
 
@@ -23,7 +24,7 @@ def build_graph(operations: AudienceOperations, *, checkpointer: Any = None, obs
         if input_data is None:
             raise ValueError("audience pipeline input is missing")
 
-        validate_input(InputBundle.model_validate(input_data))
+        validate_bundle_input(InputBundle.model_validate(input_data))
         return {}
 
     def run_operation(state: Any, config: RunnableConfig) -> dict[str, Any]:
@@ -49,35 +50,35 @@ def build_graph(operations: AudienceOperations, *, checkpointer: Any = None, obs
 
         node_states = {key: {"completed": True, "output": value["output"]} for key, value in outputs.items()}
         bundle = InputBundle.model_validate(state["input"])
-        operations.clear_last_raw_response()
         with observe_operation(observer, operation.id):
             if repair is not None and repair["attempt"] >= 3:
                 raise ValueError(repair["last_error"])
 
             try:
-                output = operations.execute_operation(
-                    bundle,
-                    node_states,
-                    operation,
-                    _repair_feedback(repair) if repair else None,
-                )
-            except ValueError as error:
-                if operation.stage not in {
+                feedback = _repair_feedback(repair) if repair else None
+                if operation.stage in {
+                    Stage.ELIGIBILITY,
                     Stage.INTERVIEW_PRE,
                     Stage.INTERVIEW_POST,
                     Stage.INSIGHTS,
                     Stage.SCORE,
-                    Stage.HYPOTHESIS,
+                    Stage.RANKING,
                 }:
-                    raise
-
+                    output = stages.run_research(bundle, node_states, operation, feedback)
+                elif operation.stage in {Stage.HYPOTHESIS, Stage.DIVERSITY}:
+                    output = stages.run_hypotheses(bundle, node_states, operation, feedback)
+                elif operation.stage == Stage.RESULT:
+                    output = stages.run_result(bundle, node_states)
+                else:
+                    raise ValueError(f"unknown workflow node {operation.id}")
+            except CorrectionRequired as error:
                 attempt = (repair["attempt"] if repair else 0) + 1
                 return {
                     "repairs": {
                         operation.id: {
                             "attempt": attempt,
                             "last_error": str(error)[:1000],
-                            "raw_response": operations.last_raw_response,
+                            "raw_response": error.raw_response,
                             "retry_generation": retry_generation,
                         }
                     }

@@ -1,1 +1,1 @@
-"""Hypothesis generator HTTP service."""
+"""Generator application package."""

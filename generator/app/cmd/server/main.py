@@ -5,10 +5,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.config import Settings
+from app.language_model_client.client import ModelClient
 from app.migrations import apply as apply_migrations
 from app.observability import PrometheusObserver
-from app.pipelines.audiences.llm import ModelClient, ModelConfig
-from app.pipelines.audiences.operations import AudienceOperations
+from app.pipelines.audiences.stages import AudienceStages
 from app.repositories.jobs import JobRepository
 from app.routes import router
 from app.worker import AudienceWorker
@@ -20,18 +20,10 @@ async def lifespan(app: FastAPI):
     apply_migrations(settings.database_url)
     repository = JobRepository(settings.database_url)
     observer = PrometheusObserver()
-    llm = ModelClient(
-        ModelConfig(
-            base_url=settings.openai_base_url,
-            api_key=settings.openai_api_key,
-            model=settings.openai_model,
-            reasoning_effort=settings.openai_reasoning_effort,
-        ),
-        observer,
-    )
+    llm = ModelClient(settings.model_config, observer)
     worker = AudienceWorker(
         repository,
-        AudienceOperations(llm),
+        AudienceStages(llm),
         observer,
         settings.worker_concurrency,
         settings.graph_max_concurrency,

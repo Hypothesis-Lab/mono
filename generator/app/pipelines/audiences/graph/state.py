@@ -30,12 +30,6 @@ class Stage(StrEnum):
     RESULT = "result"
 
 
-class HypothesisAngle(StrEnum):
-    PAIN_RELIEF = "pain_relief"
-    NEED_SOLUTION = "need_solution"
-    DECISION_SUPPORT = "decision_support"
-
-
 @dataclass(frozen=True)
 class AudienceOperation:
     stage: Stage
@@ -53,6 +47,14 @@ class AudienceOperation:
         return str(self.stage)
 
 
+class AudiencePipelineState(TypedDict, total=False):
+    input: dict[str, object]
+    outputs: Annotated[dict[str, OperationOutput], merge_operation_outputs]
+    repairs: Annotated[dict[str, RepairContext], merge_repair_contexts]
+    operation: dict[str, Any]
+    result: dict[str, object]
+
+
 def merge_operation_outputs(
     left: Mapping[str, OperationOutput], right: Mapping[str, OperationOutput]
 ) -> dict[str, OperationOutput]:
@@ -63,11 +65,3 @@ def merge_repair_contexts(
     left: Mapping[str, RepairContext], right: Mapping[str, RepairContext]
 ) -> dict[str, RepairContext]:
     return {**left, **right}
-
-
-class AudiencePipelineState(TypedDict, total=False):
-    input: dict[str, object]
-    outputs: Annotated[dict[str, OperationOutput], merge_operation_outputs]
-    repairs: Annotated[dict[str, RepairContext], merge_repair_contexts]
-    operation: dict[str, Any]
-    result: dict[str, object]

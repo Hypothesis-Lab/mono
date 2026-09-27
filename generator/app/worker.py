@@ -12,7 +12,7 @@ from langgraph.checkpoint.postgres import PostgresSaver
 
 from app.observability import Measurement, Observer
 from app.pipelines.audiences.graph import build_graph
-from app.pipelines.audiences.operations import AudienceOperations
+from app.pipelines.audiences.stages import AudienceStages
 from app.repositories.jobs import Job, JobRepository
 
 logger = logging.getLogger(__name__)
@@ -22,13 +22,13 @@ class AudienceWorker:
     def __init__(
         self,
         repository: JobRepository,
-        operations: AudienceOperations,
+        stages: AudienceStages,
         observer: Observer,
         concurrency: int,
         graph_max_concurrency: int,
     ) -> None:
         self.repository = repository
-        self.operations = operations
+        self.stages = stages
         self.observer = observer
         self.concurrency = concurrency
         self.graph_max_concurrency = graph_max_concurrency
@@ -85,7 +85,7 @@ class AudienceWorker:
         outcome = "success"
         try:
             checkpointer = PostgresSaver(connection)
-            graph = build_graph(self.operations, checkpointer=checkpointer, observer=self.observer)
+            graph = build_graph(self.stages, checkpointer=checkpointer, observer=self.observer)
             config: RunnableConfig = {
                 "configurable": {"thread_id": str(job.id), "retry_generation": job.retry_generation},
                 "max_concurrency": self.graph_max_concurrency,
@@ -115,7 +115,7 @@ class AudienceWorker:
                     kind="job",
                     name=job.kind,
                     model=None,
-                    duration_seconds=perf_counter() - started,
+                    duration_ms=(perf_counter() - started) * 1000,
                     outcome=outcome,
                 )
             )
