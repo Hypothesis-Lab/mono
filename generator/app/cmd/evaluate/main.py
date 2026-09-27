@@ -29,12 +29,7 @@ def main() -> None:
     args = _parser().parse_args()
     bundle = InputBundle.model_validate_json(args.input.read_text(encoding="utf-8"))
     observer = RunCollector()
-    model_config = ModelConfig.from_environment(
-        base_url=args.base_url,
-        api_key=args.api_key,
-        model=args.model,
-        reasoning_effort=args.reasoning_effort,
-    )
+    model_config = ModelConfig.from_environment()
     stages = AudienceStages(ModelClient(model_config, observer))
     validate_input(bundle)
 
@@ -119,10 +114,6 @@ def _checkpointer(args: argparse.Namespace, stack: ExitStack) -> tuple[object | 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Evaluate one audience-pipeline input")
     parser.add_argument("input", type=Path)
-    parser.add_argument("--model")
-    parser.add_argument("--base-url")
-    parser.add_argument("--api-key")
-    parser.add_argument("--reasoning-effort")
     parser.add_argument("--checkpointer", choices=("none", "memory", "sqlite", "postgres"), default="none")
     parser.add_argument("--sqlite-path", type=Path)
     parser.add_argument("--postgres-dsn")

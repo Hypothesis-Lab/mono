@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
+import uvicorn
 from fastapi import FastAPI
 
-from app.config import Settings
+from app.config import ServerConfig, Settings
 from app.language_model_client.client import ModelClient
 from app.migrations import apply as apply_migrations
 from app.observability import PrometheusObserver
@@ -39,3 +40,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Generator", lifespan=lifespan)
 app.include_router(router)
+
+
+def main() -> None:
+    config = ServerConfig.from_environment()
+    uvicorn.run(app, host=config.host, port=config.port)

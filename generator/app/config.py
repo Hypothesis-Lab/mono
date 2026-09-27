@@ -3,28 +3,37 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class ServerConfig:
+    host: str
+    port: int
+
+    @classmethod
+    def from_environment(cls) -> "ServerConfig":
+        port = int(_required_environment("PORT"))
+        if not 1 <= port <= 65535:
+            raise ValueError("PORT must be between 1 and 65535")
+
+        return cls(host=_required_environment("HOST"), port=port)
+
+
+@dataclass(frozen=True)
 class ModelConfig:
     base_url: str
     api_key: str
     model: str
     reasoning_effort: str
-    timeout_seconds: float = 120.0
-    max_retries: int = 2
+    timeout_seconds: float
+    max_retries: int
 
     @classmethod
-    def from_environment(
-        cls,
-        *,
-        base_url: str | None = None,
-        api_key: str | None = None,
-        model: str | None = None,
-        reasoning_effort: str | None = None,
-    ) -> "ModelConfig":
+    def from_environment(cls) -> "ModelConfig":
         return cls(
-            base_url=base_url or _required_environment("OPENAI_BASE_URL"),
-            api_key=api_key or _required_environment("OPENAI_API_KEY"),
-            model=model or _required_environment("OPENAI_MODEL"),
-            reasoning_effort=reasoning_effort or _required_environment("OPENAI_REASONING_EFFORT"),
+            base_url=_required_environment("OPENAI_BASE_URL"),
+            api_key=_required_environment("OPENAI_API_KEY"),
+            model=_required_environment("OPENAI_MODEL"),
+            reasoning_effort=_required_environment("OPENAI_REASONING_EFFORT"),
+            timeout_seconds=float(_required_environment("OPENAI_TIMEOUT_SECONDS")),
+            max_retries=int(_required_environment("OPENAI_MAX_RETRIES")),
         )
 
 
@@ -37,17 +46,15 @@ class Settings:
 
     @classmethod
     def from_environment(cls) -> "Settings":
-        database_url = os.environ.get("DATABASE_URL")
-        if not database_url:
-            raise RuntimeError("DATABASE_URL is required")
+        database_url = _required_environment("DATABASE_URL")
 
-        worker_concurrency = int(os.environ.get("GENERATOR_WORKER_CONCURRENCY", "2"))
+        worker_concurrency = int(_required_environment("WORKER_CONCURRENCY"))
         if worker_concurrency < 1:
-            raise ValueError("GENERATOR_WORKER_CONCURRENCY must be positive")
+            raise ValueError("WORKER_CONCURRENCY must be positive")
 
-        graph_max_concurrency = int(os.environ.get("GENERATOR_GRAPH_MAX_CONCURRENCY", "2"))
+        graph_max_concurrency = int(_required_environment("GRAPH_MAX_CONCURRENCY"))
         if graph_max_concurrency < 1:
-            raise ValueError("GENERATOR_GRAPH_MAX_CONCURRENCY must be positive")
+            raise ValueError("GRAPH_MAX_CONCURRENCY must be positive")
 
         return cls(
             database_url=database_url,
