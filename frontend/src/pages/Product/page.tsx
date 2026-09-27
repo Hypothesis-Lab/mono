@@ -954,6 +954,9 @@ function getAudienceGenerationStatusLabel(status: string): string {
   if (status === 'working') {
     return 'в работе'
   }
+  if (status === 'completed') {
+    return 'завершена'
+  }
   if (status === 'failed') {
     return 'не удалось завершить'
   }

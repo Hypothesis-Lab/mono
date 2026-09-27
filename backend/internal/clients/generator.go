@@ -245,7 +245,7 @@ func (c *GeneratorClient) ProductGenerationStatus(ctx context.Context, productID
 		return "", fmt.Errorf("decode generator generation status response: %w", err)
 	}
 
-	if result.Status != "created" && result.Status != "working" && result.Status != "failed" {
+	if result.Status != "created" && result.Status != "working" && result.Status != "completed" && result.Status != "failed" {
 		return "", fmt.Errorf("generator returned invalid generation status %q", result.Status)
 	}
 

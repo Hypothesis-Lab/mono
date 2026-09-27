@@ -1090,7 +1090,7 @@ components:
       properties:
         status:
           type: string
-          enum: [created, working, failed]
+          enum: [created, working, completed, failed]
     ProductCategory:
       type: string
       enum:

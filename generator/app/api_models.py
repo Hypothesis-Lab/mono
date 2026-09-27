@@ -48,4 +48,4 @@ class WorkerStatusResponse(StrictModel):
 
 
 class ProductGenerationStatusResponse(StrictModel):
-    status: Literal["created", "working", "failed"]
+    status: Literal["created", "working", "completed", "failed"]

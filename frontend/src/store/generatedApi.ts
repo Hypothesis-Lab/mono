@@ -190,6 +190,16 @@ const injectedRtkApi = api.injectEndpoints({
         method: "DELETE",
       }),
     }),
+    queryPersonas: build.mutation<
+      QueryPersonasApiResponse,
+      QueryPersonasApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/v1/personas/query`,
+        method: "POST",
+        body: queryArg.personaQueryRequest,
+      }),
+    }),
   }),
   overrideExisting: false,
 });
@@ -307,6 +317,11 @@ export type UploadProductFileApiArg = {
 export type DeleteProductFileApiResponse = unknown;
 export type DeleteProductFileApiArg = {
   id: string;
+};
+export type QueryPersonasApiResponse =
+  /** status 200 matching personas */ PersonaQueryResponse;
+export type QueryPersonasApiArg = {
+  personaQueryRequest: PersonaQueryRequest;
 };
 export type AuthTokenResponse = {
   token: string;
@@ -516,7 +531,7 @@ export type UpdateProductRequest = {
   link?: string | null;
 };
 export type AudienceGenerationStatusResponse = {
-  status: "created" | "working" | "failed";
+  status: "created" | "working" | "completed" | "failed";
 };
 export type AudienceResponse = {
   id: string;
@@ -539,6 +554,26 @@ export type ProductFileResponse = {
   content_type: string;
   size: number;
   created_at: string;
+};
+export type PersonaQueryPersona = {
+  id: string;
+  source: string;
+  source_row_index: number;
+  dimensions: {
+    [key: string]: string;
+  };
+};
+export type PersonaQueryResponse = {
+  matched_count: number;
+  personas: PersonaQueryPersona[];
+};
+export type PersonaQueryRequest = {
+  sample_size: number;
+  seed?: number;
+  sources?: string[];
+  dimension_filters?: {
+    [key: string]: string[];
+  };
 };
 export const {
   useRegisterUserMutation,
@@ -564,4 +599,5 @@ export const {
   useListProductFilesQuery,
   useUploadProductFileMutation,
   useDeleteProductFileMutation,
+  useQueryPersonasMutation,
 } = injectedRtkApi;

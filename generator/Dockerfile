@@ -3,12 +3,12 @@ FROM ghcr.io/astral-sh/uv@sha256:c0ba49559fc5622531fd05a5747b52afb49ffa883574bbf
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN uv sync --frozen --no-dev --no-install-project --extra evaluation
 
 COPY app/ app/
 COPY alembic.ini ./
 COPY migrations/ migrations/
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --extra evaluation
 
 
 FROM ghcr.io/astral-sh/uv@sha256:c0ba49559fc5622531fd05a5747b52afb49ffa883574bbf8eb719ebd103efb84

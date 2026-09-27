@@ -92,10 +92,12 @@ class JobRepository:
 
     def generation_status(
         self, product_id: str, kind: str = "audiences"
-    ) -> Literal["created", "working", "failed"] | None:
+    ) -> Literal["created", "working", "completed", "failed"] | None:
         with connect(self.database_url) as connection, connection.cursor() as cursor:
             cursor.execute(
-                "SELECT status FROM generator.job WHERE product_id = %s AND kind = %s AND status <> 'completed'",
+                """SELECT status FROM generator.job
+                   WHERE product_id = %s AND kind = %s
+                   ORDER BY created_at DESC LIMIT 1""",
                 (product_id, kind),
             )
             row = cursor.fetchone()
@@ -103,8 +105,10 @@ class JobRepository:
         if row is None:
             return None
 
-        status = {"queued": "created", "running": "working", "failed": "failed"}[row[0]]
-        return cast(Literal["created", "working", "failed"], status)
+        status = {"queued": "created", "running": "working", "completed": "completed", "failed": "failed"}[
+            row["status"]
+        ]
+        return cast(Literal["created", "working", "completed", "failed"], status)
 
     def next_completed(self) -> CompletedJob | None:
         with (
@@ -139,16 +143,16 @@ class JobRepository:
                 ORDER BY (status = 'running'), created_at
                 """
             )
-            return [row[0] for row in cursor.fetchall()]
+            return [row["id"] for row in cursor.fetchall()]
 
     def try_lock(self, job_id: UUID) -> tuple[psycopg.Connection[Any], Job] | None:
         connection = connect(self.database_url, autocommit=True)
         try:
             lock_key = job_id.int & ((1 << 63) - 1)
             with connection.cursor() as cursor:
-                cursor.execute("SELECT pg_try_advisory_lock(%s)", (lock_key,))
+                cursor.execute("SELECT pg_try_advisory_lock(%s) AS locked", (lock_key,))
                 lock_row = cursor.fetchone()
-                if lock_row is None or not lock_row[0]:
+                if lock_row is None or not lock_row["locked"]:
                     connection.close()
                     return None
 
@@ -190,8 +194,8 @@ class JobRepository:
     def counts(self) -> tuple[int, int]:
         with connect(self.database_url) as connection, connection.cursor() as cursor:
             cursor.execute(
-                """SELECT COUNT(*) FILTER (WHERE status IN ('queued', 'running')),
-                          COUNT(*) FILTER (WHERE status = 'failed')
+                """SELECT COUNT(*) FILTER (WHERE status IN ('queued', 'running')) AS active_count,
+                          COUNT(*) FILTER (WHERE status = 'failed') AS failed_count
                    FROM generator.job WHERE kind = 'audiences'"""
             )
             row = cursor.fetchone()
@@ -199,7 +203,7 @@ class JobRepository:
         if row is None:
             raise RuntimeError("counting generator jobs returned no row")
 
-        return int(row[0]), int(row[1])
+        return int(row["active_count"]), int(row["failed_count"])
 
     def current_job_id(self) -> str | None:
         with connect(self.database_url) as connection, connection.cursor() as cursor:
@@ -212,7 +216,7 @@ class JobRepository:
             )
             row = cursor.fetchone()
 
-        return str(row[0]) if row else None
+        return str(row["id"]) if row else None
 
     @staticmethod
     def _job(row: dict[str, Any]) -> Job:
