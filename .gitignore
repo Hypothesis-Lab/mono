@@ -1,2 +1,4 @@
 .env
 backend/datasets/personas-1m/
+evaluation.html
+evaluation.sqlite3
