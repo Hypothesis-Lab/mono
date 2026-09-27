@@ -6,8 +6,9 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from app.pipelines.audience_questions.graph import build_graph as build_questions_graph
 from app.pipelines.audiences.graph import build_graph
-from app.pipelines.audiences.models import InputBundle
+from app.pipelines.audiences.models import InputBundle, Product
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,11 @@ PIPELINES = {
         kind="audiences",
         input_model=InputBundle,
         graph_builder=build_graph,
+    ),
+    "audience_questions": PipelineDefinition(
+        kind="audience_questions",
+        input_model=Product,
+        graph_builder=build_questions_graph,
     ),
 }
 

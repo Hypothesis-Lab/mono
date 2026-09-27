@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ValidationError
 
 from app.pipelines.audiences.protocols import LanguageModelClient
-from app.pipelines.audiences.stages.execution import ModelCallContext
+
+if TYPE_CHECKING:
+    from app.pipelines.audiences.stages.execution import ModelCallContext
 
 
 def complete_structured[ModelT: BaseModel](
