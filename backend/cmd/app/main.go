@@ -58,14 +58,14 @@ func main() {
 		fx.Provide(services.NewHypothesisLaunchStarter),
 		fx.Provide(services.NewHypothesisStopStarter),
 		fx.Provide(services.NewProductService),
-		fx.Provide(services.NewAudienceGenerationWorker),
+		fx.Provide(services.NewGeneratorWorker),
 		fx.Provide(services.NewUserAuthService),
 		fx.Provide(services.NewProductFeedbackSurveyService),
 		fx.Provide(handlers.NewServer),
 		fx.Provide(handlers.NewServerInterface),
 		fx.Provide(apphttp.NewRouter),
 		fx.Provide(apphttp.NewServer),
-		fx.Invoke(func(*db.DB, *http.Server, *persona.Repository, *services.AudienceGenerationWorker, *services.HypothesisLaunchWorker, *services.HypothesisLaunchStarter, *services.HypothesisStopStarter) {
+		fx.Invoke(func(*db.DB, *http.Server, *persona.Repository, *services.GeneratorWorker, *services.HypothesisLaunchWorker, *services.HypothesisLaunchStarter, *services.HypothesisStopStarter) {
 		}),
 	).Run()
 }

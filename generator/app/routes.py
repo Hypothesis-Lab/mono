@@ -1,7 +1,8 @@
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from pydantic import ValidationError
 
 from app.api_models import (
     CompletedJobResponse,
@@ -11,7 +12,7 @@ from app.api_models import (
     ProductGenerationStatusResponse,
     WorkerStatusResponse,
 )
-from app.pipelines.audiences.models import InputBundle
+from app.pipelines.registry import UnknownPipelineError, get_pipeline
 from app.repositories.jobs import Job, JobAlreadyQueuedError, JobRepository
 
 router = APIRouter()
@@ -31,11 +32,17 @@ def healthz() -> None:
 def create_job(request: Request, body: CreateJobRequest) -> CreateJobResponse:
     repository = _repository(request)
     try:
-        job = repository.create(body.product_id, body.kind, body.input.model_dump(mode="json"))
-    except JobAlreadyQueuedError as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="product already queued") from error
+        pipeline = get_pipeline(body.kind)
+        input_data = pipeline.validate_input(body.input)
+    except (UnknownPipelineError, ValidationError) as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
 
-    return CreateJobResponse(id=str(job.id), kind="audiences", status="queued")
+    try:
+        job = repository.create(body.product_id, pipeline.kind, input_data)
+    except JobAlreadyQueuedError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="product pipeline already queued") from error
+
+    return CreateJobResponse(id=str(job.id), kind=job.kind, status="queued")
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
@@ -75,8 +82,10 @@ def retry_product_generation(request: Request, product_id: str) -> ProductGenera
     response_model=CompletedJobResponse,
     responses={status.HTTP_204_NO_CONTENT: {"description": "no completed jobs"}},
 )
-def next_completed_job(request: Request) -> CompletedJobResponse | Response:
-    job = _repository(request).next_completed()
+def next_completed_job(
+    request: Request, kind: str = Query(min_length=1, max_length=64)
+) -> CompletedJobResponse | Response:
+    job = _repository(request).next_completed(kind)
     if job is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -111,7 +120,7 @@ def _job_response(job: Job) -> JobResponse:
         id=str(job.id),
         product_id=job.product_id,
         kind=job.kind,
-        input=InputBundle.model_validate(job.input),
+        input=job.input,
         result=job.result,
         status=job.status,
         created_at=job.created_at.isoformat(),

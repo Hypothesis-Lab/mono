@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-
-from app.pipelines.audiences.models import InputBundle
 
 
 class StrictModel(BaseModel):
@@ -13,22 +11,22 @@ class StrictModel(BaseModel):
 
 class CreateJobRequest(StrictModel):
     product_id: str = Field(min_length=1)
-    kind: Literal["audiences"]
-    input: InputBundle
+    kind: str = Field(min_length=1, max_length=64)
+    input: dict[str, Any]
 
 
 class CreateJobResponse(StrictModel):
     id: str
-    kind: Literal["audiences"]
+    kind: str
     status: Literal["queued"]
 
 
 class JobResponse(StrictModel):
     id: str
     product_id: str
-    kind: Literal["audiences"]
-    input: InputBundle
-    result: dict[str, object] | None
+    kind: str
+    input: dict[str, Any]
+    result: dict[str, Any] | None
     status: Literal["queued", "running", "failed", "completed"]
     created_at: str
     finished_at: str | None
@@ -37,8 +35,8 @@ class JobResponse(StrictModel):
 class CompletedJobResponse(StrictModel):
     id: str
     product_id: str
-    kind: Literal["audiences"]
-    result: dict[str, object]
+    kind: str
+    result: dict[str, Any]
 
 
 class WorkerStatusResponse(StrictModel):

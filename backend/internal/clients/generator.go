@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
 	"strings"
 
 	"app/internal/config"
@@ -87,41 +86,15 @@ type generatorGenerationStatusResponse struct {
 type completedJobResponse struct {
 	ID        string          `json:"id"`
 	ProductID string          `json:"product_id"`
+	Kind      string          `json:"kind"`
 	Result    json.RawMessage `json:"result"`
 }
 
-type completedJobResult struct {
-	Personas            []json.RawMessage          `json:"personas"`
-	PersonaResearch     []json.RawMessage          `json:"persona_research"`
-	Top3                []completedJobRanking      `json:"top_3"`
-	HypothesesByPersona map[string]json.RawMessage `json:"hypotheses_by_persona"`
-}
-
-type completedJobRanking struct {
-	PersonaID      string          `json:"persona_id"`
-	Metrics        json.RawMessage `json:"metrics"`
-	SelectionOrder int             `json:"selection_order"`
-	FinalScore     float64         `json:"final_score"`
-}
-
-type generatorPersonaReference struct {
-	PersonaID string `json:"persona_id"`
-}
-
-type GeneratedAudience struct {
-	PersonaID  string
-	Persona    json.RawMessage
-	Research   json.RawMessage
-	Metrics    json.RawMessage
-	Hypotheses json.RawMessage
-	Rank       int
-	Score      float64
-}
-
-type CompletedAudienceGeneration struct {
+type CompletedJob struct {
 	ID        string
 	ProductID string
-	Audiences []GeneratedAudience
+	Kind      string
+	Result    json.RawMessage
 }
 
 func NewGeneratorClient(cfg *config.Config) *GeneratorClient {
@@ -281,8 +254,8 @@ func (c *GeneratorClient) RetryProductGeneration(ctx context.Context, productID 
 	return nil
 }
 
-func (c *GeneratorClient) NextCompletedAudienceGeneration(ctx context.Context) (*CompletedAudienceGeneration, error) {
-	endpoint := strings.TrimSuffix(c.endpoint, "/jobs") + "/completed-jobs/next"
+func (c *GeneratorClient) NextCompletedJob(ctx context.Context, kind string) (*CompletedJob, error) {
+	endpoint := strings.TrimSuffix(c.endpoint, "/jobs") + "/completed-jobs/next?kind=" + url.QueryEscape(kind)
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create completed generator job request: %w", err)
@@ -312,23 +285,19 @@ func (c *GeneratorClient) NextCompletedAudienceGeneration(ctx context.Context) (
 		return nil, fmt.Errorf("decode completed generator job response: %w", err)
 	}
 
-	if responseData.ID == "" || responseData.ProductID == "" {
-		return nil, errors.New("completed generator job response did not contain an id and product id")
+	if responseData.ID == "" || responseData.ProductID == "" || responseData.Kind == "" {
+		return nil, errors.New("completed generator job response did not contain an id, product id, and kind")
 	}
 
-	audiences, err := completedJobAudiences(responseData.Result)
-	if err != nil {
-		return nil, err
-	}
-
-	return &CompletedAudienceGeneration{
+	return &CompletedJob{
 		ID:        responseData.ID,
 		ProductID: responseData.ProductID,
-		Audiences: audiences,
+		Kind:      responseData.Kind,
+		Result:    responseData.Result,
 	}, nil
 }
 
-func (c *GeneratorClient) MarkAudienceGenerationPersisted(ctx context.Context, jobID string) error {
+func (c *GeneratorClient) MarkJobPersisted(ctx context.Context, jobID string) error {
 	endpoint := strings.TrimSuffix(c.endpoint, "/jobs") + "/completed-jobs/" + url.PathEscape(jobID) + "/persisted"
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, nil)
 	if err != nil {
@@ -351,84 +320,4 @@ func (c *GeneratorClient) MarkAudienceGenerationPersisted(ctx context.Context, j
 	}
 
 	return nil
-}
-
-func completedJobAudiences(result json.RawMessage) ([]GeneratedAudience, error) {
-	var parsed completedJobResult
-	if err := json.Unmarshal(result, &parsed); err != nil {
-		return nil, fmt.Errorf("decode completed generator result: %w", err)
-	}
-
-	personas, err := indexGeneratorValues(parsed.Personas)
-	if err != nil {
-		return nil, fmt.Errorf("index completed generator personas: %w", err)
-	}
-
-	research, err := indexGeneratorValues(parsed.PersonaResearch)
-	if err != nil {
-		return nil, fmt.Errorf("index completed generator research: %w", err)
-	}
-
-	audiences := make([]GeneratedAudience, 0, 3)
-	for _, ranking := range parsed.Top3 {
-		if ranking.SelectionOrder < 1 || ranking.SelectionOrder > 3 {
-			return nil, fmt.Errorf("completed generator result has invalid selection order for persona %q", ranking.PersonaID)
-		}
-
-		persona, ok := personas[ranking.PersonaID]
-		if !ok {
-			return nil, fmt.Errorf("completed generator result is missing persona %q", ranking.PersonaID)
-		}
-
-		personaResearch, ok := research[ranking.PersonaID]
-		if !ok {
-			return nil, fmt.Errorf("completed generator result is missing research for persona %q", ranking.PersonaID)
-		}
-
-		hypotheses, ok := parsed.HypothesesByPersona[ranking.PersonaID]
-		if !ok {
-			return nil, fmt.Errorf("completed generator result is missing hypotheses for persona %q", ranking.PersonaID)
-		}
-
-		if len(ranking.Metrics) == 0 {
-			return nil, fmt.Errorf("completed generator result is missing metrics for persona %q", ranking.PersonaID)
-		}
-
-		audiences = append(audiences, GeneratedAudience{
-			PersonaID:  ranking.PersonaID,
-			Persona:    persona,
-			Research:   personaResearch,
-			Metrics:    ranking.Metrics,
-			Hypotheses: hypotheses,
-			Rank:       ranking.SelectionOrder,
-			Score:      ranking.FinalScore,
-		})
-	}
-
-	sort.Slice(audiences, func(i, j int) bool { return audiences[i].Rank < audiences[j].Rank })
-	for index, audience := range audiences {
-		if audience.Rank != index+1 {
-			return nil, errors.New("completed generator result contains duplicate or missing audience ranks")
-		}
-	}
-
-	return audiences, nil
-}
-
-func indexGeneratorValues(values []json.RawMessage) (map[string]json.RawMessage, error) {
-	indexed := make(map[string]json.RawMessage, len(values))
-	for _, value := range values {
-		var reference generatorPersonaReference
-		if err := json.Unmarshal(value, &reference); err != nil {
-			return nil, fmt.Errorf("decode generator value: %w", err)
-		}
-
-		if reference.PersonaID == "" {
-			return nil, errors.New("generator value did not contain persona_id")
-		}
-
-		indexed[reference.PersonaID] = value
-	}
-
-	return indexed, nil
 }

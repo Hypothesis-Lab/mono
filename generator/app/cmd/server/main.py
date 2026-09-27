@@ -12,7 +12,7 @@ from app.observability import PrometheusObserver
 from app.pipelines.audiences.stages import AudienceStages
 from app.repositories.jobs import JobRepository
 from app.routes import router
-from app.worker import AudienceWorker
+from app.worker import GeneratorWorker
 
 
 @asynccontextmanager
@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
     repository = JobRepository(settings.database_url)
     observer = PrometheusObserver()
     llm = ModelClient(settings.model_config, observer)
-    worker = AudienceWorker(
+    worker = GeneratorWorker(
         repository,
         AudienceStages(llm),
         observer,

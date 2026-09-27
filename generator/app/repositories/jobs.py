@@ -11,7 +11,7 @@ from psycopg.types.json import Jsonb
 from app.db import connect
 
 JobStatus = Literal["queued", "running", "failed", "completed"]
-JobKind = Literal["audiences"]
+JobKind = str
 
 
 @dataclass(frozen=True)
@@ -110,7 +110,7 @@ class JobRepository:
         ]
         return cast(Literal["created", "working", "completed", "failed"], status)
 
-    def next_completed(self) -> CompletedJob | None:
+    def next_completed(self, kind: str) -> CompletedJob | None:
         with (
             connect(self.database_url) as connection,
             connection.cursor() as cursor,
@@ -118,8 +118,10 @@ class JobRepository:
             cursor.execute(
                 """
                 SELECT id, product_id, kind, result FROM generator.job
-                WHERE status = 'completed' AND NOT persisted ORDER BY finished_at LIMIT 1
-                """
+                WHERE status = 'completed' AND NOT persisted AND kind = %s
+                ORDER BY finished_at LIMIT 1
+                """,
+                (kind,),
             )
             row = cursor.fetchone()
 
@@ -139,7 +141,7 @@ class JobRepository:
         with connect(self.database_url) as connection, connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT id FROM generator.job WHERE kind = 'audiences' AND status IN ('queued', 'running')
+                SELECT id FROM generator.job WHERE status IN ('queued', 'running')
                 ORDER BY (status = 'running'), created_at
                 """
             )
@@ -196,7 +198,7 @@ class JobRepository:
             cursor.execute(
                 """SELECT COUNT(*) FILTER (WHERE status IN ('queued', 'running')) AS active_count,
                           COUNT(*) FILTER (WHERE status = 'failed') AS failed_count
-                   FROM generator.job WHERE kind = 'audiences'"""
+                   FROM generator.job"""
             )
             row = cursor.fetchone()
 
@@ -210,7 +212,7 @@ class JobRepository:
             cursor.execute(
                 """
                 SELECT id FROM generator.job
-                WHERE kind = 'audiences' AND status = 'running'
+                WHERE status = 'running'
                 ORDER BY created_at LIMIT 1
                 """
             )

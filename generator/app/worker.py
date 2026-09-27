@@ -11,14 +11,14 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.postgres import PostgresSaver
 
 from app.observability import Measurement, Observer
-from app.pipelines.audiences.graph import build_graph
 from app.pipelines.audiences.stages import AudienceStages
+from app.pipelines.registry import get_pipeline
 from app.repositories.jobs import Job, JobRepository
 
 logger = logging.getLogger(__name__)
 
 
-class AudienceWorker:
+class GeneratorWorker:
     def __init__(
         self,
         repository: JobRepository,
@@ -34,7 +34,7 @@ class AudienceWorker:
         self.graph_max_concurrency = graph_max_concurrency
         self._stop = threading.Event()
         self._condition = threading.Condition()
-        self._thread = threading.Thread(target=self._run, name="audiences-dispatcher", daemon=True)
+        self._thread = threading.Thread(target=self._run, name="generator-dispatcher", daemon=True)
 
     def start(self) -> None:
         self._thread.start()
@@ -48,7 +48,7 @@ class AudienceWorker:
 
     def _run(self) -> None:
         active: set[Future[None]] = set()
-        with ThreadPoolExecutor(max_workers=self.concurrency, thread_name_prefix="audiences-worker") as pool:
+        with ThreadPoolExecutor(max_workers=self.concurrency, thread_name_prefix="generator-worker") as pool:
             while not self._stop.is_set():
                 active = {future for future in active if not future.done()}
                 capacity = self.concurrency - len(active)
@@ -68,7 +68,7 @@ class AudienceWorker:
                             active.add(future)
                             capacity -= 1
                     except Exception:
-                        logger.exception("audiences dispatcher scan failed")
+                        logger.exception("generator dispatcher scan failed")
 
                 with self._condition:
                     if self._stop.is_set():
@@ -84,8 +84,10 @@ class AudienceWorker:
         started = perf_counter()
         outcome = "success"
         try:
+            pipeline = get_pipeline(job.kind)
+            pipeline.validate_input(job.input)
             checkpointer = PostgresSaver(connection)
-            graph = build_graph(self.stages, checkpointer=checkpointer, observer=self.observer)
+            graph = pipeline.graph_builder(self.stages, checkpointer=checkpointer, observer=self.observer)
             config: RunnableConfig = {
                 "configurable": {"thread_id": str(job.id), "retry_generation": job.retry_generation},
                 "max_concurrency": self.graph_max_concurrency,
@@ -98,17 +100,19 @@ class AudienceWorker:
 
             result = state.get("result")
             if not isinstance(result, dict):
-                raise RuntimeError("audience graph completed without a result")
+                raise RuntimeError(f"{job.kind} graph completed without a result")
 
             JobRepository.finish_locked(connection, job.id, result)
         except Exception:
             outcome = "error"
-            logger.exception("audience generation job failed", extra={"job_id": str(job.id)})
+            logger.exception("generator job failed", extra={"job_id": str(job.id), "kind": job.kind})
 
             try:
                 JobRepository.fail_locked(connection, job.id)
             except Exception:
-                logger.exception("could not persist audience job failure", extra={"job_id": str(job.id)})
+                logger.exception(
+                    "could not persist generator job failure", extra={"job_id": str(job.id), "kind": job.kind}
+                )
         finally:
             self.observer.observe(
                 Measurement(
