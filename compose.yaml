@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile.dev
     ports:
       - "127.0.0.1:5175:5173"
-      - "10.8.0.4:5175:5173"
+      - "10.8.0.4:8080:5173"
     command: sh -c "npm run build && npm run preview -- --host 0.0.0.0 --port 5173"
 
   backend:
@@ -61,7 +61,6 @@ services:
       TEMPORAL_ADDRESS: temporal:7233
     ports:
       - "127.0.0.1:8080:8080"
-      - "10.8.0.4:8080:8080"
     depends_on:
       temporal:
         condition: service_started
