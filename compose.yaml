@@ -38,21 +38,60 @@ services:
       generator:
         condition: service_healthy
       temporal:
-        condition: service_started
+        condition: service_healthy
 
-  temporal:
-    image: docker.io/temporalio/auto-setup:1.29.1
+  temporal-admin-tools:
+    image: docker.io/temporalio/admin-tools:1.32.0
+    restart: on-failure:6
     environment:
       DB: postgres12
       DB_PORT: "5432"
       POSTGRES_USER: postgres
       POSTGRES_PWD: postgres
       POSTGRES_SEEDS: postgres
+      SQL_PASSWORD: postgres
+    entrypoint: ["/bin/sh"]
+    command: /scripts/setup-postgres.sh
+    volumes:
+      - ./temporal/setup-postgres.sh:/scripts/setup-postgres.sh:ro
+      - temporal-setup:/setup
+
+  temporal:
+    image: docker.io/temporalio/server:1.32.0
+    restart: unless-stopped
+    environment:
+      DB: postgres12
+      DB_PORT: "5432"
+      POSTGRES_USER: postgres
+      POSTGRES_PWD: postgres
+      POSTGRES_SEEDS: postgres
+      BIND_ON_IP: 0.0.0.0
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/production.yaml
     ports:
       - "127.0.0.1:7233:7233"
-    depends_on:
-      postgres:
-        condition: service_healthy
+    entrypoint: ["/bin/sh"]
+    command: /scripts/start-server.sh
+    volumes:
+      - ./temporal/dynamicconfig/production.yaml:/etc/temporal/config/dynamicconfig/production.yaml:ro
+      - ./temporal/start-server.sh:/scripts/start-server.sh:ro
+      - temporal-setup:/setup
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "7233"]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 30s
+
+  temporal-create-namespace:
+    image: docker.io/temporalio/admin-tools:1.32.0
+    restart: on-failure:5
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      DEFAULT_NAMESPACE: default
+    entrypoint: ["/bin/sh"]
+    command: /scripts/create-namespace.sh
+    volumes:
+      - ./temporal/create-namespace.sh:/scripts/create-namespace.sh:ro
 
   temporal-ui:
     image: docker.io/temporalio/ui:2.34.0
@@ -63,7 +102,6 @@ services:
     depends_on:
       temporal:
         condition: service_started
-
   generator:
     build:
       context: ./generator
@@ -125,3 +163,4 @@ services:
 volumes:
   postgres-data:
   seaweedfs-data:
+  temporal-setup:

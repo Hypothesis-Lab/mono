@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "backend/**"
+      - "temporal/**"
       - "compose.vps.yaml"
       - ".github/workflows/backend.yml"
   workflow_dispatch:
@@ -115,10 +116,16 @@ jobs:
           VPS_APP_DIR: ${{ secrets.VPS_APP_DIR || '/home/user/app' }}
         run: |
           ssh -i ~/.ssh/deploy_key -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
-            "mkdir -p '$VPS_APP_DIR'"
+            "mkdir -p '$VPS_APP_DIR/temporal/dynamicconfig'"
           scp -i ~/.ssh/deploy_key -P "$VPS_PORT" \
             compose.vps.yaml \
             "$VPS_USER@$VPS_HOST:$VPS_APP_DIR/compose.vps.yaml"
+          scp -i ~/.ssh/deploy_key -P "$VPS_PORT" \
+            temporal/setup-postgres.sh temporal/create-namespace.sh temporal/start-server.sh \
+            "$VPS_USER@$VPS_HOST:$VPS_APP_DIR/temporal/"
+          scp -i ~/.ssh/deploy_key -P "$VPS_PORT" \
+            temporal/dynamicconfig/production.yaml \
+            "$VPS_USER@$VPS_HOST:$VPS_APP_DIR/temporal/dynamicconfig/"
 
       - name: Pull and restart backend
         env:
@@ -142,4 +149,6 @@ jobs:
             "cd '$VPS_APP_DIR' && \
              podman pull '$image:$BACKEND_TAG' && \
              podman tag '$image:$BACKEND_TAG' '$image:current' && \
+             podman compose -f compose.vps.yaml up -d postgres seaweedfs temporal-admin-tools temporal && \
+             podman compose -f compose.vps.yaml up temporal-create-namespace && \
              podman compose -f compose.vps.yaml up -d --force-recreate --remove-orphans backend"
