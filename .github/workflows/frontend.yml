@@ -1,0 +1,146 @@
+name: Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - "backend/internal/api/spec.yaml"
+      - "compose.vps.yaml"
+      - ".github/workflows/frontend.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/package.json
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      # TODO: Enable Playwright E2E tests in CI later.
+      # - name: Install Playwright browser
+      #   run: npx playwright install --with-deps chromium
+      #
+      # - name: E2E tests
+      #   run: npm run test:e2e
+
+      - name: Build
+        run: npm run build
+
+  build:
+    needs: check
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push frontend image
+        env:
+          IMAGE_REPOSITORY: ghcr.io/${{ github.repository }}/frontend
+        run: |
+          image="${IMAGE_REPOSITORY,,}"
+          tag="sha-${GITHUB_SHA}"
+          docker build --tag "$image:$tag" frontend
+          docker push "$image:$tag"
+
+  deploy:
+    needs: build
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: app-deploy
+      cancel-in-progress: false
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT || 22 }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          test -n "$VPS_KNOWN_HOSTS"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Upload VPS Compose file
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT || 22 }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_APP_DIR: ${{ secrets.VPS_APP_DIR || '/home/user/app' }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
+            "mkdir -p '$VPS_APP_DIR'"
+          scp -i ~/.ssh/deploy_key -P "$VPS_PORT" \
+            compose.vps.yaml \
+            "$VPS_USER@$VPS_HOST:$VPS_APP_DIR/compose.vps.yaml"
+
+      - name: Pull and restart frontend
+        env:
+          FRONTEND_IMAGE: ghcr.io/${{ github.repository }}/frontend
+          FRONTEND_TAG: sha-${{ github.sha }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT || 22 }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_APP_DIR: ${{ secrets.VPS_APP_DIR || '/home/user/app' }}
+        run: |
+          frontend_image="${FRONTEND_IMAGE,,}"
+          ssh_args=(-i ~/.ssh/deploy_key -p "$VPS_PORT")
+
+          printf '%s\n' "$GHCR_READ_TOKEN" | \
+          ssh "${ssh_args[@]}" "$VPS_USER@$VPS_HOST" \
+            "podman login ghcr.io --username '$GITHUB_ACTOR' --password-stdin"
+
+          ssh "${ssh_args[@]}" "$VPS_USER@$VPS_HOST" \
+            "cd '$VPS_APP_DIR' && \
+             podman pull '$frontend_image:$FRONTEND_TAG' && \
+             podman tag '$frontend_image:$FRONTEND_TAG' '$frontend_image:current' && \
+             podman compose -f compose.vps.yaml up -d --force-recreate --no-deps --remove-orphans frontend"
