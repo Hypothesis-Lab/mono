@@ -11,8 +11,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"app/internal/config"
 )
 
 const (
@@ -20,8 +18,9 @@ const (
 )
 
 var (
-	ageRangePattern = regexp.MustCompile(`(\d+)\D+(\d+)`)
-	agePlusPattern  = regexp.MustCompile(`(\d+)\+`)
+	ageRangePattern   = regexp.MustCompile(`(\d+)\D+(\d+)`)
+	agePlusPattern    = regexp.MustCompile(`(\d+)\+`)
+	ErrAuthentication = errors.New("yandex direct authentication failed")
 )
 
 type yandexCampaignAddRequest struct {
@@ -242,21 +241,23 @@ type yandexRequestError struct {
 }
 
 type Client struct {
-	token      string
-	endpoint   string
-	httpClient *http.Client
+	token                   string
+	endpoint                string
+	httpClient              *http.Client
+	onAuthenticationFailure func(context.Context) error
 }
 
 func New(token string) *Client {
-	return &Client{
-		token:      token,
-		endpoint:   yandexDirectURL,
-		httpClient: http.DefaultClient,
-	}
+	return NewWithAuthenticationFailure(token, nil)
 }
 
-func NewFromConfig(cfg *config.Config) *Client {
-	return New(cfg.YandexDirectToken)
+func NewWithAuthenticationFailure(token string, onAuthenticationFailure func(context.Context) error) *Client {
+	return &Client{
+		token:                   token,
+		endpoint:                yandexDirectURL,
+		httpClient:              http.DefaultClient,
+		onAuthenticationFailure: onAuthenticationFailure,
+	}
 }
 
 func (e *yandexRequestError) Error() string {
@@ -627,11 +628,23 @@ func (c *Client) post(ctx context.Context, service string, requestBody, result a
 	}
 
 	if err := json.Unmarshal(responseBody, result); err != nil {
+		if response.StatusCode == http.StatusUnauthorized {
+			return c.authenticationFailure(ctx, nil)
+		}
+
 		return fmt.Errorf("decode yandex direct %s response: %w", service, err)
 	}
 
-	if responseError(result) != nil {
-		return responseError(result)
+	if providerError := responseError(result); providerError != nil {
+		if isAuthenticationError(response.StatusCode, providerError) {
+			return c.authenticationFailure(ctx, providerError)
+		}
+
+		return providerError
+	}
+
+	if response.StatusCode == http.StatusUnauthorized {
+		return c.authenticationFailure(ctx, nil)
 	}
 
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
@@ -639,6 +652,37 @@ func (c *Client) post(ctx context.Context, service string, requestBody, result a
 	}
 
 	return nil
+}
+
+func (c *Client) authenticationFailure(ctx context.Context, providerError *yandexRequestError) error {
+	providerCode := 0
+	if providerError != nil {
+		providerCode = providerError.ErrorCode
+	}
+
+	authenticationError := fmt.Errorf("%w: provider code=%d", ErrAuthentication, providerCode)
+	if c.onAuthenticationFailure == nil {
+		return authenticationError
+	}
+
+	if err := c.onAuthenticationFailure(ctx); err != nil {
+		return errors.Join(authenticationError, fmt.Errorf("mark yandex direct connection revoked: %w", err))
+	}
+
+	return authenticationError
+}
+
+func isAuthenticationError(statusCode int, providerError *yandexRequestError) bool {
+	if statusCode == http.StatusUnauthorized || providerError.ErrorCode == 53 {
+		return true
+	}
+
+	value := strings.ToLower(providerError.ErrorString + " " + providerError.ErrorDetail)
+	if !strings.Contains(value, "token") {
+		return false
+	}
+
+	return strings.Contains(value, "invalid") || strings.Contains(value, "expired") || strings.Contains(value, "revoked")
 }
 
 func demographicProfileIDs(profiles []yandexDemographicProfile, criteriaTypes []yandexAudienceCriteriaType, gender string, age int) (int64, int64, error) {

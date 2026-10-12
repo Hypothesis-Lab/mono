@@ -32,6 +32,21 @@ export function rtkErrorMessage(err: unknown, fallback: string): string {
   return errorMessage(err, fallback)
 }
 
+export function rtkErrorCode(err: unknown): string | null {
+  if (err !== null && typeof err === 'object' && 'data' in err) {
+    const body = (err as FetchBaseQueryError).data as ErrBody | undefined
+    const errorCode = body?.error?.error_code
+    if (typeof errorCode === 'string' && errorCode.length > 0) {
+      return errorCode
+    }
+  }
+  return null
+}
+
+export function isYandexDirectNotConnectedError(err: unknown): boolean {
+  return rtkErrorCode(err) === 'yandex_direct_not_connected'
+}
+
 export function isApiNotFound(err: unknown): boolean {
   if (err === null || typeof err !== 'object' || !('status' in err)) {
     return false

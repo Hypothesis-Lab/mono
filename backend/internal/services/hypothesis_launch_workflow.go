@@ -44,6 +44,7 @@ type hypothesisLaunchInput struct {
 }
 
 type hypothesisStopInput struct {
+	UserID         string
 	HypothesisID   string
 	StopID         string
 	SourceLaunchID string

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"app/internal/clients/yandex_direct"
 	"app/internal/repositories/hypothesislaunch"
 )
 
@@ -33,7 +34,12 @@ func (s *HypothesisService) ensureHypothesisLaunchResourceActivity(ctx context.C
 		return nil
 	}
 
-	externalID, err := s.findOrCreateLaunchResource(ctx, resource)
+	yandex, err := s.yandexClientForLaunch(ctx, resource.LaunchID, "")
+	if err != nil {
+		return err
+	}
+
+	externalID, err := s.findOrCreateLaunchResource(ctx, yandex, resource)
 	if err != nil {
 		return err
 	}
@@ -54,14 +60,14 @@ func (s *HypothesisService) createHypothesisLaunchResourceActivity(ctx context.C
 }
 
 //nolint:cyclop // Resource kinds require distinct provider APIs and dependency lookups.
-func (s *HypothesisService) findOrCreateLaunchResource(ctx context.Context, resource *hypothesislaunch.Resource) (int64, error) {
+func (s *HypothesisService) findOrCreateLaunchResource(ctx context.Context, yandex *yandexdirect.Client, resource *hypothesislaunch.Resource) (int64, error) {
 	switch resource.Kind {
 	case hypothesislaunch.ResourceCampaign:
 		if resource.Name == nil || resource.StartDate == nil {
 			return 0, fmt.Errorf("campaign resource %s has incomplete launch data", resource.ID)
 		}
 
-		id, found, err := s.yandex.FindCampaignByName(ctx, *resource.Name)
+		id, found, err := yandex.FindCampaignByName(ctx, *resource.Name)
 		if err != nil {
 			return 0, fmt.Errorf("find campaign resource %s: %w", resource.ID, err)
 		}
@@ -74,7 +80,7 @@ func (s *HypothesisService) findOrCreateLaunchResource(ctx context.Context, reso
 			return 0, err
 		}
 
-		id, err = s.yandex.CreateCampaign(ctx, *resource.Name, *resource.StartDate)
+		id, err = yandex.CreateCampaign(ctx, *resource.Name, *resource.StartDate)
 		if err != nil {
 			return 0, fmt.Errorf("create campaign resource %s: %w", resource.ID, err)
 		}
@@ -85,7 +91,7 @@ func (s *HypothesisService) findOrCreateLaunchResource(ctx context.Context, reso
 			return 0, fmt.Errorf("retargeting list resource %s has incomplete launch data", resource.ID)
 		}
 
-		id, found, err := s.yandex.FindDemographicRetargetingListByName(ctx, *resource.Name)
+		id, found, err := yandex.FindDemographicRetargetingListByName(ctx, *resource.Name)
 		if err != nil {
 			return 0, fmt.Errorf("find retargeting list resource %s: %w", resource.ID, err)
 		}
@@ -98,7 +104,7 @@ func (s *HypothesisService) findOrCreateLaunchResource(ctx context.Context, reso
 			return 0, err
 		}
 
-		id, err = s.yandex.CreateDemographicRetargetingList(ctx, *resource.Name, *resource.Gender, *resource.Age)
+		id, err = yandex.CreateDemographicRetargetingList(ctx, *resource.Name, *resource.Gender, *resource.Age)
 		if err != nil {
 			return 0, fmt.Errorf("create retargeting list resource %s: %w", resource.ID, err)
 		}
@@ -114,7 +120,7 @@ func (s *HypothesisService) findOrCreateLaunchResource(ctx context.Context, reso
 			return 0, fmt.Errorf("get campaign dependency for ad group resource %s: %w", resource.ID, err)
 		}
 
-		id, found, err := s.yandex.FindUserProfileAdGroup(ctx, campaignID, *resource.Name)
+		id, found, err := yandex.FindUserProfileAdGroup(ctx, campaignID, *resource.Name)
 		if err != nil {
 			return 0, fmt.Errorf("find ad group resource %s: %w", resource.ID, err)
 		}
@@ -127,7 +133,7 @@ func (s *HypothesisService) findOrCreateLaunchResource(ctx context.Context, reso
 			return 0, err
 		}
 
-		id, err = s.yandex.CreateUserProfileAdGroup(ctx, campaignID, *resource.Name, []int64{russiaYandexRegionID})
+		id, err = yandex.CreateUserProfileAdGroup(ctx, campaignID, *resource.Name, []int64{russiaYandexRegionID})
 		if err != nil {
 			return 0, fmt.Errorf("create ad group resource %s: %w", resource.ID, err)
 		}
@@ -144,7 +150,7 @@ func (s *HypothesisService) findOrCreateLaunchResource(ctx context.Context, reso
 			return 0, fmt.Errorf("get retargeting list dependency for audience target resource %s: %w", resource.ID, err)
 		}
 
-		id, found, err := s.yandex.FindAudienceTarget(ctx, adGroupID, retargetingListID)
+		id, found, err := yandex.FindAudienceTarget(ctx, adGroupID, retargetingListID)
 		if err != nil {
 			return 0, fmt.Errorf("find audience target resource %s: %w", resource.ID, err)
 		}
@@ -157,7 +163,7 @@ func (s *HypothesisService) findOrCreateLaunchResource(ctx context.Context, reso
 			return 0, err
 		}
 
-		id, err = s.yandex.CreateAudienceTarget(ctx, adGroupID, retargetingListID)
+		id, err = yandex.CreateAudienceTarget(ctx, adGroupID, retargetingListID)
 		if err != nil {
 			return 0, fmt.Errorf("create audience target resource %s: %w", resource.ID, err)
 		}
@@ -194,12 +200,17 @@ func (s *HypothesisService) deleteHypothesisLaunchResourceActivity(ctx context.C
 		return nil
 	}
 
-	service, objectName, deleteResource, err := s.launchResourceDelete(resource)
+	yandex, err := s.yandexClientForLaunch(ctx, resource.LaunchID, "")
 	if err != nil {
 		return err
 	}
 
-	exists, err := s.yandex.Exists(ctx, service, objectName, *resource.ExternalID)
+	service, objectName, deleteResource, err := launchResourceDelete(yandex, resource)
+	if err != nil {
+		return err
+	}
+
+	exists, err := yandex.Exists(ctx, service, objectName, *resource.ExternalID)
 	if err != nil {
 		return fmt.Errorf("check hypothesis launch resource %s before deletion: %w", resource.ID, err)
 	}
@@ -225,16 +236,16 @@ func (s *HypothesisService) deleteHypothesisLaunchResourceActivityWithMetadata(c
 	return nil
 }
 
-func (s *HypothesisService) launchResourceDelete(resource *hypothesislaunch.Resource) (string, string, func(context.Context, int64) error, error) {
+func launchResourceDelete(yandex *yandexdirect.Client, resource *hypothesislaunch.Resource) (string, string, func(context.Context, int64) error, error) {
 	switch resource.Kind {
 	case hypothesislaunch.ResourceCampaign:
-		return "campaigns", "Campaigns", s.yandex.DeleteCampaign, nil
+		return "campaigns", "Campaigns", yandex.DeleteCampaign, nil
 	case hypothesislaunch.ResourceRetargetingList:
-		return "retargetinglists", "RetargetingLists", s.yandex.DeleteRetargetingList, nil
+		return "retargetinglists", "RetargetingLists", yandex.DeleteRetargetingList, nil
 	case hypothesislaunch.ResourceAdGroup:
-		return "adgroups", "AdGroups", s.yandex.DeleteAdGroup, nil
+		return "adgroups", "AdGroups", yandex.DeleteAdGroup, nil
 	case hypothesislaunch.ResourceAudienceTarget:
-		return "audiencetargets", "AudienceTargets", s.yandex.DeleteAudienceTarget, nil
+		return "audiencetargets", "AudienceTargets", yandex.DeleteAudienceTarget, nil
 	default:
 		return "", "", nil, fmt.Errorf("unsupported hypothesis launch resource kind %q", resource.Kind)
 	}

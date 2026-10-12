@@ -1,7 +1,11 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { skipToken } from '@reduxjs/toolkit/query'
-import { getStatusLabel, rtkErrorMessage } from '../../api/structs'
+import {
+  getStatusLabel,
+  isYandexDirectNotConnectedError,
+  rtkErrorMessage,
+} from '../../api/structs'
 import {
   useGetHypothesisProductQuery,
   useGetHypothesisQuery,
@@ -26,6 +30,8 @@ export function HypothesisPage() {
 
   const [launchError, setLaunchError] = useState<string | null>(null)
   const [stopError, setStopError] = useState<string | null>(null)
+  const [launchConnectionError, setLaunchConnectionError] = useState(false)
+  const [stopConnectionError, setStopConnectionError] = useState(false)
 
   if (!id) {
     return (
@@ -41,11 +47,16 @@ export function HypothesisPage() {
     }
 
     setLaunchError(null)
+    setLaunchConnectionError(false)
 
     try {
       await launchHypothesis({ id }).unwrap()
     } catch (err) {
-      setLaunchError(rtkErrorMessage(err, 'Не удалось запустить'))
+      if (isYandexDirectNotConnectedError(err)) {
+        setLaunchConnectionError(true)
+      } else {
+        setLaunchError(rtkErrorMessage(err, 'Не удалось запустить'))
+      }
     }
   }
 
@@ -55,11 +66,16 @@ export function HypothesisPage() {
     }
 
     setStopError(null)
+    setStopConnectionError(false)
 
     try {
       await stopHypothesis({ id }).unwrap()
     } catch (err) {
-      setStopError(rtkErrorMessage(err, 'Не удалось остановить'))
+      if (isYandexDirectNotConnectedError(err)) {
+        setStopConnectionError(true)
+      } else {
+        setStopError(rtkErrorMessage(err, 'Не удалось остановить'))
+      }
     }
   }
 
@@ -126,7 +142,27 @@ export function HypothesisPage() {
           </S.ButtonGroup>
 
           {launchError && <S.ErrorMessage>{launchError}</S.ErrorMessage>}
+          {launchConnectionError && (
+            <S.ConnectionError>
+              <S.ErrorMessage>
+                Чтобы запустить гипотезу, подключите или переподключите Yandex Direct.
+              </S.ErrorMessage>
+              <S.ConnectionLink to="/user">
+                Перейти к подключению Yandex Direct
+              </S.ConnectionLink>
+            </S.ConnectionError>
+          )}
           {stopError && <S.ErrorMessage>{stopError}</S.ErrorMessage>}
+          {stopConnectionError && (
+            <S.ConnectionError>
+              <S.ErrorMessage>
+                Чтобы остановить гипотезу, подключите или переподключите Yandex Direct.
+              </S.ErrorMessage>
+              <S.ConnectionLink to="/user">
+                Перейти к подключению Yandex Direct
+              </S.ConnectionLink>
+            </S.ConnectionError>
+          )}
         </>
       )}
     </S.Page>

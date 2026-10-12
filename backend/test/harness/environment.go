@@ -38,8 +38,8 @@ const (
 	yandexClientID     = "test-yandex-client-id"
 	yandexClientSecret = "test-yandex-client-secret"
 	yandexTokenKey     = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
-	yandexToken        = "test-yandex-token"
 	generatorURL       = "http://generator:8000"
+	openRouterAPIKey   = "test-openrouter-api-key"
 )
 
 type Env struct {
@@ -185,8 +185,8 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 			"YANDEX_DIRECT_CLIENT_ID":            yandexClientID,
 			"YANDEX_DIRECT_CLIENT_SECRET":        yandexClientSecret,
 			"YANDEX_DIRECT_TOKEN_ENCRYPTION_KEY": yandexTokenKey,
-			"YANDEX_DIRECT_TOKEN":                yandexToken,
 			"GENERATOR_URL":                      generatorURL,
+			"OPENROUTER_API_KEY":                 openRouterAPIKey,
 			"TEMPORAL_ADDRESS":                   temporalAlias + ":7233",
 		},
 		WaitingFor: wait.ForHTTP("/healthz").WithPort(appPort + "/tcp").WithStartupTimeout(10 * time.Second),

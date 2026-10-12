@@ -59,6 +59,7 @@ type OutboxItem struct {
 	ID           string
 	LaunchID     string
 	HypothesisID string
+	UserID       string
 	WorkflowID   string
 }
 
@@ -72,6 +73,7 @@ type StopOutboxItem struct {
 	ID             string
 	StopID         string
 	HypothesisID   string
+	UserID         string
 	SourceLaunchID string
 	WorkflowID     string
 }
@@ -354,8 +356,8 @@ func (r *Repository) ClaimOutbox(ctx context.Context) (*OutboxItem, error) {
 		SET status = 'starting', attempts = attempts + 1, updated_at = NOW()
 		FROM candidate, hypothesis_launch AS launch
 		WHERE outbox.id = candidate.id AND launch.id = outbox.launch_id
-		RETURNING outbox.id, outbox.launch_id, launch.hypothesis_id, launch.workflow_id
-	`).Scan(&item.ID, &item.LaunchID, &item.HypothesisID, &item.WorkflowID)
+		RETURNING outbox.id, outbox.launch_id, launch.hypothesis_id, launch.user_id, launch.workflow_id
+	`).Scan(&item.ID, &item.LaunchID, &item.HypothesisID, &item.UserID, &item.WorkflowID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrOutboxEmpty
 	}
@@ -394,8 +396,8 @@ func (r *Repository) ClaimStopOutbox(ctx context.Context) (*StopOutboxItem, erro
 		SET status = 'starting', attempts = attempts + 1, updated_at = NOW()
 		FROM candidate, hypothesis_stop AS stop
 		WHERE outbox.id = candidate.id AND stop.id = outbox.stop_id
-		RETURNING outbox.id, outbox.stop_id, stop.hypothesis_id, stop.source_launch_id, stop.workflow_id
-	`).Scan(&item.ID, &item.StopID, &item.HypothesisID, &item.SourceLaunchID, &item.WorkflowID)
+		RETURNING outbox.id, outbox.stop_id, stop.hypothesis_id, stop.user_id, stop.source_launch_id, stop.workflow_id
+	`).Scan(&item.ID, &item.StopID, &item.HypothesisID, &item.UserID, &item.SourceLaunchID, &item.WorkflowID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrStopOutboxEmpty
 	}
@@ -409,6 +411,17 @@ func (r *Repository) ClaimStopOutbox(ctx context.Context) (*StopOutboxItem, erro
 	}
 
 	return item, nil
+}
+
+func (r *Repository) UserIDForLaunch(ctx context.Context, launchID string) (string, error) {
+	var userID string
+	if err := r.db.Pool().QueryRow(ctx, "SELECT user_id FROM hypothesis_launch WHERE id = $1", launchID).Scan(&userID); errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	} else if err != nil {
+		return "", fmt.Errorf("get hypothesis launch user: %w", err)
+	}
+
+	return userID, nil
 }
 
 func (r *Repository) MarkOutboxDispatched(ctx context.Context, outboxID string) error {

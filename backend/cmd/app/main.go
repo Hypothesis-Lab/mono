@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"app/internal/clients"
-	"app/internal/clients/yandex_direct"
 	"app/internal/config"
 	"app/internal/db"
 	"app/internal/handlers"
@@ -42,7 +41,6 @@ func main() {
 		fx.Provide(config.New),
 		fx.Provide(clients.NewGeneratorClient),
 		fx.Provide(clients.NewJevClient),
-		fx.Provide(yandexdirect.NewFromConfig),
 		fx.Provide(db.NewDB),
 		fx.Provide(storage.NewS3),
 		fx.Provide(temporal.NewClient),

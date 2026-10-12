@@ -385,6 +385,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrBody"
+        "409":
+          description: Yandex Direct connection is not connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
         "500":
           description: internal server error
           content:
@@ -446,7 +452,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/HypothesisResponse"
         "409":
-          description: hypothesis launch or stop is in progress, or manual intervention is required
+          description: Yandex Direct connection is not connected, or hypothesis launch or stop is in progress, or manual intervention is required
           content:
             application/json:
               schema:
@@ -1227,6 +1233,7 @@ components:
       properties:
         code:        { type: integer }
         description: { type: string }
+        error_code:  { type: string }
     RegisterUserRequest:
       type: object
       required: [email, password]

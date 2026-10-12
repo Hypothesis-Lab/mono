@@ -146,6 +146,10 @@ func (s *Server) LaunchHypothesis(ctx context.Context, req api.LaunchHypothesisR
 			s.logger.Error("launch hypothesis", zap.String("id", req.Id), zap.Error(err))
 
 			return api.LaunchHypothesis400JSONResponse(errBody(http.StatusBadRequest, "hypothesis product has no generated audiences")), nil
+		case errors.Is(err, services.ErrYandexDirectNotConnected):
+			s.logger.Error("launch hypothesis", zap.String("id", req.Id), zap.Error(err))
+
+			return api.LaunchHypothesis409JSONResponse(errBodyWithCode(http.StatusConflict, "Yandex Direct connection is not connected", "yandex_direct_not_connected")), nil
 		default:
 			s.logger.Error("launch hypothesis", zap.String("id", req.Id), zap.Error(err))
 
@@ -215,6 +219,10 @@ func (s *Server) StopHypothesis(ctx context.Context, req api.StopHypothesisReque
 			s.logger.Error("stop hypothesis", zap.String("id", req.Id), zap.Error(err))
 
 			return api.StopHypothesis409JSONResponse(errBody(http.StatusConflict, "hypothesis requires manual intervention")), nil
+		case errors.Is(err, services.ErrYandexDirectNotConnected):
+			s.logger.Error("stop hypothesis", zap.String("id", req.Id), zap.Error(err))
+
+			return api.StopHypothesis409JSONResponse(errBodyWithCode(http.StatusConflict, "Yandex Direct connection is not connected", "yandex_direct_not_connected")), nil
 		default:
 			s.logger.Error("stop hypothesis", zap.String("id", req.Id), zap.Error(err))
 

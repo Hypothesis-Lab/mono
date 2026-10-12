@@ -21,7 +21,6 @@ type Config struct {
 	YandexDirectClientID           string
 	YandexDirectClientSecret       string
 	YandexDirectTokenEncryptionKey [32]byte
-	YandexDirectToken              string
 	GeneratorURL                   string
 	OpenRouterAPIKey               string
 	TemporalAddress                string
@@ -95,11 +94,6 @@ func New() (*Config, error) {
 		return nil, err
 	}
 
-	yandexDirectToken := os.Getenv("YANDEX_DIRECT_TOKEN")
-	if yandexDirectToken == "" {
-		return nil, errors.New("YANDEX_DIRECT_TOKEN is required")
-	}
-
 	generatorURL := os.Getenv("GENERATOR_URL")
 	if generatorURL == "" {
 		return nil, errors.New("GENERATOR_URL is required")
@@ -129,7 +123,6 @@ func New() (*Config, error) {
 		YandexDirectClientID:           yandexDirectClientID,
 		YandexDirectClientSecret:       yandexDirectClientSecret,
 		YandexDirectTokenEncryptionKey: yandexDirectTokenEncryptionKey,
-		YandexDirectToken:              yandexDirectToken,
 		GeneratorURL:                   generatorURL,
 		OpenRouterAPIKey:               openRouterAPIKey,
 		TemporalAddress:                temporalAddress,

@@ -86,6 +86,7 @@ func (s *HypothesisLaunchStarter) startNext(ctx context.Context) error {
 	}
 
 	input := hypothesisLaunchInput{
+		UserID:       item.UserID,
 		HypothesisID: item.HypothesisID,
 		LaunchID:     item.LaunchID,
 		Resources:    resources,

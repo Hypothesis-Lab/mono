@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 export const Page = styled.main`
@@ -47,6 +48,18 @@ export const Message = styled.p`
 export const ErrorMessage = styled.p`
   font-size: 16px;
   color: #c00;
+`
+
+export const ConnectionError = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+export const ConnectionLink = styled(Link)`
+  color: #111;
+  font-size: 14px;
+  text-decoration: underline;
 `
 
 export const ProductSection = styled.section`

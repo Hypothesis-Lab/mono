@@ -373,6 +373,7 @@ export type AuthTokenResponse = {
 export type ErrDetail = {
   code: number;
   description: string;
+  error_code?: string;
 };
 export type ErrBody = {
   error: ErrDetail;

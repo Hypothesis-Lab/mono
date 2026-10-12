@@ -10,10 +10,13 @@ import (
 	"io"
 	"time"
 
+	"app/internal/clients/yandex_direct"
 	"app/internal/clients/yandex_oauth"
 	"app/internal/config"
 	"app/internal/repositories/yandexdirectconnection"
 )
+
+var ErrYandexDirectNotConnected = errors.New("yandex direct connection is not connected")
 
 type YandexDirectConnectionStatus struct {
 	Status         string
@@ -68,6 +71,23 @@ func (s *YandexDirectConnectionService) Status(ctx context.Context, userID strin
 	}, nil
 }
 
+func (s *YandexDirectConnectionService) EnsureConnected(ctx context.Context, userID string) error {
+	connection, err := s.connections.Get(ctx, userID)
+	if errors.Is(err, yandexdirectconnection.ErrNotFound) {
+		return ErrYandexDirectNotConnected
+	}
+
+	if err != nil {
+		return fmt.Errorf("check yandex direct connection: %w", err)
+	}
+
+	if connection.Status != "connected" {
+		return fmt.Errorf("%w: status=%s", ErrYandexDirectNotConnected, connection.Status)
+	}
+
+	return nil
+}
+
 func (s *YandexDirectConnectionService) Connect(ctx context.Context, userID, code string) (*YandexDirectConnectionStatus, error) {
 	token, err := s.oauth.ExchangeCode(ctx, code)
 	if err != nil {
@@ -108,6 +128,26 @@ func (s *YandexDirectConnectionService) MarkRevoked(ctx context.Context, userID 
 	return nil
 }
 
+func (s *YandexDirectConnectionService) NewClient(ctx context.Context, userID string) (*yandexdirect.Client, error) {
+	connection, err := s.connections.Get(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get yandex direct credentials: %w", err)
+	}
+
+	if connection.Status != "connected" {
+		return nil, fmt.Errorf("yandex direct connection is not connected: status=%s", connection.Status)
+	}
+
+	accessToken, err := s.decrypt(connection.AccessTokenCiphertext)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt yandex direct access token: %w", err)
+	}
+
+	return yandexdirect.NewWithAuthenticationFailure(string(accessToken), func(ctx context.Context) error {
+		return s.MarkRevoked(ctx, userID)
+	}), nil
+}
+
 func (s *YandexDirectConnectionService) encrypt(plaintext []byte) ([]byte, error) {
 	nonce := make([]byte, s.cipher.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
@@ -115,4 +155,17 @@ func (s *YandexDirectConnectionService) encrypt(plaintext []byte) ([]byte, error
 	}
 
 	return s.cipher.Seal(nonce, nonce, plaintext, nil), nil
+}
+
+func (s *YandexDirectConnectionService) decrypt(ciphertext []byte) ([]byte, error) {
+	if len(ciphertext) < s.cipher.NonceSize() {
+		return nil, errors.New("encrypted token is shorter than nonce")
+	}
+
+	plaintext, err := s.cipher.Open(nil, ciphertext[:s.cipher.NonceSize()], ciphertext[s.cipher.NonceSize():], nil)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt encrypted token: %w", err)
+	}
+
+	return plaintext, nil
 }

@@ -32,14 +32,14 @@ var (
 )
 
 type HypothesisService struct {
-	hypotheses *hypothesis.Repository
-	products   *product.Repository
-	audiences  *audience.Repository
-	files      *file.Repository
-	storage    *storage.S3
-	campaigns  *adcampaign.Repository
-	yandex     *yandexdirect.Client
-	launches   *hypothesislaunch.Repository
+	hypotheses  *hypothesis.Repository
+	products    *product.Repository
+	audiences   *audience.Repository
+	files       *file.Repository
+	storage     *storage.S3
+	campaigns   *adcampaign.Repository
+	connections *YandexDirectConnectionService
+	launches    *hypothesislaunch.Repository
 }
 
 type createdAudienceTargeting struct {
@@ -65,18 +65,18 @@ func NewHypothesisService(
 	files *file.Repository,
 	storage *storage.S3,
 	campaigns *adcampaign.Repository,
-	yandex *yandexdirect.Client,
+	connections *YandexDirectConnectionService,
 	launches *hypothesislaunch.Repository,
 ) *HypothesisService {
 	return &HypothesisService{
-		hypotheses: hypotheses,
-		products:   products,
-		audiences:  audiences,
-		files:      files,
-		storage:    storage,
-		campaigns:  campaigns,
-		yandex:     yandex,
-		launches:   launches,
+		hypotheses:  hypotheses,
+		products:    products,
+		audiences:   audiences,
+		files:       files,
+		storage:     storage,
+		campaigns:   campaigns,
+		connections: connections,
+		launches:    launches,
 	}
 }
 
@@ -136,6 +136,18 @@ func (s *HypothesisService) GetProduct(ctx context.Context, userID, id string) (
 }
 
 func (s *HypothesisService) StartLaunch(ctx context.Context, userID, id string) (string, error) {
+	if _, err := s.hypotheses.Get(ctx, userID, id); err != nil {
+		if errors.Is(err, hypothesis.ErrNotFound) {
+			return "", hypothesis.ErrNotFound
+		}
+
+		return "", fmt.Errorf("get hypothesis before launch: %w", err)
+	}
+
+	if err := s.connections.EnsureConnected(ctx, userID); err != nil {
+		return "", fmt.Errorf("check yandex direct connection before launch: %w", err)
+	}
+
 	launch, err := s.launches.Create(ctx, userID, id, time.Now().Format(time.DateOnly))
 	if err != nil {
 		switch {
@@ -213,6 +225,10 @@ func (s *HypothesisService) Stop(ctx context.Context, userID, id string) (*StopS
 		return nil, ErrStopManual
 	}
 
+	if err := s.connections.EnsureConnected(ctx, userID); err != nil {
+		return nil, fmt.Errorf("check yandex direct connection before stop: %w", err)
+	}
+
 	stop, err := s.launches.CreateStop(ctx, userID, id)
 	if err != nil {
 		switch {
@@ -288,7 +304,37 @@ func (s *HypothesisService) Delete(ctx context.Context, userID, id string) error
 	return nil
 }
 
+func (s *HypothesisService) yandexClientForLaunch(ctx context.Context, launchID, userID string) (*yandexdirect.Client, error) {
+	if userID == "" {
+		var err error
+		userID, err = s.launches.UserIDForLaunch(ctx, launchID)
+		if err != nil {
+			return nil, fmt.Errorf("resolve hypothesis launch user: %w", err)
+		}
+	}
+
+	yandex, err := s.connections.NewClient(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("create yandex direct client for hypothesis launch: %w", err)
+	}
+
+	return yandex, nil
+}
+
 func (s *HypothesisService) launchHypothesisActivity(ctx context.Context, input hypothesisLaunchInput) error {
+	userID := input.UserID
+	yandex, err := s.yandexClientForLaunch(ctx, input.LaunchID, userID)
+	if err != nil {
+		return err
+	}
+
+	if userID == "" {
+		userID, err = s.launches.UserIDForLaunch(ctx, input.LaunchID)
+		if err != nil {
+			return fmt.Errorf("resolve hypothesis launch user for status: %w", err)
+		}
+	}
+
 	p, err := s.products.GetByHypothesisID(ctx, input.HypothesisID)
 	if err != nil {
 		if errors.Is(err, product.ErrNotFound) {
@@ -298,7 +344,7 @@ func (s *HypothesisService) launchHypothesisActivity(ctx context.Context, input 
 		return fmt.Errorf("get product in launch activity: %w", err)
 	}
 
-	campaignID, err := s.yandex.CreateCampaign(ctx, p.Name, time.Now().Format(time.DateOnly))
+	campaignID, err := yandex.CreateCampaign(ctx, p.Name, time.Now().Format(time.DateOnly))
 	if err != nil {
 		return fmt.Errorf("create yandex campaign in launch activity: %w", err)
 	}
@@ -308,34 +354,43 @@ func (s *HypothesisService) launchHypothesisActivity(ctx context.Context, input 
 		Provider:   adcampaign.ProviderYandex,
 		ExternalID: campaignID,
 	}); err != nil {
-		if deleteErr := s.yandex.DeleteCampaign(ctx, campaignID); deleteErr != nil {
+		if deleteErr := yandex.DeleteCampaign(ctx, campaignID); deleteErr != nil {
 			return fmt.Errorf("store yandex campaign %d in launch activity: %w", campaignID, errors.Join(err, fmt.Errorf("delete created yandex campaign: %w", deleteErr)))
 		}
 
 		return fmt.Errorf("store yandex campaign %d in launch activity: %w", campaignID, err)
 	}
 
-	createdTargeting, err := s.createAudienceTargeting(ctx, p, campaignID)
+	createdTargeting, err := s.createAudienceTargeting(ctx, yandex, p, campaignID)
 	if err != nil {
-		return s.rollbackLaunch(ctx, input.UserID, input.HypothesisID, p.ID, campaignID, createdTargeting, err)
+		return s.rollbackLaunch(ctx, yandex, userID, input.HypothesisID, p.ID, campaignID, createdTargeting, err)
 	}
 
-	if _, err := s.hypotheses.SetStatus(ctx, input.UserID, input.HypothesisID, hypothesis.StatusInProgress); err != nil {
-		return s.rollbackLaunch(ctx, input.UserID, input.HypothesisID, p.ID, campaignID, createdTargeting, fmt.Errorf("mark hypothesis in progress after launch: %w", err))
+	if _, err := s.hypotheses.SetStatus(ctx, userID, input.HypothesisID, hypothesis.StatusInProgress); err != nil {
+		return s.rollbackLaunch(ctx, yandex, userID, input.HypothesisID, p.ID, campaignID, createdTargeting, fmt.Errorf("mark hypothesis in progress after launch: %w", err))
 	}
 
 	return nil
 }
 
 func (s *HypothesisService) resetHypothesisLaunchStatusActivity(ctx context.Context, input hypothesisLaunchInput) error {
-	if _, err := s.hypotheses.SetStatus(ctx, input.UserID, input.HypothesisID, hypothesis.StatusIdle); err != nil {
+	userID := input.UserID
+	if userID == "" {
+		var err error
+		userID, err = s.launches.UserIDForLaunch(ctx, input.LaunchID)
+		if err != nil {
+			return fmt.Errorf("resolve hypothesis launch user for reset: %w", err)
+		}
+	}
+
+	if _, err := s.hypotheses.SetStatus(ctx, userID, input.HypothesisID, hypothesis.StatusIdle); err != nil {
 		return fmt.Errorf("reset hypothesis status after launch: %w", err)
 	}
 
 	return nil
 }
 
-func (s *HypothesisService) createAudienceTargeting(ctx context.Context, p *product.Product, campaignID int64) ([]createdAudienceTargeting, error) {
+func (s *HypothesisService) createAudienceTargeting(ctx context.Context, yandex *yandexdirect.Client, p *product.Product, campaignID int64) ([]createdAudienceTargeting, error) {
 	createdTargeting := []createdAudienceTargeting{}
 	audiences, err := s.audiences.ListByProductID(ctx, p.ID)
 	if err != nil {
@@ -355,21 +410,21 @@ func (s *HypothesisService) createAudienceTargeting(ctx context.Context, p *prod
 			return createdTargeting, fmt.Errorf("decode audience %s persona: %w", audience.ID, err)
 		}
 
-		retargetingListID, err := s.yandex.CreateDemographicRetargetingList(ctx, "product-"+p.ID+"-"+audience.PersonaID, persona.Gender, persona.Age)
+		retargetingListID, err := yandex.CreateDemographicRetargetingList(ctx, "product-"+p.ID+"-"+audience.PersonaID, persona.Gender, persona.Age)
 		if err != nil {
 			return createdTargeting, fmt.Errorf("create retargeting list for audience %s: %w", audience.ID, err)
 		}
 
 		createdTargeting = append(createdTargeting, createdAudienceTargeting{retargetingListID: retargetingListID})
 
-		adGroupID, err := s.yandex.CreateUserProfileAdGroup(ctx, campaignID, "product-"+p.ID+"-"+audience.PersonaID, []int64{russiaYandexRegionID})
+		adGroupID, err := yandex.CreateUserProfileAdGroup(ctx, campaignID, "product-"+p.ID+"-"+audience.PersonaID, []int64{russiaYandexRegionID})
 		if err != nil {
 			return createdTargeting, fmt.Errorf("create ad group for audience %s: %w", audience.ID, err)
 		}
 
 		createdTargeting[len(createdTargeting)-1].adGroupID = adGroupID
 
-		audienceTargetID, err := s.yandex.CreateAudienceTarget(ctx, adGroupID, retargetingListID)
+		audienceTargetID, err := yandex.CreateAudienceTarget(ctx, adGroupID, retargetingListID)
 		if err != nil {
 			return createdTargeting, fmt.Errorf("create audience target for audience %s: %w", audience.ID, err)
 		}
@@ -380,13 +435,13 @@ func (s *HypothesisService) createAudienceTargeting(ctx context.Context, p *prod
 	return createdTargeting, nil
 }
 
-func (s *HypothesisService) rollbackLaunch(ctx context.Context, userID, hypothesisID, productID string, campaignID int64, targetings []createdAudienceTargeting, launchErr error) error {
+func (s *HypothesisService) rollbackLaunch(ctx context.Context, yandex *yandexdirect.Client, userID, hypothesisID, productID string, campaignID int64, targetings []createdAudienceTargeting, launchErr error) error {
 	for index := len(targetings) - 1; index >= 0; index-- {
 		targeting := targetings[index]
-		launchErr = deleteAudienceTargeting(ctx, s.yandex, targeting, launchErr)
+		launchErr = deleteAudienceTargeting(ctx, yandex, targeting, launchErr)
 	}
 
-	if deleteErr := s.yandex.DeleteCampaign(ctx, campaignID); deleteErr != nil {
+	if deleteErr := yandex.DeleteCampaign(ctx, campaignID); deleteErr != nil {
 		return fmt.Errorf("%w; delete yandex campaign: %w", launchErr, deleteErr)
 	}
 

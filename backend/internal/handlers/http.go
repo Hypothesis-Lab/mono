@@ -16,6 +16,10 @@ func errBody(code int, description string) api.ErrBody {
 	return api.ErrBody{Error: api.ErrDetail{Code: code, Description: description}}
 }
 
+func errBodyWithCode(code int, description, errorCode string) api.ErrBody {
+	return api.ErrBody{Error: api.ErrDetail{Code: code, Description: description, ErrorCode: &errorCode}}
+}
+
 func strictOptions(logger *zap.Logger) api.StrictHTTPServerOptions {
 	return api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {

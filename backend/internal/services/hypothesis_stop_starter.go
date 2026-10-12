@@ -86,6 +86,7 @@ func (s *HypothesisStopStarter) startNext(ctx context.Context) error {
 	}
 
 	input := hypothesisStopInput{
+		UserID:         item.UserID,
 		HypothesisID:   item.HypothesisID,
 		StopID:         item.StopID,
 		SourceLaunchID: item.SourceLaunchID,
