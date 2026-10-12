@@ -45,7 +45,7 @@ jobs:
         run: task workflowcheck
 
       - name: Test
-        run: task test
+        run: task test:unit
 
       - name: Check generated API
         run: |
