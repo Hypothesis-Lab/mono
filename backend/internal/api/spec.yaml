@@ -88,6 +88,84 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrBody"
+  /api/v1/yandex-direct/connection:
+    get:
+      operationId: getYandexDirectConnection
+      tags: [yandex-direct]
+      summary: Get the current user's Yandex Direct connection status
+      responses:
+        "200":
+          description: Yandex Direct connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YandexDirectConnectionResponse"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+    post:
+      operationId: connectYandexDirect
+      tags: [yandex-direct]
+      summary: Exchange a Yandex confirmation code and connect Yandex Direct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YandexDirectConnectRequest"
+      responses:
+        "200":
+          description: Yandex Direct connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YandexDirectConnectionResponse"
+        "400":
+          description: invalid or expired confirmation code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+    delete:
+      operationId: disconnectYandexDirect
+      tags: [yandex-direct]
+      summary: Disconnect Yandex Direct and remove stored tokens
+      responses:
+        "204":
+          description: Yandex Direct disconnected
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+  /api/v1/yandex-direct/authorization-url:
+    get:
+      operationId: getYandexDirectAuthorizationURL
+      tags: [yandex-direct]
+      summary: Get the Yandex confirmation-code authorization URL
+      responses:
+        "200":
+          description: Yandex authorization URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YandexDirectAuthorizationURLResponse"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
   /api/v1/testing/product-feedback-survey:
     post:
       operationId: runProductFeedbackSurvey
@@ -1166,6 +1244,24 @@ components:
       required: [token]
       properties:
         token: { type: string }
+    YandexDirectAuthorizationURLResponse:
+      type: object
+      required: [authorization_url]
+      properties:
+        authorization_url: { type: string, format: uri }
+    YandexDirectConnectRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 2048 }
+    YandexDirectConnectionResponse:
+      type: object
+      required: [status, connected_at, disconnected_at, token_expires_at]
+      properties:
+        status: { type: string, enum: [connected, disconnected, revoked] }
+        connected_at: { type: string, format: date-time, nullable: true }
+        disconnected_at: { type: string, format: date-time, nullable: true }
+        token_expires_at: { type: string, format: date-time, nullable: true }
     PersonaQueryRequest:
       type: object
       required: [sample_size]

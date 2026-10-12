@@ -9,6 +9,7 @@ import { LoginPage } from './pages/Login/page'
 import { ProductPage } from './pages/Product/page'
 import { RegisterPage } from './pages/Register/page'
 import { TestingPage } from './pages/Testing/page'
+import { UserPage } from './pages/User/page'
 
 function App() {
   return (
@@ -55,6 +56,14 @@ function App() {
           element={
             <ProtectedRoute>
               <ProductPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/user"
+          element={
+            <ProtectedRoute>
+              <UserPage />
             </ProtectedRoute>
           }
         />

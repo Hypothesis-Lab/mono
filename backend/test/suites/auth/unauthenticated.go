@@ -35,6 +35,11 @@ var protectedRoutes = []struct {
 	{"POST", "/api/v1/hypothesis/{id}/files"},
 
 	{"DELETE", "/api/v1/files/{id}"},
+
+	{"GET", "/api/v1/yandex-direct/authorization-url"},
+	{"GET", "/api/v1/yandex-direct/connection"},
+	{"POST", "/api/v1/yandex-direct/connection"},
+	{"DELETE", "/api/v1/yandex-direct/connection"},
 }
 
 func (s *StatelessSuite) TestEndpointsRequireAuth() {

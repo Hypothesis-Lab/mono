@@ -20,6 +20,7 @@ import (
 	"app/internal/repositories/product"
 	"app/internal/repositories/productfeedbacksurvey"
 	"app/internal/repositories/user"
+	"app/internal/repositories/yandexdirectconnection"
 	"app/internal/services"
 	servicepipelines "app/internal/services/pipelines"
 	"app/internal/storage"
@@ -54,6 +55,7 @@ func main() {
 		fx.Provide(adcampaign.NewRepository),
 		fx.Provide(file.NewRepository),
 		fx.Provide(user.NewRepository),
+		fx.Provide(yandexdirectconnection.NewRepository),
 		fx.Provide(services.NewHypothesisService),
 		fx.Provide(services.NewHypothesisLaunchWorker),
 		fx.Provide(services.NewHypothesisLaunchStarter),
@@ -66,6 +68,7 @@ func main() {
 		)),
 		fx.Provide(services.NewGeneratorWorker),
 		fx.Provide(services.NewUserAuthService),
+		fx.Provide(services.NewYandexDirectConnectionService),
 		fx.Provide(services.NewProductFeedbackSurveyService),
 		fx.Provide(handlers.NewServer),
 		fx.Provide(handlers.NewServerInterface),

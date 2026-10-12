@@ -1,28 +1,31 @@
 package config
 
 import (
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
 )
 
 type Config struct {
-	Port                     int
-	DatabaseURL              string
-	JWTSecret                string
-	S3Endpoint               string
-	S3Region                 string
-	S3Bucket                 string
-	S3AccessKeyID            string
-	S3SecretAccessKey        string
-	YandexDirectClientID     string
-	YandexDirectClientSecret string
-	YandexDirectToken        string
-	GeneratorURL             string
-	OpenRouterAPIKey         string
-	TemporalAddress          string
-	IsDevLogger              bool
+	Port                           int
+	DatabaseURL                    string
+	JWTSecret                      string
+	S3Endpoint                     string
+	S3Region                       string
+	S3Bucket                       string
+	S3AccessKeyID                  string
+	S3SecretAccessKey              string
+	YandexDirectClientID           string
+	YandexDirectClientSecret       string
+	YandexDirectTokenEncryptionKey [32]byte
+	YandexDirectToken              string
+	GeneratorURL                   string
+	OpenRouterAPIKey               string
+	TemporalAddress                string
+	IsDevLogger                    bool
 
 	ReadHeaderTimeout time.Duration
 	ReadTimeout       time.Duration
@@ -87,6 +90,11 @@ func New() (*Config, error) {
 		return nil, errors.New("YANDEX_DIRECT_CLIENT_SECRET is required")
 	}
 
+	yandexDirectTokenEncryptionKey, err := tokenEncryptionKey(os.Getenv("YANDEX_DIRECT_TOKEN_ENCRYPTION_KEY"))
+	if err != nil {
+		return nil, err
+	}
+
 	yandexDirectToken := os.Getenv("YANDEX_DIRECT_TOKEN")
 	if yandexDirectToken == "" {
 		return nil, errors.New("YANDEX_DIRECT_TOKEN is required")
@@ -110,26 +118,47 @@ func New() (*Config, error) {
 	devLogger := os.Getenv("DEV_LOGGER")
 
 	return &Config{
-		Port:                     port,
-		DatabaseURL:              databaseURL,
-		JWTSecret:                jwtSecret,
-		S3Endpoint:               s3Endpoint,
-		S3Region:                 s3Region,
-		S3Bucket:                 s3Bucket,
-		S3AccessKeyID:            s3AccessKeyID,
-		S3SecretAccessKey:        s3SecretAccessKey,
-		YandexDirectClientID:     yandexDirectClientID,
-		YandexDirectClientSecret: yandexDirectClientSecret,
-		YandexDirectToken:        yandexDirectToken,
-		GeneratorURL:             generatorURL,
-		OpenRouterAPIKey:         openRouterAPIKey,
-		TemporalAddress:          temporalAddress,
-		IsDevLogger:              devLogger == "true",
-		ReadHeaderTimeout:        envDuration("READ_HEADER_TIMEOUT", 10*time.Second),
-		ReadTimeout:              envDuration("READ_TIMEOUT", 30*time.Second),
-		WriteTimeout:             envDuration("WRITE_TIMEOUT", 30*time.Second),
-		IdleTimeout:              envDuration("IDLE_TIMEOUT", 120*time.Second),
+		Port:                           port,
+		DatabaseURL:                    databaseURL,
+		JWTSecret:                      jwtSecret,
+		S3Endpoint:                     s3Endpoint,
+		S3Region:                       s3Region,
+		S3Bucket:                       s3Bucket,
+		S3AccessKeyID:                  s3AccessKeyID,
+		S3SecretAccessKey:              s3SecretAccessKey,
+		YandexDirectClientID:           yandexDirectClientID,
+		YandexDirectClientSecret:       yandexDirectClientSecret,
+		YandexDirectTokenEncryptionKey: yandexDirectTokenEncryptionKey,
+		YandexDirectToken:              yandexDirectToken,
+		GeneratorURL:                   generatorURL,
+		OpenRouterAPIKey:               openRouterAPIKey,
+		TemporalAddress:                temporalAddress,
+		IsDevLogger:                    devLogger == "true",
+		ReadHeaderTimeout:              envDuration("READ_HEADER_TIMEOUT", 10*time.Second),
+		ReadTimeout:                    envDuration("READ_TIMEOUT", 30*time.Second),
+		WriteTimeout:                   envDuration("WRITE_TIMEOUT", 30*time.Second),
+		IdleTimeout:                    envDuration("IDLE_TIMEOUT", 120*time.Second),
 	}, nil
+}
+
+func tokenEncryptionKey(encoded string) ([32]byte, error) {
+	if encoded == "" {
+		return [32]byte{}, errors.New("YANDEX_DIRECT_TOKEN_ENCRYPTION_KEY is required")
+	}
+
+	decoded, err := base64.StdEncoding.Strict().DecodeString(encoded)
+	if err != nil {
+		return [32]byte{}, fmt.Errorf("YANDEX_DIRECT_TOKEN_ENCRYPTION_KEY must be valid base64: %w", err)
+	}
+
+	if len(decoded) != 32 {
+		return [32]byte{}, fmt.Errorf("YANDEX_DIRECT_TOKEN_ENCRYPTION_KEY must decode to exactly 32 bytes, got %d", len(decoded))
+	}
+
+	var key [32]byte
+	copy(key[:], decoded)
+
+	return key, nil
 }
 
 func envDuration(key string, def time.Duration) time.Duration {

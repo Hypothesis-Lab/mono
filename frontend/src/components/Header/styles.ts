@@ -33,6 +33,22 @@ export const Logo = styled(Link)`
   }
 `
 
+export const Actions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`
+
+export const UserLink = styled(Link)`
+  color: #111;
+  font-size: 14px;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+`
+
 export const AuthButton = styled.button`
   padding: 8px 12px;
   border: 1px solid #ccc;

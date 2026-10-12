@@ -357,6 +357,27 @@ func (e UpdateProductRequestMetricDirection) Valid() bool {
 	}
 }
 
+// Defines values for YandexDirectConnectionResponseStatus.
+const (
+	Connected    YandexDirectConnectionResponseStatus = "connected"
+	Disconnected YandexDirectConnectionResponseStatus = "disconnected"
+	Revoked      YandexDirectConnectionResponseStatus = "revoked"
+)
+
+// Valid indicates whether the value is a known member of the YandexDirectConnectionResponseStatus enum.
+func (e YandexDirectConnectionResponseStatus) Valid() bool {
+	switch e {
+	case Connected:
+		return true
+	case Disconnected:
+		return true
+	case Revoked:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UploadProductFileMultipartBodyType.
 const (
 	Brandbook UploadProductFileMultipartBodyType = "brandbook"
@@ -700,6 +721,27 @@ type UpdateProductRequestGoalOrigin string
 // UpdateProductRequestMetricDirection defines model for UpdateProductRequest.MetricDirection.
 type UpdateProductRequestMetricDirection string
 
+// YandexDirectAuthorizationURLResponse defines model for YandexDirectAuthorizationURLResponse.
+type YandexDirectAuthorizationURLResponse struct {
+	AuthorizationUrl string `json:"authorization_url"`
+}
+
+// YandexDirectConnectRequest defines model for YandexDirectConnectRequest.
+type YandexDirectConnectRequest struct {
+	Code string `json:"code"`
+}
+
+// YandexDirectConnectionResponse defines model for YandexDirectConnectionResponse.
+type YandexDirectConnectionResponse struct {
+	ConnectedAt    *time.Time                           `json:"connected_at"`
+	DisconnectedAt *time.Time                           `json:"disconnected_at"`
+	Status         YandexDirectConnectionResponseStatus `json:"status"`
+	TokenExpiresAt *time.Time                           `json:"token_expires_at"`
+}
+
+// YandexDirectConnectionResponseStatus defines model for YandexDirectConnectionResponse.Status.
+type YandexDirectConnectionResponseStatus string
+
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
 
@@ -736,6 +778,9 @@ type CreateProductJSONRequestBody = CreateProductRequest
 
 // UpdateProductJSONRequestBody defines body for UpdateProduct for application/json ContentType.
 type UpdateProductJSONRequestBody = UpdateProductRequest
+
+// ConnectYandexDirectJSONRequestBody defines body for ConnectYandexDirect for application/json ContentType.
+type ConnectYandexDirectJSONRequestBody = YandexDirectConnectRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -811,6 +856,18 @@ type ServerInterface interface {
 	// List stored product feedback survey results
 	// (GET /api/v1/testing/product-feedback-survey/results)
 	ListProductFeedbackSurveyResults(w http.ResponseWriter, r *http.Request)
+	// Get the Yandex confirmation-code authorization URL
+	// (GET /api/v1/yandex-direct/authorization-url)
+	GetYandexDirectAuthorizationURL(w http.ResponseWriter, r *http.Request)
+	// Disconnect Yandex Direct and remove stored tokens
+	// (DELETE /api/v1/yandex-direct/connection)
+	DisconnectYandexDirect(w http.ResponseWriter, r *http.Request)
+	// Get the current user's Yandex Direct connection status
+	// (GET /api/v1/yandex-direct/connection)
+	GetYandexDirectConnection(w http.ResponseWriter, r *http.Request)
+	// Exchange a Yandex confirmation code and connect Yandex Direct
+	// (POST /api/v1/yandex-direct/connection)
+	ConnectYandexDirect(w http.ResponseWriter, r *http.Request)
 	// Liveness probe
 	// (GET /healthz)
 	Healthz(w http.ResponseWriter, r *http.Request)
@@ -961,6 +1018,30 @@ func (_ Unimplemented) RunProductFeedbackSurvey(w http.ResponseWriter, r *http.R
 // List stored product feedback survey results
 // (GET /api/v1/testing/product-feedback-survey/results)
 func (_ Unimplemented) ListProductFeedbackSurveyResults(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get the Yandex confirmation-code authorization URL
+// (GET /api/v1/yandex-direct/authorization-url)
+func (_ Unimplemented) GetYandexDirectAuthorizationURL(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Disconnect Yandex Direct and remove stored tokens
+// (DELETE /api/v1/yandex-direct/connection)
+func (_ Unimplemented) DisconnectYandexDirect(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get the current user's Yandex Direct connection status
+// (GET /api/v1/yandex-direct/connection)
+func (_ Unimplemented) GetYandexDirectConnection(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Exchange a Yandex confirmation code and connect Yandex Direct
+// (POST /api/v1/yandex-direct/connection)
+func (_ Unimplemented) ConnectYandexDirect(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1621,6 +1702,86 @@ func (siw *ServerInterfaceWrapper) ListProductFeedbackSurveyResults(w http.Respo
 	handler.ServeHTTP(w, r)
 }
 
+// GetYandexDirectAuthorizationURL operation middleware
+func (siw *ServerInterfaceWrapper) GetYandexDirectAuthorizationURL(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetYandexDirectAuthorizationURL(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DisconnectYandexDirect operation middleware
+func (siw *ServerInterfaceWrapper) DisconnectYandexDirect(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DisconnectYandexDirect(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetYandexDirectConnection operation middleware
+func (siw *ServerInterfaceWrapper) GetYandexDirectConnection(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetYandexDirectConnection(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConnectYandexDirect operation middleware
+func (siw *ServerInterfaceWrapper) ConnectYandexDirect(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConnectYandexDirect(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // Healthz operation middleware
 func (siw *ServerInterfaceWrapper) Healthz(w http.ResponseWriter, r *http.Request) {
 
@@ -1819,6 +1980,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/testing/product-feedback-survey/results", wrapper.ListProductFeedbackSurveyResults)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/yandex-direct/authorization-url", wrapper.GetYandexDirectAuthorizationURL)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/yandex-direct/connection", wrapper.DisconnectYandexDirect)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/yandex-direct/connection", wrapper.GetYandexDirectConnection)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/yandex-direct/connection", wrapper.ConnectYandexDirect)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/healthz", wrapper.Healthz)
@@ -3191,6 +3364,155 @@ func (response ListProductFeedbackSurveyResults500JSONResponse) VisitListProduct
 	return err
 }
 
+type GetYandexDirectAuthorizationURLRequestObject struct {
+}
+
+type GetYandexDirectAuthorizationURLResponseObject interface {
+	VisitGetYandexDirectAuthorizationURLResponse(w http.ResponseWriter) error
+}
+
+type GetYandexDirectAuthorizationURL200JSONResponse YandexDirectAuthorizationURLResponse
+
+func (response GetYandexDirectAuthorizationURL200JSONResponse) VisitGetYandexDirectAuthorizationURLResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetYandexDirectAuthorizationURL500JSONResponse ErrBody
+
+func (response GetYandexDirectAuthorizationURL500JSONResponse) VisitGetYandexDirectAuthorizationURLResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DisconnectYandexDirectRequestObject struct {
+}
+
+type DisconnectYandexDirectResponseObject interface {
+	VisitDisconnectYandexDirectResponse(w http.ResponseWriter) error
+}
+
+type DisconnectYandexDirect204Response struct {
+}
+
+func (response DisconnectYandexDirect204Response) VisitDisconnectYandexDirectResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DisconnectYandexDirect500JSONResponse ErrBody
+
+func (response DisconnectYandexDirect500JSONResponse) VisitDisconnectYandexDirectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetYandexDirectConnectionRequestObject struct {
+}
+
+type GetYandexDirectConnectionResponseObject interface {
+	VisitGetYandexDirectConnectionResponse(w http.ResponseWriter) error
+}
+
+type GetYandexDirectConnection200JSONResponse YandexDirectConnectionResponse
+
+func (response GetYandexDirectConnection200JSONResponse) VisitGetYandexDirectConnectionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetYandexDirectConnection500JSONResponse ErrBody
+
+func (response GetYandexDirectConnection500JSONResponse) VisitGetYandexDirectConnectionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConnectYandexDirectRequestObject struct {
+	Body *ConnectYandexDirectJSONRequestBody
+}
+
+type ConnectYandexDirectResponseObject interface {
+	VisitConnectYandexDirectResponse(w http.ResponseWriter) error
+}
+
+type ConnectYandexDirect200JSONResponse YandexDirectConnectionResponse
+
+func (response ConnectYandexDirect200JSONResponse) VisitConnectYandexDirectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConnectYandexDirect400JSONResponse ErrBody
+
+func (response ConnectYandexDirect400JSONResponse) VisitConnectYandexDirectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConnectYandexDirect500JSONResponse ErrBody
+
+func (response ConnectYandexDirect500JSONResponse) VisitConnectYandexDirectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type HealthzRequestObject struct {
 }
 
@@ -3280,6 +3602,18 @@ type StrictServerInterface interface {
 	// List stored product feedback survey results
 	// (GET /api/v1/testing/product-feedback-survey/results)
 	ListProductFeedbackSurveyResults(ctx context.Context, request ListProductFeedbackSurveyResultsRequestObject) (ListProductFeedbackSurveyResultsResponseObject, error)
+	// Get the Yandex confirmation-code authorization URL
+	// (GET /api/v1/yandex-direct/authorization-url)
+	GetYandexDirectAuthorizationURL(ctx context.Context, request GetYandexDirectAuthorizationURLRequestObject) (GetYandexDirectAuthorizationURLResponseObject, error)
+	// Disconnect Yandex Direct and remove stored tokens
+	// (DELETE /api/v1/yandex-direct/connection)
+	DisconnectYandexDirect(ctx context.Context, request DisconnectYandexDirectRequestObject) (DisconnectYandexDirectResponseObject, error)
+	// Get the current user's Yandex Direct connection status
+	// (GET /api/v1/yandex-direct/connection)
+	GetYandexDirectConnection(ctx context.Context, request GetYandexDirectConnectionRequestObject) (GetYandexDirectConnectionResponseObject, error)
+	// Exchange a Yandex confirmation code and connect Yandex Direct
+	// (POST /api/v1/yandex-direct/connection)
+	ConnectYandexDirect(ctx context.Context, request ConnectYandexDirectRequestObject) (ConnectYandexDirectResponseObject, error)
 	// Liveness probe
 	// (GET /healthz)
 	Healthz(ctx context.Context, request HealthzRequestObject) (HealthzResponseObject, error)
@@ -3978,6 +4312,109 @@ func (sh *strictHandler) ListProductFeedbackSurveyResults(w http.ResponseWriter,
 	}
 }
 
+// GetYandexDirectAuthorizationURL operation middleware
+func (sh *strictHandler) GetYandexDirectAuthorizationURL(w http.ResponseWriter, r *http.Request) {
+	var request GetYandexDirectAuthorizationURLRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetYandexDirectAuthorizationURL(ctx, request.(GetYandexDirectAuthorizationURLRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetYandexDirectAuthorizationURL")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetYandexDirectAuthorizationURLResponseObject); ok {
+		if err := validResponse.VisitGetYandexDirectAuthorizationURLResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DisconnectYandexDirect operation middleware
+func (sh *strictHandler) DisconnectYandexDirect(w http.ResponseWriter, r *http.Request) {
+	var request DisconnectYandexDirectRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DisconnectYandexDirect(ctx, request.(DisconnectYandexDirectRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DisconnectYandexDirect")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DisconnectYandexDirectResponseObject); ok {
+		if err := validResponse.VisitDisconnectYandexDirectResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetYandexDirectConnection operation middleware
+func (sh *strictHandler) GetYandexDirectConnection(w http.ResponseWriter, r *http.Request) {
+	var request GetYandexDirectConnectionRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetYandexDirectConnection(ctx, request.(GetYandexDirectConnectionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetYandexDirectConnection")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetYandexDirectConnectionResponseObject); ok {
+		if err := validResponse.VisitGetYandexDirectConnectionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConnectYandexDirect operation middleware
+func (sh *strictHandler) ConnectYandexDirect(w http.ResponseWriter, r *http.Request) {
+	var request ConnectYandexDirectRequestObject
+
+	var body ConnectYandexDirectJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConnectYandexDirect(ctx, request.(ConnectYandexDirectRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConnectYandexDirect")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConnectYandexDirectResponseObject); ok {
+		if err := validResponse.VisitConnectYandexDirectResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Healthz operation middleware
 func (sh *strictHandler) Healthz(w http.ResponseWriter, r *http.Request) {
 	var request HealthzRequestObject
@@ -4007,63 +4444,68 @@ func (sh *strictHandler) Healthz(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"AQAA//8=",
+	"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",
+	"7gePbh4as+vN1D7cPNw8/C8AAP//",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

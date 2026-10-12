@@ -33,10 +33,13 @@ export function Header() {
 
   return (
     <S.Container>
-        <S.Logo to="/">Hypothesis Lab</S.Logo>
-      <S.AuthButton type="button" onClick={handleAuthClick}>
-        {isAuthenticated ? 'Выйти' : 'Войти'}
-      </S.AuthButton>
+      <S.Logo to="/">Hypothesis Lab</S.Logo>
+      <S.Actions>
+        {isAuthenticated && <S.UserLink to="/user">Yandex Direct</S.UserLink>}
+        <S.AuthButton type="button" onClick={handleAuthClick}>
+          {isAuthenticated ? 'Выйти' : 'Войти'}
+        </S.AuthButton>
+      </S.Actions>
     </S.Container>
   )
 }

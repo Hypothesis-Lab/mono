@@ -19,6 +19,7 @@ services:
       PORT: "8000"
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/app?sslmode=disable
       JWT_SECRET: 7744c2b280979ec898753a45769926de9408a3472ba566521ee7f798714fd0e5
+      YANDEX_DIRECT_TOKEN_ENCRYPTION_KEY: ${YANDEX_DIRECT_TOKEN_ENCRYPTION_KEY}
       S3_ENDPOINT: http://seaweedfs:8333
       S3_REGION: us-east-1
       S3_BUCKET: my-bucket

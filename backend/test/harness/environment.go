@@ -37,6 +37,7 @@ const (
 	s3Region           = "us-east-1"
 	yandexClientID     = "test-yandex-client-id"
 	yandexClientSecret = "test-yandex-client-secret"
+	yandexTokenKey     = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 	yandexToken        = "test-yandex-token"
 	generatorURL       = "http://generator:8000"
 )
@@ -173,19 +174,20 @@ func (e *Env) SetupEnvironment(ctx context.Context) error {
 		},
 		ExposedPorts: []string{appPort + "/tcp"},
 		Env: map[string]string{
-			"PORT":                        appPort,
-			"DATABASE_URL":                fmt.Sprintf("postgres://%s:%s@%s:5432/%s?sslmode=disable", postgresUser, postgresPassword, postgresAlias, postgresDB),
-			"JWT_SECRET":                  testJWTSecret,
-			"S3_ENDPOINT":                 fmt.Sprintf("http://%s:8333", s3Alias),
-			"S3_REGION":                   s3Region,
-			"S3_BUCKET":                   s3Bucket,
-			"S3_ACCESS_KEY_ID":            s3AccessKeyID,
-			"S3_SECRET_ACCESS_KEY":        s3SecretKey,
-			"YANDEX_DIRECT_CLIENT_ID":     yandexClientID,
-			"YANDEX_DIRECT_CLIENT_SECRET": yandexClientSecret,
-			"YANDEX_DIRECT_TOKEN":         yandexToken,
-			"GENERATOR_URL":               generatorURL,
-			"TEMPORAL_ADDRESS":            temporalAlias + ":7233",
+			"PORT":                               appPort,
+			"DATABASE_URL":                       fmt.Sprintf("postgres://%s:%s@%s:5432/%s?sslmode=disable", postgresUser, postgresPassword, postgresAlias, postgresDB),
+			"JWT_SECRET":                         testJWTSecret,
+			"S3_ENDPOINT":                        fmt.Sprintf("http://%s:8333", s3Alias),
+			"S3_REGION":                          s3Region,
+			"S3_BUCKET":                          s3Bucket,
+			"S3_ACCESS_KEY_ID":                   s3AccessKeyID,
+			"S3_SECRET_ACCESS_KEY":               s3SecretKey,
+			"YANDEX_DIRECT_CLIENT_ID":            yandexClientID,
+			"YANDEX_DIRECT_CLIENT_SECRET":        yandexClientSecret,
+			"YANDEX_DIRECT_TOKEN_ENCRYPTION_KEY": yandexTokenKey,
+			"YANDEX_DIRECT_TOKEN":                yandexToken,
+			"GENERATOR_URL":                      generatorURL,
+			"TEMPORAL_ADDRESS":                   temporalAlias + ":7233",
 		},
 		WaitingFor: wait.ForHTTP("/healthz").WithPort(appPort + "/tcp").WithStartupTimeout(10 * time.Second),
 	})

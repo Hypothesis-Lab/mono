@@ -15,6 +15,37 @@ const injectedRtkApi = api.injectEndpoints({
         body: queryArg.loginUserRequest,
       }),
     }),
+    getYandexDirectConnection: build.query<
+      GetYandexDirectConnectionApiResponse,
+      GetYandexDirectConnectionApiArg
+    >({
+      query: () => ({ url: `/api/v1/yandex-direct/connection` }),
+    }),
+    connectYandexDirect: build.mutation<
+      ConnectYandexDirectApiResponse,
+      ConnectYandexDirectApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/v1/yandex-direct/connection`,
+        method: "POST",
+        body: queryArg.yandexDirectConnectRequest,
+      }),
+    }),
+    disconnectYandexDirect: build.mutation<
+      DisconnectYandexDirectApiResponse,
+      DisconnectYandexDirectApiArg
+    >({
+      query: () => ({
+        url: `/api/v1/yandex-direct/connection`,
+        method: "DELETE",
+      }),
+    }),
+    getYandexDirectAuthorizationUrl: build.query<
+      GetYandexDirectAuthorizationUrlApiResponse,
+      GetYandexDirectAuthorizationUrlApiArg
+    >({
+      query: () => ({ url: `/api/v1/yandex-direct/authorization-url` }),
+    }),
     runProductFeedbackSurvey: build.mutation<
       RunProductFeedbackSurveyApiResponse,
       RunProductFeedbackSurveyApiArg
@@ -214,6 +245,19 @@ export type LoginUserApiResponse =
 export type LoginUserApiArg = {
   loginUserRequest: LoginUserRequest;
 };
+export type GetYandexDirectConnectionApiResponse =
+  /** status 200 Yandex Direct connection status */ YandexDirectConnectionResponse;
+export type GetYandexDirectConnectionApiArg = void;
+export type ConnectYandexDirectApiResponse =
+  /** status 200 Yandex Direct connection status */ YandexDirectConnectionResponse;
+export type ConnectYandexDirectApiArg = {
+  yandexDirectConnectRequest: YandexDirectConnectRequest;
+};
+export type DisconnectYandexDirectApiResponse = unknown;
+export type DisconnectYandexDirectApiArg = void;
+export type GetYandexDirectAuthorizationUrlApiResponse =
+  /** status 200 Yandex authorization URL */ YandexDirectAuthorizationUrlResponse;
+export type GetYandexDirectAuthorizationUrlApiArg = void;
 export type RunProductFeedbackSurveyApiResponse =
   /** status 200 product feedback survey batch completed */ ProductFeedbackSurveyRunResponse;
 export type RunProductFeedbackSurveyApiArg = void;
@@ -340,6 +384,18 @@ export type RegisterUserRequest = {
 export type LoginUserRequest = {
   email: string;
   password: string;
+};
+export type YandexDirectConnectionResponse = {
+  status: "connected" | "disconnected" | "revoked";
+  connected_at?: string | null;
+  disconnected_at?: string | null;
+  token_expires_at?: string | null;
+};
+export type YandexDirectConnectRequest = {
+  code: string;
+};
+export type YandexDirectAuthorizationUrlResponse = {
+  authorization_url: string;
 };
 export type ProductFeedbackSurveyQuestion = {
   type: string;
@@ -578,6 +634,10 @@ export type PersonaQueryRequest = {
 export const {
   useRegisterUserMutation,
   useLoginUserMutation,
+  useGetYandexDirectConnectionQuery,
+  useConnectYandexDirectMutation,
+  useDisconnectYandexDirectMutation,
+  useGetYandexDirectAuthorizationUrlQuery,
   useRunProductFeedbackSurveyMutation,
   useListProductFeedbackSurveyResultsQuery,
   useListHypothesesQuery,
