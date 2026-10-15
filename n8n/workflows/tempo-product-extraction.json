@@ -15,7 +15,7 @@
     },
     {
       "parameters": {
-        "fileSelector": "/product/*.md",
+        "fileSelector": "/product/*",
         "options": {}
       },
       "type": "n8n-nodes-base.readWriteFile",
@@ -76,7 +76,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const settings = items.find((item) => item.json?.target_product)?.json ?? {};\nconst sources = [];\n\nfor (let index = 0; index < items.length; index += 1) {\n  const item = items[index];\n  if (!item.binary?.data) continue;\n\n  const buffer = await this.helpers.getBinaryDataBuffer(index, 'data');\n  const binary = item.binary.data;\n  const source = binary.fileName ?? item.json.fileName ?? `document-${index + 1}.md`;\n  sources.push({\n    target_product: settings.target_product ?? 'Tempo',\n    as_of_date: settings.as_of_date || null,\n    source,\n    content: buffer.toString('utf8'),\n  });\n}\n\nif (sources.length === 0) {\n  return [{\n    json: {\n      target_product: settings.target_product ?? 'Tempo',\n      as_of_date: settings.as_of_date || null,\n      source: null,\n      content: '',\n      preparation_warning: 'No readable source documents were provided.',\n    },\n  }];\n}\n\nreturn sources.map((source) => ({ json: source }));"
+        "jsCode": "const settings = items.find((item) => item.json?.target_product)?.json ?? {};\nconst sources = [];\n\nfor (let index = 0; index < items.length; index += 1) {\n  const item = items[index];\n  if (!item.binary?.data) continue;\n\n  const buffer = await this.helpers.getBinaryDataBuffer(index, 'data');\n  const binary = item.binary.data;\n  const source = binary.fileName ?? item.json.fileName ?? `document-${index + 1}`;\n  const fileName = source.split(/[\\\\/]/).pop().toLowerCase();\n  if (fileName === 'readme.md') continue;\n  sources.push({\n    target_product: settings.target_product ?? 'Tempo',\n    as_of_date: settings.as_of_date || null,\n    source,\n    content: buffer.toString('utf8'),\n  });\n}\n\nif (sources.length === 0) {\n  return [{\n    json: {\n      target_product: settings.target_product ?? 'Tempo',\n      as_of_date: settings.as_of_date || null,\n      source: null,\n      content: '',\n      preparation_warning: 'No readable source documents were provided.',\n    },\n  }];\n}\n\nreturn sources.map((source) => ({ json: source }));"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

@@ -19,7 +19,7 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
       - ./local-files:/files
-      - ../agent-framework/product:/product:ro
+      - ./product:/product:ro
     extra_hosts:
       - host.docker.internal:host-gateway
 

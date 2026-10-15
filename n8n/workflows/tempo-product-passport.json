@@ -15,7 +15,7 @@
     },
     {
       "parameters": {
-        "fileSelector": "/product/*.md",
+        "fileSelector": "/product/*",
         "options": {}
       },
       "type": "n8n-nodes-base.readWriteFile",
@@ -66,7 +66,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const documents = [];\nfor (let index = 0; index < items.length; index += 1) {\n  if (!items[index].binary?.data) continue;\n  const buffer = await this.helpers.getBinaryDataBuffer(index, 'data');\n  const binary = items[index].binary?.data ?? {};\n  const name = binary.fileName ?? items[index].json.fileName ?? `document-${index + 1}.md`;\n  documents.push({ name, content: buffer.toString('utf8') });\n}\n\nreturn [{\n  json: {\n    focus: items.find((item) => item.json?.focus)?.json.focus ?? 'Проведи полный анализ продукта Tempo и подготовь основу для коммуникаций.',\n    sourceFiles: documents.map((document) => document.name).join(', '),\n    productContext: documents.map((document) => `--- ${document.name} ---\\n${document.content}`).join('\\n\\n'),\n  },\n}];"
+        "jsCode": "const documents = [];\nfor (let index = 0; index < items.length; index += 1) {\n  if (!items[index].binary?.data) continue;\n  const buffer = await this.helpers.getBinaryDataBuffer(index, 'data');\n  const binary = items[index].binary?.data ?? {};\n  const name = binary.fileName ?? items[index].json.fileName ?? `document-${index + 1}`;\n  const fileName = name.split(/[\\\\/]/).pop().toLowerCase();\n  if (fileName === 'readme.md') continue;\n  documents.push({ name, content: buffer.toString('utf8') });\n}\n\nreturn [{\n  json: {\n    focus: items.find((item) => item.json?.focus)?.json.focus ?? 'Проведи полный анализ продукта Tempo и подготовь основу для коммуникаций.',\n    sourceFiles: documents.map((document) => document.name).join(', '),\n    productContext: documents.map((document) => `--- ${document.name} ---\\n${document.content}`).join('\\n\\n'),\n  },\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

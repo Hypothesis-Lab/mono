@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig, type ViteDevServer } from 'vite'
 import { DEFAULT_PROMPTS, type PromptId } from './src/prompts.js'
 
-const PRODUCT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../agent-framework/product')
+const PRODUCT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../n8n/product')
 const DATA_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'data')
 const PROMPTS_DB_PATH = resolve(DATA_DIR, 'prompts.sqlite')
 const PROMPT_IDS = Object.keys(DEFAULT_PROMPTS) as PromptId[]

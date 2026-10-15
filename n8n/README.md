@@ -64,7 +64,7 @@ The full graph is in `workflows/tempo-product-passport.json`. Import it after th
 
 It includes:
 
-- a visible **Product documents** node that reads `../agent-framework/product/*.md` through the `/product` container mount;
+- a visible **Product documents** node that reads files from `n8n/product/` through the `/product` container mount, excluding `README.md`;
 - an editable **Analysis focus** node;
 - the questions stage;
 - three parallel extraction stages;
@@ -95,7 +95,7 @@ Final product passport
 
 The extraction, consolidation, and repair chains each have a native **Structured Output Parser** connected to them. The parser validates the JSON Schema and has auto-fix enabled; the downstream Code node remains as a second validation layer for sequential IDs, evidence, and business rules.
 
-The current local version reads the same mounted `/product/*.md` files. Edit **Параметры запуска** to change the target product or effective date. Attach a model credential to **OpenAI-compatible model (extraction)** before execution. The workflow is inactive and starts manually from the editor.
+The current local version reads the same mounted `/product/` files, excluding `README.md`. Edit **Параметры запуска** to change the target product or effective date. Attach a model credential to **OpenAI-compatible model (extraction)** before execution. The workflow is inactive and starts manually from the editor.
 
 ## Planned Tempo graph
 
