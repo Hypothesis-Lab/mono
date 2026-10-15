@@ -1,0 +1,23 @@
+[project]
+name = "maf-playground"
+version = "0.1.0"
+description = "A code-first Microsoft Agent Framework workflow playground with DevUI"
+requires-python = ">=3.12"
+dependencies = [
+    "agent-framework-core",
+    "agent-framework-devui",
+    "httpx>=0.27.0,<1.0",
+    "pydantic>=2.0",
+    "python-dotenv>=1.0",
+    "typing-extensions>=4.12.0",
+]
+
+[project.scripts]
+maf-playground = "maf_playground:main"
+
+[build-system]
+requires = ["uv_build>=0.12.24,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv]
+prerelease = "allow"

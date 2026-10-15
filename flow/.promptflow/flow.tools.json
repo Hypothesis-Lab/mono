@@ -1,0 +1,106 @@
+{
+    "package": {},
+    "code": {
+        "audiences_tool.py": {
+            "type": "python",
+            "description": "Load the audience profiles used by the ranking step.",
+            "source": "audiences_tool.py",
+            "function": "get_audiences"
+        },
+        "prompts/problem.jinja2": {
+            "type": "prompt",
+            "inputs": {
+                "product": {
+                    "type": [
+                        "string"
+                    ]
+                }
+            },
+            "source": "prompts/problem.jinja2"
+        },
+        "tools.py": {
+            "type": "python",
+            "inputs": {
+                "prompt": {
+                    "type": [
+                        "string"
+                    ]
+                }
+            },
+            "description": "Run a prompt using the same local OpenCode model as the LLM Lab graph.",
+            "source": "tools.py",
+            "function": "call_opencode"
+        },
+        "prompts/primary_customer.jinja2": {
+            "type": "prompt",
+            "inputs": {
+                "product": {
+                    "type": [
+                        "string"
+                    ]
+                }
+            },
+            "source": "prompts/primary_customer.jinja2"
+        },
+        "prompts/product_value.jinja2": {
+            "type": "prompt",
+            "inputs": {
+                "product": {
+                    "type": [
+                        "string"
+                    ]
+                }
+            },
+            "source": "prompts/product_value.jinja2"
+        },
+        "prompts/rank_audiences.jinja2": {
+            "type": "prompt",
+            "inputs": {
+                "product": {
+                    "type": [
+                        "string"
+                    ]
+                },
+                "problem_answer": {
+                    "type": [
+                        "string"
+                    ]
+                },
+                "primary_customer_answer": {
+                    "type": [
+                        "string"
+                    ]
+                },
+                "product_value_answer": {
+                    "type": [
+                        "string"
+                    ]
+                },
+                "audience_catalog": {
+                    "type": [
+                        "string"
+                    ]
+                }
+            },
+            "source": "prompts/rank_audiences.jinja2"
+        },
+        "validation.py": {
+            "type": "python",
+            "inputs": {
+                "ranking": {
+                    "type": [
+                        "string"
+                    ]
+                },
+                "audience_catalog": {
+                    "type": [
+                        "string"
+                    ]
+                }
+            },
+            "description": "Validate that the model ranked three unique known profiles.",
+            "source": "validation.py",
+            "function": "validate_ranking"
+        }
+    }
+}

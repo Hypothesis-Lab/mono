@@ -1,0 +1,38 @@
+Ты ведущий продуктовый стратег. Сведи четыре проверенных извлечения по продукту {{ product_name }} в практичную карту для маркетинга, исследований и подготовки гипотез.
+
+Паспорт продукта:
+{{ passport }}
+
+Карта задач и клиентов:
+{{ customer_insights }}
+
+Утверждения и ограничения:
+{{ claims_guardrails }}
+
+Доказательства и пробелы:
+{{ evidence_gaps }}
+
+Правила:
+1. Пиши по-русски, ключи JSON оставь ровно по схеме.
+2. Используй только сведения из четырёх блоков; не добавляй новые факты.
+3. В каждом insight сохрани sources из исходных материалов.
+4. Выдели именно: JTBD, боли, ценности и результаты, мотивы, отличия продукта, доказательства, риски коммуникации и приоритетные сегменты.
+5. differentiators должны отличать Tempo от таблиц, чатов или ручного процесса только там, где это подтверждено материалами.
+6. experiments и questions_to_validate должны быть предложениями для проверки гипотез, а не утверждениями о клиентах.
+7. Не обещай автоматическое составление расписания, экономию, соблюдение закона или интеграции.
+
+Верни только один JSON-объект:
+{
+  "product_name": "...",
+  "core_message": "...",
+  "jobs_to_be_done": [{"text":"...","sources":["product-brief.md"]}],
+  "pains": [{"text":"...","sources":["product-brief.md"]}],
+  "values_and_outcomes": [{"text":"...","sources":["product-brief.md"]}],
+  "motives": [{"text":"...","sources":["support-cases.md"]}],
+  "differentiators": [{"text":"...","sources":["product-brief.md"]}],
+  "proof_points": [{"text":"...","evidence":"...","caveat":"...","sources":["product-brief.md"]}],
+  "communication_risks": [{"claim":"...","reason":"...","safe_alternative":"...","sources":["brand-book.md"]}],
+  "priority_segments": [{"text":"...","sources":["product-brief.md"]}],
+  "experiments": ["..."],
+  "questions_to_validate": ["..."]
+}

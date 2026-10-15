@@ -1,0 +1,102 @@
+$schema: https://azuremlschemas.azureedge.net/promptflow/latest/Flow.schema.json
+inputs:
+  product:
+    type: string
+    default: >-
+      Дебетовая и кредитная карта в одной: кредитный лимит подключается к дебетовой или зарплатной карте Цифра банка через мобильное приложение.
+outputs:
+  problem_answer:
+    type: string
+    reference: ${answer_problem.output}
+  primary_customer_answer:
+    type: string
+    reference: ${answer_primary_customer.output}
+  product_value_answer:
+    type: string
+    reference: ${answer_product_value.output}
+  top_audiences:
+    type: string
+    reference: ${validate_ranking.output}
+nodes:
+- name: audience_catalog
+  type: python
+  source:
+    type: code
+    path: audiences_tool.py
+  tool: get_audiences
+  inputs: {}
+- name: prompt_problem
+  type: prompt
+  source:
+    type: code
+    path: prompts/problem.jinja2
+  inputs:
+    product: ${inputs.product}
+- name: answer_problem
+  type: python
+  source:
+    type: code
+    path: tools.py
+  tool: call_opencode
+  inputs:
+    prompt: ${prompt_problem.output}
+- name: prompt_primary_customer
+  type: prompt
+  source:
+    type: code
+    path: prompts/primary_customer.jinja2
+  inputs:
+    product: ${inputs.product}
+- name: answer_primary_customer
+  type: python
+  source:
+    type: code
+    path: tools.py
+  tool: call_opencode
+  inputs:
+    prompt: ${prompt_primary_customer.output}
+- name: prompt_product_value
+  type: prompt
+  source:
+    type: code
+    path: prompts/product_value.jinja2
+  inputs:
+    product: ${inputs.product}
+- name: answer_product_value
+  type: python
+  source:
+    type: code
+    path: tools.py
+  tool: call_opencode
+  inputs:
+    prompt: ${prompt_product_value.output}
+- name: prompt_rank_audiences
+  type: prompt
+  source:
+    type: code
+    path: prompts/rank_audiences.jinja2
+  inputs:
+    product: ${inputs.product}
+    problem_answer: ${answer_problem.output}
+    primary_customer_answer: ${answer_primary_customer.output}
+    product_value_answer: ${answer_product_value.output}
+    audience_catalog: ${audience_catalog.output}
+- name: rank_audiences
+  type: python
+  source:
+    type: code
+    path: tools.py
+  tool: call_opencode
+  inputs:
+    prompt: ${prompt_rank_audiences.output}
+- name: validate_ranking
+  type: python
+  source:
+    type: code
+    path: validation.py
+  tool: validate_ranking
+  inputs:
+    ranking: ${rank_audiences.output}
+    audience_catalog: ${audience_catalog.output}
+environment:
+  python_requirements_txt: requirements.txt
