@@ -73,6 +73,30 @@ It includes:
 
 The seven stage prompts are embedded as editable node text. They use n8n expressions to inject the focus, loaded documents, and prior stage results. The workflow intentionally uses Basic LLM Chain nodes rather than autonomous agents: these stages are deterministic prompt calls, matching the current React implementation.
 
+## Product extraction workflow
+
+The separate workflow `workflows/tempo-product-extraction.json` implements the extraction prompt from `prompts/tempo-product-extraction.md`. The structured version is imported as **Tempo product extraction — structured output** and does not replace the existing passport workflow.
+
+Its pipeline is:
+
+```text
+Product sources + run parameters
+            ↓
+Extract one structured draft per source
+            ↓
+Consolidate records, duplicates, conflicts, and gaps
+            ↓
+Deterministic JSON/evidence validation
+            ↓
+Repair only structural validation failures
+            ↓
+Final product passport
+```
+
+The extraction, consolidation, and repair chains each have a native **Structured Output Parser** connected to them. The parser validates the JSON Schema and has auto-fix enabled; the downstream Code node remains as a second validation layer for sequential IDs, evidence, and business rules.
+
+The current local version reads the same mounted `/product/*.md` files. Edit **Параметры запуска** to change the target product or effective date. Attach a model credential to **OpenAI-compatible model (extraction)** before execution. The workflow is inactive and starts manually from the editor.
+
 ## Planned Tempo graph
 
 The starter workflow is deliberately small so the UI can be verified before importing the full passport pipeline. The target graph is:
