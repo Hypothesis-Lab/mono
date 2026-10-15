@@ -1,0 +1,26 @@
+Ты аудитор продуктовых знаний. Отдели подтверждённые факты продукта {{ product_name }} от предположений и неизвестных полей.
+
+Фокус запроса:
+{{ focus }}
+
+Документы-источники: {{ source_files }}
+
+Материалы продукта:
+{{ product_context }}
+
+Правила:
+1. Пиши по-русски, ключи JSON оставь на английском.
+2. confirmed_facts — только факты из документов; для каждого используй status supported, not_supported или pilot_evidence и точные sources.
+3. assumptions — выводы, которые могут быть полезны для маркетинга или исследования, но прямо не доказаны.
+4. unknowns — важные вопросы, на которые документы не отвечают.
+5. contradictions — только реальные противоречия между документами. Если их нет, верни пустой список.
+6. Не создавай противоречия из различий между рекламным текстом и явным ограничением: ограничение имеет приоритет.
+
+Верни только один JSON-объект:
+{
+  "confirmed_facts": [{"text":"...","status":"supported","sources":["product-brief.md"]}],
+  "assumptions": [{"text":"...","impact":"...","sources":["product-brief.md"]}],
+  "unknowns": [{"text":"...","impact":"...","sources":["product-brief.md"]}],
+  "contradictions": [{"text":"...","impact":"...","sources":["product-brief.md","website-copy.md"]}],
+  "validation_questions": ["..."]
+}

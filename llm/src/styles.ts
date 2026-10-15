@@ -137,6 +137,7 @@ export const StatusDot = styled.i`
 `
 
 export const Workspace = styled.section`
+  position: relative;
   display: flex;
   width: 0;
   min-width: 0;
@@ -159,6 +160,88 @@ export const Topbar = styled.header`
   gap: 24px;
   flex-shrink: 0;
   padding-bottom: 12px;
+`
+
+export const TopbarActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`
+
+export const ProductDocsButton = styled.button`
+  padding: 8px 11px;
+  border: 1px solid #59634b;
+  border-radius: 7px;
+  color: #dce9d1;
+  background: #20281c;
+  font-size: 11px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) { border-color: #9bb36c; background: #283321; }
+  &:disabled { cursor: wait; opacity: 0.65; }
+`
+
+export const ProductDocsPanel = styled.aside`
+  position: absolute;
+  z-index: 20;
+  top: 62px;
+  right: 24px;
+  bottom: 68px;
+  display: flex;
+  width: min(680px, calc(100% - 48px));
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 14px;
+  border: 1px solid #59634b;
+  border-radius: 10px;
+  color: #e9eee1;
+  background: rgba(25, 29, 22, 0.98);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  scrollbar-color: #59634b #171b15;
+`
+
+export const ProductDocsHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #343e2d;
+
+  strong, span { display: block; }
+  strong { font-size: 15px; }
+  span { margin-top: 4px; color: #9fa69a; font-size: 11px; }
+`
+
+export const ProductDocument = styled.details`
+  margin-bottom: 8px;
+  border: 1px solid #343e2d;
+  border-radius: 7px;
+  background: #171c15;
+`
+
+export const ProductDocumentSummary = styled.summary`
+  padding: 10px 12px;
+  color: #dce9d1;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+
+  &:hover { color: #f0f4e7; background: #20281c; }
+`
+
+export const ProductDocumentBody = styled.pre`
+  max-height: 480px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border-top: 1px solid #343e2d;
+  color: #b9c3b0;
+  background: #11150f;
+  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 `
 
 export const GraphPanel = styled.section`
@@ -220,6 +303,20 @@ export const GraphLegend = styled.div`
   }
 `
 
+export const GraphZoomIndicator = styled.div`
+  position: absolute;
+  z-index: 5;
+  top: 16px;
+  right: 18px;
+  padding: 8px 10px;
+  border: 1px solid #292d25;
+  border-radius: 6px;
+  color: #858a7e;
+  background: rgba(17, 19, 15, 0.9);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+`
+
 export const LegendDot = styled.i<{ $kind: 'input' | 'question' | 'complete' }>`
   display: block;
   width: 6px;
@@ -264,16 +361,19 @@ const statusBorder = (status: QuestionStatus) => {
   return '#454d3b'
 }
 
-export const GraphNode = styled.div<{ $status?: QuestionStatus; $kind?: 'product' | 'audience' | 'catalog' }>`
+export const GraphNode = styled.div<{ $status?: QuestionStatus; $kind?: 'product' | 'product-data' | 'focus' | 'questions' | 'extractor' | 'critic' | 'validator' | 'output' }>`
   position: relative;
-  width: ${({ $kind }) => $kind === 'product' ? '320px' : $kind === 'audience' ? '460px' : $kind === 'catalog' ? '380px' : '250px'};
+  width: ${({ $kind }) => $kind === 'output' ? '500px' : $kind === 'questions' ? '390px' : $kind === 'product-data' || $kind === 'focus' || $kind === 'product' ? '320px' : '340px'};
   padding: 17px;
-  border: 1px solid ${({ $kind, $status = 'idle' }) => $kind === 'product' ? '#ac754a' : ($kind === 'audience' || $kind === 'catalog') && $status === 'idle' ? '#758b4c' : statusBorder($status)};
+  border: 1px solid ${({ $kind, $status = 'idle' }) => $kind === 'product' || $kind === 'focus' ? '#ac754a' : ($kind === 'product-data' || $kind === 'questions' || $kind === 'extractor' || $kind === 'critic' || $kind === 'validator' || $kind === 'output') && $status === 'idle' ? '#758b4c' : statusBorder($status)};
   border-radius: 10px;
   color: #e9eee1;
   background: ${({ $kind, $status }) => {
-    if ($kind === 'product') return '#211b16'
-    if ($kind === 'audience' || $kind === 'catalog') return '#1b2117'
+    if ($kind === 'product' || $kind === 'focus') return '#211b16'
+    if ($kind === 'product-data' || $kind === 'questions' || $kind === 'extractor') return '#1b2117'
+    if ($kind === 'critic') return '#211d17'
+    if ($kind === 'validator') return '#17211e'
+    if ($kind === 'output') return '#1c1d24'
     if ($status === 'complete') return '#182118'
     if ($status === 'error') return '#241816'
     return '#1a1f17'
@@ -323,6 +423,52 @@ export const ProductInput = styled.textarea`
   &:focus { border-color: #d39a6c; }
 `
 
+export const PromptEditor = styled.textarea`
+  display: block;
+  width: 100%;
+  min-height: 180px;
+  max-height: 260px;
+  margin-top: 13px;
+  padding: 10px;
+  overflow: auto;
+  border: 1px solid #45513a;
+  border-radius: 6px;
+  outline: none;
+  color: #cbd7c1;
+  background: #11150f;
+  font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  resize: vertical;
+  white-space: pre-wrap;
+
+  &:focus { border-color: #aebd83; }
+`
+
+export const PromptEditorActions = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 7px;
+`
+
+export const PromptSaveStatus = styled.span<{ $status: 'saved' | 'dirty' | 'saving' | 'error' }>`
+  color: ${({ $status }) => $status === 'error' ? '#f09a8a' : $status === 'dirty' ? '#d5f36b' : '#859b75'};
+  font-size: 9px;
+`
+
+export const PromptSaveButton = styled.button`
+  padding: 5px 8px;
+  border: 1px solid #59634b;
+  border-radius: 5px;
+  color: #dce9d1;
+  background: #20281c;
+  font-size: 10px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) { border-color: #aebd83; background: #283321; }
+  &:disabled { cursor: default; opacity: 0.45; }
+`
+
 export const QuestionHeader = styled.div`
   display: flex;
   align-items: flex-start;
@@ -354,6 +500,10 @@ export const Answer = styled.div<{ $visible?: boolean; $error?: boolean; $rankin
   background: ${({ $error, $visible }) => $error ? '#201514' : $visible ? '#182018' : '#141814'};
   font-size: 11px;
   line-height: 1.45;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   ${({ $ranking }) => $ranking && css`white-space: pre-wrap;`}
 `
 

@@ -1,0 +1,451 @@
+{
+  "id": "e5f6a305-9d45-4b38-b765-8935d4a2806c",
+  "name": "Tempo product passport",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1000,
+        -220
+      ],
+      "id": "b8a8d3d5-a2db-494c-bfc5-979daf956e94",
+      "name": "Запустить паспорт"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/product/*.md",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        -760,
+        -220
+      ],
+      "id": "8403dbbf-56f3-43e1-810f-9e143558a0bb",
+      "name": "Документы продукта"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5d284f8b-939e-47aa-beb5-de932424b83c",
+              "name": "focus",
+              "value": "Проведи полный анализ продукта Tempo и подготовь основу для коммуникаций.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -760,
+        40
+      ],
+      "id": "357617bc-2b05-42cd-8a9e-af57daae4e84",
+      "name": "Фокус анализа"
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 2
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -620,
+        -100
+      ],
+      "id": "6f1e11c6-9369-40e8-a04a-4e9a832cce9c",
+      "name": "Документы + фокус"
+    },
+    {
+      "parameters": {
+        "jsCode": "const documents = [];\nfor (let index = 0; index < items.length; index += 1) {\n  if (!items[index].binary?.data) continue;\n  const buffer = await this.helpers.getBinaryDataBuffer(index, 'data');\n  const binary = items[index].binary?.data ?? {};\n  const name = binary.fileName ?? items[index].json.fileName ?? `document-${index + 1}.md`;\n  documents.push({ name, content: buffer.toString('utf8') });\n}\n\nreturn [{\n  json: {\n    focus: items.find((item) => item.json?.focus)?.json.focus ?? 'Проведи полный анализ продукта Tempo и подготовь основу для коммуникаций.',\n    sourceFiles: documents.map((document) => document.name).join(', '),\n    productContext: documents.map((document) => `--- ${document.name} ---\\n${document.content}`).join('\\n\\n'),\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -500,
+        -220
+      ],
+      "id": "743e374a-4064-4f04-9069-5b1e65bd250f",
+      "name": "Собрать документы"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Ты модуль вопросов о продукте Tempo. Ответь на каждый вопрос на основании документов продукта.\n\nФокус запроса:\n{{ $json.focus }}\n\nВопросы:\n1. Что это за продукт и для кого он предназначен?\n2. Какую задачу пользователя он решает?\n3. Какие выгоды подтверждены фактами?\n4. Какие свойства действительно отличают продукт?\n5. Какие условия и ограничения обязательны?\n6. Что разрешено и запрещено обещать?\n7. Какая экономика: CPA/CAC и целевая конверсия?\n8. Какие бизнес-события можно измерить?\n9. Какие каналы привлечения и коммуникации допустимы?\n\nВажно: CPA, CAC, целевая конверсия, каналы и события должны быть UNKNOWN, если их нет в документах.\n\nМатериалы продукта:\n{{ $json.productContext }}\n\nОбщие правила:\n1. Отвечай по-русски, но ключи JSON оставь ровно как в схеме.\n2. Используй только материалы продукта. Не додумывай факты, функции, экономику, каналы или результаты.\n3. Если данных нет, используй строку \"UNKNOWN\" и добавь поле в unknown_fields. Не подставляй примерные значения.\n4. Каждая запись с sources должна содержать точное имя файла из этого списка: {{ $json.sourceFiles }}\n5. Разделяй FACT, ВЫВОД ИИ и UNKNOWN.\n6. Не превращай маркетинговый текст в гарантию.\n\nВерни только JSON такого вида:\n{\n  \"product_and_audience\": {\"answer\":\"...\",\"sources\":[\"product-brief.md\"]},\n  \"user_problem\": {\"answer\":\"...\",\"sources\":[\"product-brief.md\"]},\n  \"confirmed_benefits\": [{\"text\":\"...\",\"sources\":[\"product-brief.md\"]}],\n  \"differentiating_properties\": [{\"text\":\"...\",\"sources\":[\"product-brief.md\"]}],\n  \"mandatory_conditions_and_limits\": [{\"text\":\"...\",\"sources\":[\"policies.md\"]}],\n  \"allowed_promises\": [{\"text\":\"...\",\"sources\":[\"brand-book.md\"]}],\n  \"forbidden_promises\": [{\"text\":\"...\",\"sources\":[\"brand-book.md\"]}],\n  \"economics\": {\"cpa\":\"UNKNOWN\",\"cac\":\"UNKNOWN\",\"target_conversion\":\"UNKNOWN\",\"sources\":[]},\n  \"measurable_business_events\": [{\"text\":\"...\",\"sources\":[\"api-reference.md\"]}],\n  \"allowed_channels\": [{\"text\":\"UNKNOWN\",\"sources\":[]}] ,\n  \"unknown_fields\": [{\"field\":\"...\",\"why_it_is_unknown\":\"...\"}]\n}",
+        "options": {},
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        -220,
+        -220
+      ],
+      "id": "16929220-eeff-4c76-9756-64132c5ae25b",
+      "name": "Вопросы к продукту"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Ты экстрактор фактов продукта. Извлеки паспортные факты, функции, ограничения, экономику, обязательные поля и ссылки на источники.\n\nФокус запроса:\n{{ $('Собрать документы').first().json.focus }}\n\nОтветы модуля вопросов:\n{{ $json.text }}\n\nМатериалы продукта:\n{{ $('Собрать документы').first().json.productContext }}\n\nОбщие правила:\n1. Отвечай по-русски, но ключи JSON оставь ровно как в схеме.\n2. Используй только материалы продукта. Не додумывай факты, функции, экономику, каналы или результаты.\n3. Если данных нет, используй строку \"UNKNOWN\" и добавь поле в unknown_fields.\n4. Каждая запись с sources должна содержать точное имя файла из этого списка: {{ $('Собрать документы').first().json.sourceFiles }}\n5. Разделяй FACT, ВЫВОД ИИ и UNKNOWN.\n\nВерни только JSON такого вида:\n{\n  \"facts\": [{\"text\":\"...\",\"status\":\"FACT\",\"sources\":[\"product-brief.md\"]}],\n  \"capabilities\": [{\"text\":\"...\",\"sources\":[\"features-and-pricing.md\"]}],\n  \"limitations\": [{\"text\":\"...\",\"sources\":[\"product-brief.md\"]}],\n  \"economics\": [{\"field\":\"CPA\",\"value\":\"UNKNOWN\",\"sources\":[]}],\n  \"mandatory_fields\": [{\"field\":\"...\",\"value\":\"...\",\"sources\":[\"product-brief.md\"]}],\n  \"unknown_fields\": [{\"field\":\"...\",\"reason\":\"...\"}],\n  \"source_links\": [{\"claim\":\"...\",\"sources\":[\"product-brief.md\"]}]\n}",
+        "options": {},
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        180,
+        -480
+      ],
+      "id": "588fa973-f503-4d04-8c6a-a1a1890010c8",
+      "name": "Извлечение фактов продукта"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Ты экстрактор бренда и ограничений. Извлеки разрешённые и запрещённые claims, брендовые, юридические, терминологические и sensitive-data правила.\n\nФокус запроса:\n{{ $('Собрать документы').first().json.focus }}\n\nОтветы модуля вопросов:\n{{ $json.text }}\n\nМатериалы продукта:\n{{ $('Собрать документы').first().json.productContext }}\n\nОбщие правила:\n1. Отвечай по-русски, но ключи JSON оставь ровно как в схеме.\n2. Используй только материалы продукта. Не расширяй смысл обещаний.\n3. Каждая запись с sources должна содержать точное имя файла из этого списка: {{ $('Собрать документы').first().json.sourceFiles }}\n4. Разделяй FACT, ВЫВОД ИИ и UNKNOWN.\n\nВерни только JSON такого вида:\n{\n  \"approved_claims\": [{\"text\":\"...\",\"caveat\":\"...\",\"sources\":[\"brand-book.md\"]}],\n  \"forbidden_claims\": [{\"text\":\"...\",\"reason\":\"...\",\"safe_alternative\":\"...\",\"sources\":[\"brand-book.md\"]}],\n  \"brand_rules\": [{\"text\":\"...\",\"sources\":[\"brand-book.md\"]}],\n  \"legal_rules\": [{\"text\":\"...\",\"sources\":[\"policies.md\"]}],\n  \"terminology_rules\": [{\"text\":\"...\",\"sources\":[\"glossary.md\"]}],\n  \"sensitive_data_rules\": [{\"text\":\"...\",\"sources\":[\"policies.md\"]}]\n}",
+        "options": {},
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        180,
+        -220
+      ],
+      "id": "5fb1eb4f-b065-4fd7-98c1-f4ca740cd86c",
+      "name": "Извлечение бренда и ограничений"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Ты экстрактор продуктовых инсайтов. Извлеки JTBD, боли, ценности, реальные отличия, подтверждённые сегменты, измеримые события и гипотезы.\n\nФокус запроса:\n{{ $('Собрать документы').first().json.focus }}\n\nОтветы модуля вопросов:\n{{ $json.text }}\n\nМатериалы продукта:\n{{ $('Собрать документы').first().json.productContext }}\n\nОбщие правила:\n1. Отвечай по-русски, но ключи JSON оставь ровно как в схеме.\n2. Используй только материалы продукта. Гипотезы помечай как ВЫВОД ИИ.\n3. Каждая запись с sources должна содержать точное имя файла из этого списка: {{ $('Собрать документы').first().json.sourceFiles }}\n4. Не используй стереотипы и не превращай гипотезу в факт.\n\nВерни только JSON такого вида:\n{\n  \"jobs_to_be_done\": [{\"text\":\"...\",\"sources\":[\"product-brief.md\"]}],\n  \"pain_points\": [{\"text\":\"...\",\"sources\":[\"product-brief.md\"]}],\n  \"values_and_outcomes\": [{\"text\":\"...\",\"sources\":[\"product-brief.md\"]}],\n  \"differentiators\": [{\"text\":\"...\",\"sources\":[\"product-brief.md\"]}],\n  \"target_segments\": [{\"text\":\"...\",\"sources\":[\"product-brief.md\"]}],\n  \"measurable_events\": [{\"text\":\"...\",\"sources\":[\"api-reference.md\"]}],\n  \"hypotheses\": [{\"text\":\"...\",\"sources\":[\"product-brief.md\"]}]\n}",
+        "options": {},
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        180,
+        40
+      ],
+      "id": "1c0a12b1-e99f-4359-8ad4-6bc13cb3fe78",
+      "name": "Извлечение продуктовых инсайтов"
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        500,
+        -220
+      ],
+      "id": "d81540f9-cb8c-4753-86f5-71d95f334e2b",
+      "name": "Синхронизировать извлечения"
+    },
+    {
+      "parameters": {
+        "jsCode": "const read = (name) => $(name).first().json.text ?? '';\nreturn [{\n  json: {\n    extractors: JSON.stringify({\n      facts: read('Извлечение фактов продукта'),\n      brand: read('Извлечение бренда и ограничений'),\n      insights: read('Извлечение продуктовых инсайтов'),\n    }, null, 2),\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        -220
+      ],
+      "id": "c9e63eda-5b9d-418a-af6d-fa3fdc4dcd98",
+      "name": "Собрать извлечения"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Ты независимый критик продуктового паспорта Tempo. Проверь результаты экстракторов.\n\nФокус запроса:\n{{ $('Собрать документы').first().json.focus }}\n\nОтветы на вопросы:\n{{ $('Вопросы к продукту').first().json.text }}\n\nИзвлечения:\n{{ $json.extractors }}\n\nМатериалы продукта:\n{{ $('Собрать документы').first().json.productContext }}\n\nПроверь отдельно: достоверность фактов, полноту и обязательные поля, противоречия между источниками, соответствие бренду и отсутствие выдуманных обещаний. Верни только JSON:\n{\n  \"verdict\":\"PASS или NEEDS_REVIEW\",\n  \"factuality_issues\": [{\"issue\":\"...\",\"severity\":\"...\",\"sources\":[\"product-brief.md\"]}],\n  \"completeness_issues\": [{\"issue\":\"...\",\"missing_field\":\"...\"}],\n  \"contradictions\": [{\"issue\":\"...\",\"sources\":[\"product-brief.md\",\"website-copy.md\"]}],\n  \"brand_fit_issues\": [{\"issue\":\"...\",\"sources\":[\"brand-book.md\"]}],\n  \"required_fixes\": [\"...\"]\n}",
+        "options": {},
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        1000,
+        -220
+      ],
+      "id": "b6243506-b75f-490e-8b7c-ebd5f554aaad",
+      "name": "Критики"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Ты строгий валидатор результата анализа продукта Tempo.\n\nФокус запроса:\n{{ $('Собрать документы').first().json.focus }}\n\nРезультаты экстракторов:\n{{ $('Собрать извлечения').first().json.extractors }}\n\nОтчёт критика:\n{{ $json.text }}\n\nМатериалы продукта:\n{{ $('Собрать документы').first().json.productContext }}\n\nПроверь наличие источника у каждого факта, обязательные поля, brand/legal rules, sensitive data, корректность source links и явную маркировку UNKNOWN. Ничего не исправляй молча — перечисли проблемы и required_fixes. Верни только JSON:\n{\n  \"status\":\"VALID или INVALID\",\n  \"source_issues\": [{\"issue\":\"...\",\"fix\":\"...\"}],\n  \"mandatory_field_issues\": [{\"field\":\"...\",\"issue\":\"...\"}],\n  \"brand_legal_issues\": [{\"issue\":\"...\",\"sources\":[\"policies.md\"]}],\n  \"sensitive_data_issues\": [{\"issue\":\"...\",\"sources\":[\"policies.md\"]}],\n  \"source_link_issues\": [{\"claim\":\"...\",\"issue\":\"...\"}],\n  \"required_fixes\": [\"...\"]\n}",
+        "options": {},
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        1260,
+        -220
+      ],
+      "id": "44f8adfa-0d68-4d53-acdc-d32115310e0e",
+      "name": "Валидаторы"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Ты ведущий продуктовый стратег. Собери финальный паспорт продукта Tempo только из проверенных материалов.\n\nФокус запроса:\n{{ $('Собрать документы').first().json.focus }}\n\nОтветы на вопросы:\n{{ $('Вопросы к продукту').first().json.text }}\n\nИзвлечения:\n{{ $('Собрать извлечения').first().json.extractors }}\n\nКритика:\n{{ $('Критики').first().json.text }}\n\nВалидация:\n{{ $json.text }}\n\nМатериалы продукта:\n{{ $('Собрать документы').first().json.productContext }}\n\nЕсли валидатор нашёл проблему, не скрывай её: отрази её в critic_and_validator_summary или unknown_fields. Статус каждого элемента должен быть FACT, ВЫВОД ИИ или UNKNOWN. Верни только JSON:\n{\n  \"status\":\"FACT / ВЫВОД ИИ / НЕИЗВЕСТНО\",\n  \"product\": {\"name\":\"Tempo\",\"what_it_is\":\"...\",\"for_whom\":\"...\",\"sources\":[\"product-brief.md\"]},\n  \"facts\": [{\"text\":\"...\",\"sources\":[\"product-brief.md\"]}],\n  \"insights\": [{\"text\":\"...\",\"status\":\"ВЫВОД ИИ\",\"sources\":[\"product-brief.md\"]}],\n  \"limitations\": [{\"text\":\"...\",\"sources\":[\"policies.md\"]}],\n  \"economics\": {\"cpa\":\"UNKNOWN\",\"cac\":\"UNKNOWN\",\"target_conversion\":\"UNKNOWN\",\"sources\":[]},\n  \"approved_claims\": [{\"text\":\"...\",\"caveat\":\"...\",\"sources\":[\"brand-book.md\"]}],\n  \"unknown_fields\": [{\"field\":\"...\",\"why_it_is_unknown\":\"...\"}],\n  \"source_links\": [{\"claim\":\"...\",\"sources\":[\"product-brief.md\"]}],\n  \"critic_and_validator_summary\": {\"critic_verdict\":\"...\",\"validator_status\":\"...\",\"required_fixes\":[\"...\"]}\n}",
+        "options": {},
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        1520,
+        -220
+      ],
+      "id": "f2e284d5-8ebb-4015-aad7-c507c09297cb",
+      "name": "Паспорт продукта"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        700,
+        260
+      ],
+      "id": "f8794fe7-85ce-4289-9b0f-73ae3540dfae",
+      "name": "OpenAI-compatible model",
+      "notes": "Select or create the model credential in this node. The prompt stages are intentionally Basic LLM Chains, not autonomous agents.",
+      "notesInFlow": true
+    }
+  ],
+  "connections": {
+    "Запустить паспорт": {
+      "main": [
+        [
+          {
+            "node": "Документы продукта",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Фокус анализа",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Документы продукта": {
+      "main": [
+        [
+          {
+            "node": "Документы + фокус",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Фокус анализа": {
+      "main": [
+        [
+          {
+            "node": "Документы + фокус",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Документы + фокус": {
+      "main": [
+        [
+          {
+            "node": "Собрать документы",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать документы": {
+      "main": [
+        [
+          {
+            "node": "Вопросы к продукту",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Вопросы к продукту": {
+      "main": [
+        [
+          {
+            "node": "Извлечение фактов продукта",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Извлечение бренда и ограничений",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Извлечение продуктовых инсайтов",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Извлечение фактов продукта": {
+      "main": [
+        [
+          {
+            "node": "Синхронизировать извлечения",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Извлечение бренда и ограничений": {
+      "main": [
+        [
+          {
+            "node": "Синхронизировать извлечения",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Извлечение продуктовых инсайтов": {
+      "main": [
+        [
+          {
+            "node": "Синхронизировать извлечения",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Синхронизировать извлечения": {
+      "main": [
+        [
+          {
+            "node": "Собрать извлечения",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать извлечения": {
+      "main": [
+        [
+          {
+            "node": "Критики",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Критики": {
+      "main": [
+        [
+          {
+            "node": "Валидаторы",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Валидаторы": {
+      "main": [
+        [
+          {
+            "node": "Паспорт продукта",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI-compatible model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Вопросы к продукту",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Извлечение фактов продукта",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Извлечение бренда и ограничений",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Извлечение продуктовых инсайтов",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Критики",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Валидаторы",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Паспорт продукта",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "tempo-product-passport-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
