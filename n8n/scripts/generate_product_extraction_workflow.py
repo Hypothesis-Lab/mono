@@ -10,6 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PROMPT_FILE = ROOT / "n8n/prompts/tempo-product-extraction.md"
+EVALUATION_PROMPT_FILE = ROOT / "n8n/prompts/tempo-product-extraction-evaluation.md"
 OUTPUT_FILE = ROOT / "n8n/workflows/tempo-product-extraction.json"
 
 
@@ -128,8 +129,83 @@ def structured_parser(name: str, position: list[int]) -> dict:
     }
 
 
+def evaluation_schema() -> dict:
+    criterion = {
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "name": {"type": "string"},
+            "weight": {"type": "number"},
+            "score": {"anyOf": [{"type": "number", "minimum": 0, "maximum": 5}, {"type": "null"}]},
+            "status": {"type": "string", "enum": ["assessed", "not_tested"]},
+            "weighted_score": {"anyOf": [{"type": "number", "minimum": 0, "maximum": 100}, {"type": "null"}]},
+            "findings": {"type": "array", "items": {"type": "string"}},
+            "recommendations": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["id", "name", "weight", "score", "status", "weighted_score", "findings", "recommendations"],
+        "additionalProperties": False,
+    }
+    mandatory_check = {
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "name": {"type": "string"},
+            "status": {"type": "string", "enum": ["pass", "fail", "not_tested"]},
+            "finding": {"type": "string"},
+        },
+        "required": ["id", "name", "status", "finding"],
+        "additionalProperties": False,
+    }
+    scenario = {
+        "type": "object",
+        "properties": {
+            "number": {"type": "integer", "minimum": 1, "maximum": 12},
+            "status": {"type": "string", "enum": ["pass", "fail", "partial", "not_tested"]},
+            "finding": {"type": "string"},
+        },
+        "required": ["number", "status", "finding"],
+        "additionalProperties": False,
+    }
+    return {
+        "type": "object",
+        "properties": {
+            "evaluation_status": {"type": "string", "enum": ["complete", "partial", "blocked"]},
+            "mode": {"type": "string", "enum": ["single_run_source_audit", "benchmark"]},
+            "overall_score": {"anyOf": [{"type": "number", "minimum": 0, "maximum": 100}, {"type": "null"}]},
+            "acceptance": {"type": "string", "enum": ["accepted", "rejected", "not_tested"]},
+            "score_basis": {"type": "string"},
+            "criteria": {"type": "array", "items": criterion, "minItems": 9},
+            "mandatory_checks": {"type": "array", "items": mandatory_check, "minItems": 6},
+            "scenarios": {"type": "array", "items": scenario, "minItems": 12},
+            "summary": {"type": "string"},
+            "limitations": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["evaluation_status", "mode", "overall_score", "acceptance", "score_basis", "criteria", "mandatory_checks", "scenarios", "summary", "limitations"],
+        "additionalProperties": False,
+    }
+
+
+def evaluation_parser(name: str, position: list[int]) -> dict:
+    return {
+        "parameters": {
+            "schemaType": "manual",
+            "inputSchema": json.dumps(evaluation_schema(), ensure_ascii=False, indent=2),
+            "autoFix": True,
+            "customizeRetryPrompt": False,
+        },
+        "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+        "typeVersion": 1.3,
+        "position": position,
+        "id": node_id(),
+        "name": name,
+        "notes": "Structured evaluation output. A single-run audit cannot establish acceptance without the fixed benchmark and reference.",
+        "notesInFlow": True,
+    }
+
+
 def main() -> None:
     prompt = PROMPT_FILE.read_text()
+    evaluation_prompt = EVALUATION_PROMPT_FILE.read_text()
 
     trigger = {
         "parameters": {},
@@ -419,6 +495,59 @@ return [{
         [1240, -220],
     )
 
+    prepare_evaluation = code_node(
+        "Подготовить оценку",
+        """const final = $input.all()[0]?.json ?? {};
+const sourceItems = $('Подготовить источники').all();
+const sourceMaterials = sourceItems.map((item) => ({
+  source: item.json?.source ?? null,
+  content: item.json?.content ?? '',
+}));
+
+return [{
+  json: {
+    passport_json: JSON.stringify(final.passport ?? null, null, 2),
+    validation_json: JSON.stringify(final.validation ?? null, null, 2),
+    source_materials_json: JSON.stringify(sourceMaterials, null, 2),
+  },
+}];""",
+        [1480, -220],
+    )
+
+    evaluation_prompt = replace_placeholders(
+        evaluation_prompt,
+        {
+            "PASSPORT_JSON": "$json.passport_json",
+            "VALIDATION_JSON": "$json.validation_json",
+            "SOURCE_MATERIALS_JSON": "$json.source_materials_json",
+        },
+    )
+    evaluate = basic_chain("Оценить паспорт по критериям", evaluation_prompt, [1720, -220])
+    evaluate["notes"] = "Runs after the final passport and audits it against the supplied evaluation standard and source materials."
+    evaluate["notesInFlow"] = True
+    evaluate_parser = evaluation_parser("Структура оценки паспорта", [1720, 20])
+
+    evaluated_final = code_node(
+        "Паспорт и оценка",
+        """function parseJson(value) {
+  if (typeof value !== 'string') return value;
+  const cleaned = value.trim().replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/, '');
+  try { return JSON.parse(cleaned); } catch (error) { return null; }
+}
+
+const incoming = $input.all()[0]?.json ?? {};
+const evaluation = incoming.evaluation ?? parseJson(incoming.text ?? incoming.output ?? '');
+const final = $('Финальный паспорт').first().json ?? {};
+return [{
+  json: {
+    passport: final.passport ?? null,
+    validation: final.validation ?? null,
+    evaluation,
+  },
+}];""",
+        [1960, -220],
+    )
+
     model = {
         "parameters": {"model": {"__rl": True, "mode": "list", "value": "gpt-4o-mini"}, "options": {}},
         "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
@@ -446,6 +575,10 @@ return [{
         repair,
         repair_parser,
         final,
+        prepare_evaluation,
+        evaluate,
+        evaluate_parser,
+        evaluated_final,
         model,
     ]
 
@@ -467,9 +600,13 @@ return [{
             [{"node": "Исправить паспорт", "type": "main", "index": 0}],
         ]},
         "Исправить паспорт": {"main": [[{"node": "Финальный паспорт", "type": "main", "index": 0}]]},
+        "Финальный паспорт": {"main": [[{"node": "Подготовить оценку", "type": "main", "index": 0}]]},
+        "Подготовить оценку": {"main": [[{"node": "Оценить паспорт по критериям", "type": "main", "index": 0}]]},
+        "Оценить паспорт по критериям": {"main": [[{"node": "Паспорт и оценка", "type": "main", "index": 0}]]},
         "Структура черновика": {"ai_outputParser": [[{"node": "Извлечь факты по источнику", "type": "ai_outputParser", "index": 0}]]},
         "Структура итогового паспорта": {"ai_outputParser": [[{"node": "Свести паспорт", "type": "ai_outputParser", "index": 0}]]},
         "Структура исправленного паспорта": {"ai_outputParser": [[{"node": "Исправить паспорт", "type": "ai_outputParser", "index": 0}]]},
+        "Структура оценки паспорта": {"ai_outputParser": [[{"node": "Оценить паспорт по критериям", "type": "ai_outputParser", "index": 0}]]},
     }
 
     for chain_name in (
@@ -479,13 +616,15 @@ return [{
         "Структура черновика",
         "Структура итогового паспорта",
         "Структура исправленного паспорта",
+        "Оценить паспорт по критериям",
+        "Структура оценки паспорта",
     ):
         connections.setdefault("OpenAI-compatible model (extraction)", {"ai_languageModel": [[]]})
         connections["OpenAI-compatible model (extraction)"]["ai_languageModel"][0].append({"node": chain_name, "type": "ai_languageModel", "index": 0})
 
     workflow = {
         "id": node_id(),
-        "name": "Tempo product extraction — structured output",
+        "name": "Tempo product extraction — structured output + evaluation",
         "nodes": nodes,
         "connections": connections,
         "pinData": {},

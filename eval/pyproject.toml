@@ -1,0 +1,23 @@
+[project]
+name = "tempo-eval"
+version = "0.1.0"
+description = "Run the Tempo product extraction workflow against OpenRouter models."
+requires-python = ">=3.13"
+dependencies = [
+    "langchain-openai",
+    "langgraph",
+    "langgraph-checkpoint-sqlite",
+    "pydantic",
+]
+
+[dependency-groups]
+dev = [
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

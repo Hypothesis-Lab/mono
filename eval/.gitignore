@@ -1,0 +1,12 @@
+.venv/
+.env
+.ruff_cache/
+__pycache__/
+*/__pycache__/
+checkpoints/
+results/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+results.json
+report.html

@@ -85,15 +85,19 @@ Product sources + run parameters
 Extract one structured draft per source
             ↓
 Consolidate records, duplicates, conflicts, and gaps
-            ↓
+    ↓
 Deterministic JSON/evidence validation
-            ↓
+    ↓
 Repair only structural validation failures
-            ↓
+    ↓
 Final product passport
+    ↓
+Criteria-based source audit
 ```
 
 The extraction, consolidation, and repair chains each have a native **Structured Output Parser** connected to them. The parser validates the JSON Schema and has auto-fix enabled; the downstream Code node remains as a second validation layer for sequential IDs, evidence, and business rules.
+
+After the passport is ready, **Оценить паспорт по критериям** audits the result against `prompts/tempo-product-extraction-evaluation.md`, the supplied source materials, and the fixed acceptance criteria. It returns the passport together with an evaluation. A single run is reported as `single_run_source_audit` and cannot mark the version accepted without a fixed reference and regression runs.
 
 The current local version reads the same mounted `/product/` files, excluding `README.md`. Edit **Параметры запуска** to change the target product or effective date. Attach a model credential to **OpenAI-compatible model (extraction)** before execution. The workflow is inactive and starts manually from the editor.
 
