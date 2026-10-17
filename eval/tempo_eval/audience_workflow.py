@@ -300,7 +300,7 @@ class AudienceWorkflow:
                     "rationale": None,
                 }
             ],
-            "interpretation": _interpretation(narrative, calculation["rule_ref"]),
+            "interpretation": _interpretation(narrative, calculation["rule_ref"], state["product_passport"]),
             "checks": _checks(calculation, self.config),
             "risks": narrative.risks,
         }
@@ -523,11 +523,15 @@ def _query_prompt(
 def _interpretation_prompt(
     product_passport: dict[str, Any], data_profile: dict[str, Any], calculation: dict[str, Any]
 ) -> str:
-    return f"""Интерпретируй уже рассчитанный сегмент для продукта и ответь на вопросы аудитории: кто потенциально релевантен гипотезе, в каком контексте используется продукт, какой JTBD или боль наблюдается, какие реальные сигналы это подтверждают, какие сигналы могут указывать на готовность, какие потребности и мотивации возможны, а также какие есть триггеры, барьеры и сомнения. Не меняй правило, размер, долю, период, признаки или источники. Не утверждай, что поведение доказывает мотив, владение бизнесом, потребность или готовность купить. Не раскрывай персональные данные.
+    return f"""Интерпретируй уже рассчитанный сегмент для продукта и ответь на вопросы аудитории: кто потенциально релевантен гипотезе, в каком контексте используется продукт, какие JTBD сегмента или боли возможны, какие реальные сигналы это подтверждают, какие сигналы могут указывать на готовность, какие потребности и мотивации возможны, а также какие есть триггеры, барьеры и сомнения.
+
+Сделай отдельный анализ соответствия JTBD продукта и сегмента. В product_jtbd находятся JTBD, извлечённые первым пайплайном из материалов продукта. В jtbd сформируй список из нуля, одного или нескольких JTBD именно сегмента. Для каждого product_jtbd сравни его с наиболее близким JTBD сегмента и верни объект jtbd_alignment с полями product_jtbd_ref, product_jtbd_text, segment_jtbd_index, segment_jtbd_text, relation=aligned, partial, not_aligned или unknown, rationale и source_refs. Не называй связь aligned только потому, что сегмент использует похожие функции: поведение должно поддерживать совместимость с задачей, а прямое подтверждение намерения допускается только при наличии такого источника. Если данных недостаточно, используй unknown и объясни почему. Не пропускай product_jtbd из сравнения и не создавай продуктовые JTBD самостоятельно.
+
+Не меняй правило, размер, долю, период, признаки или источники. Не утверждай, что поведение доказывает мотив, роль человека, потребность или готовность купить. Не раскрывай персональные данные.
 
 {load_prompt("audience-data-contract.md")}
 
-Для неподтверждённого утверждения верни kind=unknown и text=null. Для интерпретации верни kind=inference с кратким rationale. product relevance обычно является inference, если нет отдельного подтверждённого исследования.
+Для неподтверждённого утверждения верни kind=unknown и text=null. Для интерпретации верни kind=inference с кратким rationale. Каждый элемент jtbd — отдельное утверждение. product relevance обычно является inference, если нет отдельного подтверждённого исследования.
 Поле questions используй только для нерешённых вопросов к продукту или данным,
 например для отсутствующих сигналов; это не подтверждение факта и не запрос к
 пользователю внутри текущего запуска.
@@ -799,10 +803,66 @@ def _claim(claim: Any, reference: str) -> dict[str, Any]:
     return {"text": claim.text, "kind": claim.kind, "source_refs": [reference], "rationale": claim.rationale}
 
 
-def _interpretation(narrative: AudienceNarrative, reference: str) -> dict[str, Any]:
+def _interpretation(
+    narrative: AudienceNarrative, reference: str, product_passport: dict[str, Any]
+) -> dict[str, Any]:
+    product_records = product_passport.get("product_jtbd") or [
+        item for item in product_passport.get("records", []) if item.get("category") == "jtbd"
+    ]
+    product_jtbd = {
+        item.get("id"): item
+        for item in product_records
+        if item.get("id")
+    }
+    alignment_by_ref = {
+        item.product_jtbd_ref: item
+        for item in narrative.jtbd_alignment
+        if item.product_jtbd_ref in product_jtbd
+    }
+    alignment = []
+    for product_ref, product in product_jtbd.items():
+        item = alignment_by_ref.get(product_ref)
+        if item is None:
+            alignment.append(
+                {
+                    "product_jtbd_ref": product_ref,
+                    "product_jtbd_text": product.get("statement"),
+                    "segment_jtbd_index": None,
+                    "segment_jtbd_text": None,
+                    "relation": "unknown",
+                    "rationale": "Для этого JTBD продукта модель не предоставила достаточного сравнения.",
+                    "source_refs": [product_ref, reference],
+                }
+            )
+            continue
+        segment_claim = (
+            narrative.jtbd[item.segment_jtbd_index]
+            if item.segment_jtbd_index is not None
+            and 0 <= item.segment_jtbd_index < len(narrative.jtbd)
+            else None
+        )
+        alignment.append(
+            {
+                "product_jtbd_ref": item.product_jtbd_ref,
+                "product_jtbd_text": product.get("statement") if product else item.product_jtbd_text,
+                "segment_jtbd_index": item.segment_jtbd_index,
+                "segment_jtbd_text": segment_claim.text if segment_claim else item.segment_jtbd_text,
+                "relation": (
+                    item.relation
+                    if product
+                    and segment_claim is not None
+                    and segment_claim.kind != "unknown"
+                    and segment_claim.text
+                    else "unknown"
+                ),
+                "rationale": item.rationale,
+                "source_refs": ([item.product_jtbd_ref] if product else []) + [reference],
+            }
+        )
     return {
         "context": _claim(narrative.context, reference),
-        "jtbd": _claim(narrative.jtbd, reference),
+        "jtbd": [_claim(item, reference) for item in narrative.jtbd],
+        "jtbd_alignment": alignment,
         "pains": [_claim(item, reference) for item in narrative.pains],
         "needs": [_claim(item, reference) for item in narrative.needs],
         "readiness": [_claim(item, reference) for item in narrative.readiness],

@@ -236,6 +236,7 @@ def compact_product_passport(passport: dict[str, Any]) -> dict[str, Any]:
     categories = {
         "identity",
         "purpose",
+        "jtbd",
         "audience",
         "features",
         "benefits",
@@ -244,14 +245,18 @@ def compact_product_passport(passport: dict[str, Any]) -> dict[str, Any]:
         "offers_channels",
     }
     fields = ("id", "category", "subject", "statement", "conditions", "time_scope", "evidence_status")
+    records = [
+        {field: record.get(field) for field in fields}
+        for record in passport.get("records", [])
+        if record.get("category") in categories
+    ]
+    product_jtbd = [record for record in records if record.get("category") == "jtbd"]
     return {
         "product_name": passport.get("product_name"),
         "extraction_status": passport.get("extraction_status"),
-        "records": [
-            {field: record.get(field) for field in fields}
-            for record in passport.get("records", [])
-            if record.get("category") in categories
-        ],
+        "records": records,
+        "product_jtbd": product_jtbd,
+        "product_jtbd_status": "extracted" if product_jtbd else "not_extracted",
         "warnings": passport.get("warnings", []),
     }
 

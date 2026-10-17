@@ -483,7 +483,8 @@ def render_html(payload: dict[str, Any]) -> str:
     }}
      function resultRendered(passport, validation) {{
       if (!passport) return '<p class="muted">No passport has been produced yet.</p>';
-      const records = passport.records || [];
+       const records = passport.records || [];
+       const productJtbd = records.filter(record => record.category === 'jtbd');
       const recordsHtml = records.map((record, index) =>
         '<article class="record"><h4>' + esc(record.statement || ('Record ' + (index + 1))) + '</h4>' +
         '<div class="record-meta"><span class="tag">' + esc(record.category) + '</span>' +
@@ -504,6 +505,8 @@ def render_html(payload: dict[str, Any]) -> str:
        return '<div class="hero"><strong>' + esc(passport.product_name || 'Unknown product') + '</strong>' +
          '<span class="tag">' + esc(passport.extraction_status) + '</span>' +
          (validation ? '<span class="tag">run validation: ' + validationLabel(validation) + '</span>' : '') + '</div>' +
+         '<h3>Product JTBD (' + productJtbd.length + ')</h3>' +
+         (productJtbd.length ? '<div class="record-grid">' + productJtbd.map(record => '<article class="record"><h4>' + esc(record.statement) + '</h4><div class="record-meta"><span class="tag">' + esc(record.id) + '</span><span class="tag">product JTBD</span></div>' + (record.evidence || []).map(evidence => '<div class="evidence"><strong>' + esc(evidence.source) + '</strong><blockquote>' + esc(evidence.quote) + '</blockquote></div>').join('') + '</article>').join('') + '</div>' : '<p class="muted">Product JTBD were not extracted in this run.</p>') +
          '<h3>Records (' + records.length + ')</h3><div class="record-grid">' + recordsHtml + '</div>' +
          (validationErrors.length ? '<div class="callout error"><h3>Run validation errors</h3><ul>' + validationErrors.map(error => '<li>' + esc(error) + '</li>').join('') + '</ul></div>' : '') +
         (conflicts ? '<div class="callout error"><h3>Conflicts</h3><ul>' + conflicts + '</ul></div>' : '') +
@@ -524,15 +527,19 @@ def render_html(payload: dict[str, Any]) -> str:
           const size = segment.size || {{}};
           const checks = (segment.checks || []).map(check => '<li><span class="tag">' + esc(check.status) + '</span> ' + esc(check.name) + ': ' + esc(check.detail) + '</li>').join('');
           const characteristics = (segment.characteristics || []).map(item => '<li><span class="tag">' + esc(item.kind) + '</span> ' + esc(item.text) + '</li>').join('');
-          const interpretation = segment.interpretation || {{}};
-          return '<article class="record"><h4>' + esc(segment.name) + '</h4>' +
+           const interpretation = segment.interpretation || {{}};
+           const segmentJtbd = Array.isArray(interpretation.jtbd) ? interpretation.jtbd : (interpretation.jtbd ? [interpretation.jtbd] : []);
+           const jtbd = segmentJtbd.map((item, index) => '<li><span class="tag">' + esc(item.kind) + '</span> JTBD ' + esc(index + 1) + ': ' + esc(item.text || item.rationale || 'Not established') + '</li>').join('');
+           const jtbdAlignment = (interpretation.jtbd_alignment || []).map(item => '<li><span class="tag">' + esc(item.relation) + '</span> <strong>' + esc(item.product_jtbd_ref || 'Product JTBD') + ':</strong> ' + esc(item.product_jtbd_text || 'Not available') + '<br><span class="muted">Segment: ' + esc(item.segment_jtbd_text || 'Not established') + '</span><br>' + esc(item.rationale || '') + '</li>').join('');
+           return '<article class="record"><h4>' + esc(segment.name) + '</h4>' +
             '<div class="record-meta"><span class="tag">' + esc(segment.segment_id) + '</span><span class="tag">' + esc(segment.origin) + '</span></div>' +
             '<p>' + esc((segment.definition && segment.definition.inclusion_rules || []).join('; ') || 'No inclusion rule') + '</p>' +
             '<p><strong>Size:</strong> ' + esc(size.count == null ? 'unknown' : size.count) + (size.share == null ? '' : ' (' + esc(size.share * 100) + '%)') + '</p>' +
             aggregateProfileRendered(calculation) +
-            (characteristics ? '<p><strong>Characteristics</strong></p><ul>' + characteristics + '</ul>' : '') +
-            (interpretation.context ? '<p><strong>Context:</strong> <span class="tag">' + esc(interpretation.context.kind) + '</span> ' + esc(interpretation.context.text) + '</p>' : '') +
-            (interpretation.jtbd ? '<p><strong>JTBD:</strong> <span class="tag">' + esc(interpretation.jtbd.kind) + '</span> ' + esc(interpretation.jtbd.text || interpretation.jtbd.rationale || 'Not established') + '</p>' : '') +
+             (characteristics ? '<p><strong>Characteristics</strong></p><ul>' + characteristics + '</ul>' : '') +
+             (interpretation.context ? '<p><strong>Context:</strong> <span class="tag">' + esc(interpretation.context.kind) + '</span> ' + esc(interpretation.context.text) + '</p>' : '') +
+             (jtbd ? '<p><strong>Segment JTBD</strong></p><ul>' + jtbd + '</ul>' : '<p><strong>Segment JTBD:</strong> not established</p>') +
+             '<p><strong>Product ↔ segment JTBD match</strong></p>' + (jtbdAlignment ? '<ul>' + jtbdAlignment + '</ul>' : '<p class="muted">No product JTBD comparison was produced.</p>') +
             '<p><strong>Checks</strong></p><ul class="check-list">' + checks + '</ul>' +
             '<p><strong>Risks</strong></p><ul>' + (segment.risks || []).map(risk => '<li>' + esc(risk) + '</li>').join('') + '</ul></article>';
         }}).join('');

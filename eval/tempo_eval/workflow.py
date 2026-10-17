@@ -92,7 +92,8 @@ class Workflow:
 {drafts}
 
 Итоговая структура содержит product_name, extraction_status, records, conflicts, gaps и warnings.
-Допустимые category: identity, purpose, audience, features, benefits, pricing, terms, limitations, economics, funnel,
+Допустимые category: identity, purpose, jtbd, audience, features, benefits, pricing, terms, limitations, economics,
+funnel,
 offers_channels, communication_rules.
 Допустимые statement_type: description, claim, reported_result, plan, target, rule.
 Допустимые evidence_status: supported, conflicted.

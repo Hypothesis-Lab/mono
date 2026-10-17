@@ -356,7 +356,7 @@ return [{
   "warnings": []
 }
 
-Допустимые category: identity, purpose, audience, features, benefits, pricing, terms, limitations, economics, funnel, offers_channels, communication_rules.
+Допустимые category: identity, purpose, jtbd, audience, features, benefits, pricing, terms, limitations, economics, funnel, offers_channels, communication_rules.
 Допустимые statement_type: description, claim, reported_result, plan, target, rule.
 Допустимые evidence_status: supported, conflicted.
 """
@@ -384,7 +384,7 @@ return [{
 
 function validatePassport(passport) {
   const errors = [];
-  const categories = ['identity', 'purpose', 'audience', 'features', 'benefits', 'pricing', 'terms', 'limitations', 'economics', 'funnel', 'offers_channels', 'communication_rules'];
+  const categories = ['identity', 'purpose', 'jtbd', 'audience', 'features', 'benefits', 'pricing', 'terms', 'limitations', 'economics', 'funnel', 'offers_channels', 'communication_rules'];
   const statementTypes = ['description', 'claim', 'reported_result', 'plan', 'target', 'rule'];
   const statuses = ['supported', 'conflicted'];
   const extractionStatuses = ['complete', 'partial', 'blocked'];

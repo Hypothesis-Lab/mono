@@ -181,6 +181,9 @@ def _run_summary(run: dict[str, Any]) -> dict[str, Any]:
     definition = segment.get("definition") or {}
     size = segment.get("size") or {}
     interpretation = segment.get("interpretation") or {}
+    jtbd = interpretation.get("jtbd") or []
+    if isinstance(jtbd, dict):
+        jtbd = [jtbd]
     candidate_facts = {
         "query": {key: value for key, value in query.items() if key != "name"},
         "rules": definition.get("inclusion_rules", []),
@@ -217,7 +220,8 @@ def _run_summary(run: dict[str, Any]) -> dict[str, Any]:
         "segment_name": segment.get("name", "unknown"),
         "characteristics": [item.get("text") for item in segment.get("characteristics", [])],
         "context": (interpretation.get("context") or {}).get("text"),
-        "jtbd_status": (interpretation.get("jtbd") or {}).get("kind", "unknown"),
+        "jtbd_status": ",".join(item.get("kind", "unknown") for item in jtbd) or "unknown",
+        "jtbd_alignment": interpretation.get("jtbd_alignment", []),
         "risks": segment.get("risks", []),
     }
 
@@ -236,6 +240,7 @@ def _comparison_line(item: dict[str, Any]) -> str:
         f"events={aggregate.get('event_count')}, avg_events_per_client={aggregate.get('average_events_per_client')}, "
         f"avg_events_per_client_per_month={aggregate.get('average_events_per_client_per_month')}; "
         f"context={item['context'] or 'unknown'}; jtbd_status={item['jtbd_status']}; "
+        f"jtbd_alignment={[entry.get('relation', 'unknown') for entry in item['jtbd_alignment']]}; "
         f"risks={item['risks'] or 'none'}."
     )
 

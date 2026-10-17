@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 Category = Literal[
     "identity",
     "purpose",
+    "jtbd",
     "audience",
     "features",
     "benefits",
@@ -236,9 +237,22 @@ def _normalized_segments(value: object) -> object:
     return result
 
 
+class AudienceJTBDAlignment(StrictModel):
+    """Comparison between one product job and one possible segment job."""
+
+    product_jtbd_ref: str | None
+    product_jtbd_text: str | None
+    segment_jtbd_index: int | None
+    segment_jtbd_text: str | None
+    relation: Literal["aligned", "partial", "not_aligned", "unknown"]
+    rationale: str
+    source_refs: list[str] = Field(default_factory=list)
+
+
 class AudienceInterpretation(StrictModel):
     context: AudienceClaim
-    jtbd: AudienceClaim
+    jtbd: list[AudienceClaim] = Field(default_factory=list)
+    jtbd_alignment: list[AudienceJTBDAlignment] = Field(default_factory=list)
     pains: list[AudienceClaim]
     needs: list[AudienceClaim]
     readiness: list[AudienceClaim]
@@ -246,6 +260,17 @@ class AudienceInterpretation(StrictModel):
     triggers: list[AudienceClaim]
     barriers: list[AudienceClaim]
     doubts: list[AudienceClaim]
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_jtbd(cls, value: object) -> object:
+        if not isinstance(value, dict):
+            return value
+        result = dict(value)
+        if isinstance(result.get("jtbd"), dict):
+            result["jtbd"] = [result["jtbd"]]
+        result.setdefault("jtbd_alignment", [])
+        return result
 
 
 class AudienceSegment(StrictModel):
@@ -356,7 +381,8 @@ class AudienceNarrativeClaim(StrictModel):
 class AudienceNarrative(StrictModel):
     name: str
     context: AudienceNarrativeClaim
-    jtbd: AudienceNarrativeClaim
+    jtbd: list[AudienceNarrativeClaim] = Field(default_factory=list)
+    jtbd_alignment: list[AudienceJTBDAlignment] = Field(default_factory=list)
     pains: list[AudienceNarrativeClaim]
     needs: list[AudienceNarrativeClaim]
     readiness: list[AudienceNarrativeClaim]
@@ -367,6 +393,18 @@ class AudienceNarrative(StrictModel):
     risks: list[str]
     questions: list[str] = Field(max_length=3)
     limitations: list[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_jtbd(cls, value: object) -> object:
+        if not isinstance(value, dict):
+            return value
+        result = dict(value)
+        jtbd = result.get("jtbd")
+        if isinstance(jtbd, dict):
+            result["jtbd"] = [jtbd]
+        result.setdefault("jtbd_alignment", [])
+        return result
 
 
 class AudienceAgentCheck(StrictModel):
