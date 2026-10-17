@@ -15,8 +15,6 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from .audience_workflow import AudienceWorkflow
 from .client import ModelClient
 from .models import (
-    AudiencePlan,
-    AudienceProfile,
     AudienceResult,
     AudienceReview,
     Evaluation,
@@ -66,8 +64,12 @@ async def run_models(
     app_name: str | None,
     run_id: str,
     pipeline: str = "product",
-    audience_context: dict[str, Any] | None = None,
+    audience_dataset: Path | None = None,
+    audience_db: Path | None = None,
+    product_passport: dict[str, Any] | None = None,
+    semantic_index_dir: Path | None = None,
     rate_limit_wait_budget_seconds: float = 45.0,
+    run_timeout_seconds: float = 180.0,
 ) -> None:
     writer = ResultWriter(
         output_path,
@@ -98,8 +100,12 @@ async def run_models(
                 run_id=run_id,
                 writer=writer,
                 pipeline=pipeline,
-                audience_context=audience_context,
+                audience_dataset=audience_dataset,
+                audience_db=audience_db,
+                product_passport=product_passport,
+                semantic_index_dir=semantic_index_dir,
                 rate_limit_wait_budget_seconds=rate_limit_wait_budget_seconds,
+                run_timeout_seconds=run_timeout_seconds,
             )
             for model in models
         )
@@ -127,8 +133,12 @@ async def run_one_model(
     source_order: list[str] | None = None,
     input_order: dict[str, list[str]] | None = None,
     pipeline: str = "product",
-    audience_context: dict[str, Any] | None = None,
+    audience_dataset: Path | None = None,
+    audience_db: Path | None = None,
+    product_passport: dict[str, Any] | None = None,
+    semantic_index_dir: Path | None = None,
     rate_limit_wait_budget_seconds: float = 45.0,
+    run_timeout_seconds: float | None = None,
 ) -> None:
     started = datetime.now(UTC)
     client: ModelClient | None = None
@@ -154,14 +164,20 @@ async def run_one_model(
         )
         async with AsyncSqliteSaver.from_conn_string(str(checkpoint_path)) as checkpointer:
             await checkpointer.setup()
-            workflow = (
-                AudienceWorkflow(client, step_retries=step_retries)
-                if pipeline == "audience"
-                else Workflow(client, step_retries=step_retries)
-            )
+            if pipeline == "audience":
+                if audience_dataset is None or product_passport is None:
+                    raise ValueError("audience pipeline requires an XLSX dataset and a product passport")
+                workflow = AudienceWorkflow(
+                    client,
+                    audience_dataset,
+                    db_path=audience_db,
+                    semantic_index_dir=semantic_index_dir or checkpoint_dir / "semantic-index",
+                )
+            else:
+                workflow = Workflow(client, step_retries=step_retries)
             graph = workflow.compile(checkpointer)
             thread_id = read_thread_id(checkpoint_path) if resume else None
-            final_state = await graph.ainvoke(
+            graph_input = (
                 None
                 if resume
                 else _initial_state(
@@ -170,14 +186,17 @@ async def run_one_model(
                     target_product=target_product,
                     as_of_date=as_of_date,
                     sources=sources,
-                    audience_context=audience_context,
-                ),
-                {
-                    "configurable": {
-                        "thread_id": thread_id or f"{run_id}:{slugify(model)}",
-                    }
-                },
+                    audience_dataset=audience_dataset,
+                    product_passport=product_passport,
+                    audience_data_profile=workflow.dataset.profile() if pipeline == "audience" else None,
+                )
             )
+            graph_config = {"configurable": {"thread_id": thread_id or f"{run_id}:{slugify(model)}"}}
+            if run_timeout_seconds is None:
+                final_state = await graph.ainvoke(graph_input, graph_config)
+            else:
+                async with asyncio.timeout(run_timeout_seconds):
+                    final_state = await graph.ainvoke(graph_input, graph_config)
         record.update({"status": "completed", "result": _result_from_state(final_state, pipeline)})
     except Exception as error:
         record["error"] = f"{type(error).__name__}: {error}"
@@ -195,22 +214,6 @@ def load_sources(input_dir: Path) -> list[Source]:
     if not files:
         return [Source(source="no-source.md", content="")]
     return [Source(source=path.name, content=path.read_text(encoding="utf-8")) for path in files]
-
-
-def load_audience_context(
-    path: Path, product_result: Path | None = None, product_model: str | None = None
-) -> dict[str, Any]:
-    try:
-        context = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise ValueError(f"cannot read audience context {path}: {error}") from error
-    if not isinstance(context, dict):
-        raise ValueError(f"audience context must contain a JSON object: {path}")
-    if product_result:
-        context["product_passport"] = compact_product_passport(load_product_passport(product_result, product_model))
-    if not isinstance(context.get("product_passport"), dict):
-        raise ValueError("audience context requires a product passport; pass --product-result")
-    return context
 
 
 def load_product_passport(path: Path, model: str | None = None) -> dict[str, Any]:
@@ -257,12 +260,19 @@ def _initial_state(
     target_product: str,
     as_of_date: str | None,
     sources: list[Source],
-    audience_context: dict[str, Any] | None,
+    audience_dataset: Path | None,
+    product_passport: dict[str, Any] | None,
+    audience_data_profile: dict[str, Any] | None,
 ) -> dict[str, Any]:
     if pipeline == "audience":
-        if audience_context is None:
-            raise ValueError("audience context is required for the audience pipeline")
-        return {"pipeline": pipeline, "model": model, "context": audience_context}
+        if audience_dataset is None or product_passport is None or audience_data_profile is None:
+            raise ValueError("audience pipeline requires an XLSX dataset and a product passport")
+        return {
+            "pipeline": pipeline,
+            "model": model,
+            "product_passport": product_passport,
+            "data_profile": audience_data_profile,
+        }
     return {
         "pipeline": pipeline,
         "model": model,
@@ -277,10 +287,16 @@ def _result_from_state(state: dict[str, Any], pipeline: str) -> dict[str, Any]:
     if pipeline == "audience":
         return {
             "audience": AudienceResult.model_validate(state["audience"]).model_dump(mode="json"),
-            "profile": AudienceProfile.model_validate(state["profile"]).model_dump(mode="json"),
-            "plan": AudiencePlan.model_validate(state["plan"]).model_dump(mode="json"),
             "validation": validation,
             "review": AudienceReview.model_validate(state["review"]).model_dump(mode="json"),
+            "data_profile": state["data_profile"],
+            "semantic_cards": state.get("semantic_cards", []),
+            "query": state.get("query").model_dump(mode="json") if state.get("query") else None,
+            "query_history": state.get("query_history", []),
+            "query_decision": (
+                state.get("query_decision").model_dump(mode="json") if state.get("query_decision") else None
+            ),
+            "calculation": state.get("calculation"),
         }
     return {
         "passport": Passport.model_validate(state["passport"]).model_dump(mode="json"),

@@ -175,6 +175,8 @@ Do not explain the correction and do not use Markdown fences."""
 
 
 def is_retryable(error: Exception) -> bool:
+    if isinstance(error, TimeoutError):
+        return False
     status_code = getattr(error, "status_code", None)
     return not isinstance(status_code, int) or status_code == 408 or status_code == 429 or status_code >= 500
 

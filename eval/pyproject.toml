@@ -5,6 +5,7 @@ description = "Run the Tempo product extraction workflow against OpenRouter mode
 requires-python = ">=3.13"
 dependencies = [
     "aiosqlite>=0.22.1",
+    "fastembed==0.9.0",
     "langchain-openai",
     "langgraph",
     "langgraph-checkpoint-sqlite",

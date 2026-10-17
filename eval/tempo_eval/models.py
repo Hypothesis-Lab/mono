@@ -231,6 +231,7 @@ class AudienceInterpretation(StrictModel):
     jtbd: AudienceClaim
     pains: list[AudienceClaim]
     needs: list[AudienceClaim]
+    readiness: list[AudienceClaim]
     motivations: list[AudienceClaim]
     triggers: list[AudienceClaim]
     barriers: list[AudienceClaim]
@@ -272,66 +273,6 @@ class AudienceOverlaps(StrictModel):
     source_refs: list[str]
 
 
-class AudienceObservation(StrictModel):
-    text: str
-    source_refs: list[str]
-
-
-class AudienceProfile(StrictModel):
-    request_id: str | None
-    product_id: str | None
-    data_profile: AudienceDataProfile
-    features_used: list[AudienceFeature]
-    features_excluded: list[ExcludedAudienceFeature]
-    observations: list[AudienceObservation]
-    missing_data: list[str]
-    questions: list[str] = Field(max_length=3)
-    limitations: list[str]
-
-
-class AudienceSegmentPlan(StrictModel):
-    segment_id: str = Field(pattern=r"^seg_[0-9]{3,}$")
-    name: str
-    origin: Literal["observed", "proposed"]
-    definition: AudienceDefinition
-    size: AudienceSize
-    characteristics: list[AudienceClaim]
-    checks: list[AudienceCheck] = Field(min_length=8, max_length=8)
-    risks: list[str]
-
-    @model_validator(mode="before")
-    @classmethod
-    def normalize_checks(cls, value: object) -> object:
-        if not isinstance(value, dict):
-            return value
-        result = dict(value)
-        result["checks"] = _normalized_checks(result.get("checks"))
-        return result
-
-    @model_validator(mode="after")
-    def require_exactly_one_of_each_check(self) -> AudienceSegmentPlan:
-        if {check.name for check in self.checks} != AUDIENCE_CHECK_NAMES:
-            raise ValueError("checks must contain each required check exactly once")
-        if self.origin == "observed" and not self.characteristics:
-            raise ValueError("observed segments require at least one characteristic")
-        return self
-
-
-class AudiencePlan(StrictModel):
-    status: ExtractionStatus
-    mode: Literal["data_based", "hypothesis_only", "none"]
-    segments: list[AudienceSegmentPlan]
-    overlaps: AudienceOverlaps
-    missing_data: list[str]
-    questions: list[str] = Field(max_length=3)
-    limitations: list[str]
-
-    @model_validator(mode="before")
-    @classmethod
-    def normalize_segments(cls, value: object) -> object:
-        return _normalized_segments(value)
-
-
 class AudienceResult(StrictModel):
     schema_version: Literal["0.1"]
     request_id: str | None
@@ -347,6 +288,7 @@ class AudienceResult(StrictModel):
     questions: list[str] = Field(max_length=3)
     limitations: list[str]
     review_status: Literal["pending"]
+    configuration: dict[str, object] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
@@ -370,6 +312,83 @@ class AudienceReview(StrictModel):
     critic_checks: list[AudienceReviewCheck]
     validator_checks: list[AudienceReviewCheck]
     product_manager_confirmation: ProductManagerConfirmation
+
+
+class AudienceFilter(StrictModel):
+    field: str
+    value: str
+
+
+class AudienceQueryCondition(StrictModel):
+    name: str
+    filters: list[AudienceFilter] = Field(min_length=1)
+
+
+class AudienceQuery(StrictModel):
+    name: str
+    window_start: str
+    window_end: str
+    conditions: list[AudienceQueryCondition] = Field(min_length=1, max_length=5)
+
+
+class AudienceQueryDecision(StrictModel):
+    decision: Literal["use_result", "refine"]
+    reason: str
+    next_query: AudienceQuery | None
+
+
+class AudienceNarrativeClaim(StrictModel):
+    text: str | None
+    kind: Literal["fact", "inference", "unknown"]
+    rationale: str | None
+
+
+class AudienceNarrative(StrictModel):
+    name: str
+    context: AudienceNarrativeClaim
+    jtbd: AudienceNarrativeClaim
+    pains: list[AudienceNarrativeClaim]
+    needs: list[AudienceNarrativeClaim]
+    readiness: list[AudienceNarrativeClaim]
+    motivations: list[AudienceNarrativeClaim]
+    triggers: list[AudienceNarrativeClaim]
+    barriers: list[AudienceNarrativeClaim]
+    doubts: list[AudienceNarrativeClaim]
+    risks: list[str]
+    questions: list[str] = Field(max_length=3)
+    limitations: list[str]
+
+
+class AudienceAgentCheck(StrictModel):
+    name: str
+    status: Literal["pass", "fail", "unknown"]
+    detail: str
+    rationale: str | None
+
+
+class AudienceAgentReview(StrictModel):
+    overall_status: Literal["pass", "fail", "unknown"]
+    checks: list[AudienceAgentCheck] = Field(min_length=1)
+    blocking_issues: list[str]
+
+
+class AudienceEvidenceRequest(StrictModel):
+    kind: Literal["condition_breakdown", "monthly_breakdown", "value_distribution", "condition_overlap"]
+    condition_name: str | None
+    field: str | None
+
+
+class AudienceReviewDecision(StrictModel):
+    decision: Literal["inspect", "final"]
+    reason: str
+    request: AudienceEvidenceRequest | None
+    review: AudienceAgentReview | None
+
+
+class AudiencePrivacyReview(StrictModel):
+    status: Literal["pass", "fail", "unknown"]
+    detail: str
+    detected_categories: list[str]
 
 
 class Source(StrictModel):

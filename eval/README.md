@@ -26,26 +26,42 @@ includes the original request, the raw model response, and the parse or
 validation error. Non-retryable provider errors, such as guardrail rejections,
 are recorded immediately.
 
-The default model-call timeout is 15 seconds. Override it with `--timeout` if
+The default model-call timeout is 120 seconds. Override it with `--timeout` if
 an evaluation model needs more time. HTTP 429 responses are retried with short
 exponential backoff (and `Retry-After` when provided), capped by a 45-second
 wait budget per structured call. Override that cap with `--rate-limit-budget`.
 
 ## Audience pipeline
 
-The audience pipeline consumes pre-generated, aggregate input from
-`../n8n/audience/context.json`; it does not generate profiles, calculate
-features, or build membership itself. Its stages are:
+The audience pipeline matches a product passport against a private XLSX event
+dataset. Raw rows and `client_id` stay in the local analytics process. The
+model receives only a safe data catalog and aggregate results from a
+constrained client-level query.
+
+Field meanings, time semantics, null semantics, and interpretation limits are
+supplied through the versioned application prompt
+`tempo_eval/prompts/audience-data-contract.md`. The Excel file contains event
+data only; it does not carry the data dictionary or a hidden expected segment.
+
+Audience quality policy is kept in
+`tempo_eval/audience_config.py`: the default minimum segment size is 100,
+the query agent may perform up to ten feedback iterations, and
+`ad_platform` is currently configured as an allowed activation channel.
+The channel setting means the platform is permitted by pipeline policy; actual
+consent and audience matching remain a pre-campaign check. Product-manager
+confirmation is recorded as an external post-pipeline action and is never
+simulated by the model.
 
 ```text
-trusted config + product passport + audience data artifacts
-  -> data profile
-  -> segment plan
-  -> segment interpretation
-  -> deterministic contract validation
-  -> targeted repair only when validation fails
-  -> deterministic critic and validator findings
-  -> product-manager confirmation pending
+product passport + private XLSX
+  -> safe dataset profile
+  -> model-selected query
+  -> SQLite aggregate result
+  -> model decides use_result or refine (up to ten iterations)
+  -> deterministic client-level calculation
+  -> product interpretation of aggregate result
+  -> AI critic + AI validator + AI privacy review
+  -> deterministic validation and safety gate
 ```
 
 The product passport may be handed off from a completed product run:
@@ -54,15 +70,28 @@ The product passport may be handed off from a completed product run:
 uv run python run.py \
   --pipeline audience \
   --models-file models.txt \
-  --audience-context ../n8n/audience/context.json \
+  --audience-data "События аудиторий (датасет).xlsx" \
   --product-result results/product.json \
-  --output results/audience.json \
-  --checkpoints checkpoints/audience
+  --output results/audience-data.json \
+  --checkpoints checkpoints/audience-data
 ```
 
-`--product-result` is required for the audience pipeline. The checked-in
-audience fixture contains only synthetic aggregate calculation results, never
-raw client records or membership lists.
+`--product-result` is required for the audience pipeline. The model cannot use
+raw rows, `client_id`, demographics, locations, balances, or campaign outcomes.
+It proposes only exact filters from the safe catalog; the local calculator
+executes them and returns count, share, feature provenance, and a private
+membership reference.
+
+Before choosing filters, the pipeline uses a local multilingual ONNX embedding
+model to retrieve relevant **safe feature cards** from the dataset catalog. The
+cards contain field definitions, observed values, and exact filters only; they
+never contain event rows or client identifiers. The first run downloads the
+embedding model and builds `semantic-index/`; later runs reuse the local index.
+Use `--semantic-index PATH` to keep that cache on a persistent SSD volume.
+
+The XLSX is imported into a private SQLite database on first run. Use
+`--audience-db PATH` to choose its location. The database is an application
+storage detail and its path is never included in the model prompt.
 
 ## Run
 
@@ -96,8 +125,8 @@ For an audience report, select the pipeline and its separate artifacts:
 ```sh
 uv run python report.py \
   --pipeline audience \
-  --results results/audience.json \
-  --checkpoints checkpoints/audience \
+  --results results/audience-data.json \
+  --checkpoints checkpoints/audience-data \
   --output audience-report.html
 ```
 
@@ -116,27 +145,6 @@ uv run --env-file .env python benchmark.py \
   --output results/benchmark.json \
   --checkpoints checkpoints/benchmark
 ```
-
-The same three-run benchmark can target the audience pipeline:
-
-```sh
-uv run --env-file .env python benchmark.py \
-  --pipeline audience \
-  --models-file models.txt \
-  --audience-context ../n8n/audience/context.json \
-  --product-result results/benchmark.json \
-  --product-model gpt-4o-mini \
-  --output results/audience-benchmark.json \
-  --checkpoints checkpoints/audience-benchmark
-```
-
-For audience runs, the benchmark varies only the order of equivalent audience
-sources, calculation artifacts, product records, and allowed-feature lists.
-Its C9 result tests prompt/output persistence: observed segment inventory,
-rules, artifacts, numbers, periods, refs, statuses, and meaning must not drift.
-It does **not** replace the audience result's data-stability check: stability
-across comparable periods or samples still needs an analytical artifact and
-remains `unknown` until one is provided.
 
 Run 1 uses the normal source order, run 2 reverses it, and run 3 uses a
 deterministic shuffle. Use `--force` to reset the selected models' benchmark
@@ -170,8 +178,9 @@ The JSON contains `model`, `result.passport`, `result.validation`, and
 `result.evaluation` for successful runs, plus errors, timings, token counts,
 and checkpoint paths for every model.
 
-Audience JSON entries instead contain `result.audience`, `result.profile`,
-`result.plan`, `result.validation`, and `result.review`.
+Audience JSON entries contain `result.data_profile`, `result.query`,
+`result.calculation`, `result.audience`, `result.validation`, and
+`result.review`. The calculation contains no membership list or raw events.
 
 `result.review` is a deterministic review layer: segment relevance, permitted
 features/bias evidence, segment count, interpretability, leakage, data quality,

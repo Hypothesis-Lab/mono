@@ -30,6 +30,19 @@ def build_audience_review(result: AudienceResult, validation: Validation, contex
             source_refs=[],
         ),
     ]
+    critic_checks.extend(_agent_checks(context.get("ai_critic"), "ai_critic"))
+    validator_checks.extend(_agent_checks(context.get("ai_validator"), "ai_validator"))
+    privacy = context.get("ai_privacy")
+    if privacy:
+        privacy = privacy if isinstance(privacy, dict) else privacy.model_dump(mode="json")
+        validator_checks.append(
+            AudienceReviewCheck(
+                name="ai_privacy_review",
+                status=privacy["status"],
+                detail=privacy["detail"],
+                source_refs=[],
+            )
+        )
     return AudienceReview(
         critic_checks=critic_checks,
         validator_checks=validator_checks,
@@ -38,6 +51,31 @@ def build_audience_review(result: AudienceResult, validation: Validation, contex
             "detail": "Подтверждение продакт-менеджера — внешнее событие; модель и валидаторы его не имитируют.",
         },
     )
+
+
+def _agent_checks(value: Any, source: str) -> list[AudienceReviewCheck]:
+    if not value:
+        return []
+    payload = value if isinstance(value, dict) else value.model_dump(mode="json")
+    checks = [
+        AudienceReviewCheck(
+            name=f"{source}:{check['name']}",
+            status=check["status"],
+            detail=check["detail"] + (f" Причина: {check['rationale']}" if check.get("rationale") else ""),
+            source_refs=[],
+        )
+        for check in payload.get("checks", [])
+    ]
+    if payload.get("overall_status") == "fail" and not any(check.status == "fail" for check in checks):
+        checks.append(
+            AudienceReviewCheck(
+                name=f"{source}:overall",
+                status="fail",
+                detail="AI-агент сообщил о блокирующей проблеме: " + "; ".join(payload.get("blocking_issues", [])),
+                source_refs=[],
+            )
+        )
+    return checks
 
 
 def _from_segment_check(name: str, check: Any) -> AudienceReviewCheck:

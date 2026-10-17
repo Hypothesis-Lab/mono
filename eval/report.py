@@ -30,14 +30,15 @@ ALLOWED_CHECKPOINT_TYPES = [
     ("tempo_eval.models", "AudienceInterpretation"),
     ("tempo_eval.models", "AudienceSegment"),
     ("tempo_eval.models", "AudienceOverlaps"),
-    ("tempo_eval.models", "AudienceObservation"),
-    ("tempo_eval.models", "AudienceProfile"),
-    ("tempo_eval.models", "AudienceSegmentPlan"),
-    ("tempo_eval.models", "AudiencePlan"),
     ("tempo_eval.models", "AudienceResult"),
     ("tempo_eval.models", "AudienceReviewCheck"),
     ("tempo_eval.models", "ProductManagerConfirmation"),
     ("tempo_eval.models", "AudienceReview"),
+    ("tempo_eval.models", "AudienceFilter"),
+    ("tempo_eval.models", "AudienceQueryCondition"),
+    ("tempo_eval.models", "AudienceQuery"),
+    ("tempo_eval.models", "AudienceNarrativeClaim"),
+    ("tempo_eval.models", "AudienceNarrative"),
 ]
 
 
@@ -155,7 +156,17 @@ class ReportBuilder:
     def _result_from_checkpoint(state: dict[str, Any]) -> dict[str, Any]:
         return {
             key: state[key]
-            for key in ("passport", "audience", "profile", "plan", "validation", "review", "evaluation")
+            for key in (
+                "passport",
+                "audience",
+                "data_profile",
+                "semantic_cards",
+                "query",
+                "calculation",
+                "validation",
+                "review",
+                "evaluation",
+            )
             if key in state
         }
 
@@ -340,8 +351,10 @@ def render_html(payload: dict[str, Any]) -> str:
        const state = selectedCheckpoint ? (selectedCheckpoint.state || {{}}) : latestState;
        const passport = result.passport || state.passport;
        const audience = result.audience || state.audience;
-       const audienceProfile = result.profile || state.profile;
-       const audiencePlan = result.plan || state.plan;
+        const audienceDataProfile = result.data_profile || state.data_profile;
+        const audienceSemanticCards = result.semantic_cards || state.semantic_cards;
+        const audienceQuery = result.query || state.query;
+        const audienceCalculation = result.calculation || state.calculation;
        const audienceReview = result.review || state.review;
       const validation = result.validation || state.validation;
       const benchmarkEvaluations = item.benchmark_evaluations || [];
@@ -355,7 +368,7 @@ def render_html(payload: dict[str, Any]) -> str:
          '<div data-pane="result" data-mode="json" class="hidden"><pre>' + esc(pretty(runs.length ? {{ selected_run: selectedRun, runs }} : {{ passport, audience, validation }})) + '</pre></div>';
        const runEvaluations = runs.map(run => ({{ run: run.run_number, evaluation: run.result && run.result.evaluation }})).filter(item => item.evaluation);
        const graphJson = item.pipeline === 'audience'
-          ? {{ run: selectedRun ? selectedRun.run_number : null, profile: audienceProfile, plan: audiencePlan, audience, validation, review: audienceReview }}
+          ? {{ run: selectedRun ? selectedRun.run_number : null, data_profile: audienceDataProfile, semantic_cards: audienceSemanticCards, query: audienceQuery, calculation: audienceCalculation, audience, validation, review: audienceReview }}
          : {{ run: selectedRun ? selectedRun.run_number : null, evaluation: graphEvaluation, all_runs: runEvaluations }};
        const stabilityJson = {{ benchmark: stabilityView(latestBenchmark), runs: runs.map(run => ({{ run: run.run_number, validation: run.result && run.result.validation }})) }};
        document.getElementById('evaluation-panel').innerHTML = panelHeader('Evaluation', 'evaluation') +
@@ -364,9 +377,9 @@ def render_html(payload: dict[str, Any]) -> str:
          '<button data-evaluation-tab="stability">Stability evaluation (C9)</button>' +
          '</div>' +
          '<div data-evaluation-pane="graph">' +
-         (item.pipeline === 'audience' ? '<div class="callout"><strong>Audience pipeline validation</strong><p class="muted">Profile → segmentation → interpretation, followed by contract validation.</p></div>' : '<div class="callout"><strong>Evaluation inside the graph</strong><p class="muted">Evaluates the selected extraction run independently.</p></div>') +
+          (item.pipeline === 'audience' ? '<div class="callout"><strong>Audience pipeline validation</strong><p class="muted">Safe data profile → constrained local query → aggregate calculation → interpretation.</p></div>' : '<div class="callout"><strong>Evaluation inside the graph</strong><p class="muted">Evaluates the selected extraction run independently.</p></div>') +
          (runs.length ? '<div class="callout"><strong>Per-run validation</strong><ul class="check-list">' + runs.map(run => '<li>Run ' + esc(run.run_number) + ': ' + validationLabel(run.result && run.result.validation) + '</li>').join('') + '</ul></div>' : '') +
-          '<div data-pane="evaluation" data-mode="rendered">' + (item.pipeline === 'audience' ? audiencePipelineRendered(audienceProfile, audiencePlan, audience, validation, audienceReview) : evaluationRendered(graphEvaluation)) +
+           '<div data-pane="evaluation" data-mode="rendered">' + (item.pipeline === 'audience' ? audiencePipelineRendered(audienceDataProfile, audienceSemanticCards, audienceQuery, audienceCalculation, audience, validation, audienceReview) : evaluationRendered(graphEvaluation)) +
          (item.pipeline !== 'audience' && runEvaluations.length ? '<h3>Individual run evaluations</h3><div class="criterion-list">' + runEvaluations.map(item => '<article class="criterion"><h4>Run ' + esc(item.run) + '</h4>' + evaluationSummary(item.evaluation) + '</article>').join('') + '</div>' : '') +
          '</div>' +
          '<div data-pane="evaluation" data-mode="json" class="hidden"><pre>' + esc(pretty(graphJson)) + '</pre></div>' +
@@ -492,11 +505,18 @@ def render_html(payload: dict[str, Any]) -> str:
          (errors.length ? '<div class="callout error"><h3>Validation errors</h3><ul>' + errors.map(error => '<li>' + esc(error) + '</li>').join('') + '</ul></div>' : '') +
          ((audience.missing_data || []).length ? '<div class="callout warn"><h3>Missing data</h3><ul>' + audience.missing_data.map(item => '<li>' + esc(item) + '</li>').join('') + '</ul></div>' : '');
      }}
-     function audiencePipelineRendered(profile, plan, audience, validation, review) {{
-       return '<div class="callout"><h3>Stages</h3><ul class="check-list"><li>Profile: ' + (profile ? 'complete' : 'missing') + '</li><li>Segmentation plan: ' + (plan ? 'complete' : 'missing') + '</li><li>Final interpretation: ' + (audience ? 'complete' : 'missing') + '</li><li>Contract validation: ' + validationLabel(validation) + '</li><li>Deterministic review: ' + (review ? 'complete' : 'missing') + '</li></ul></div>' + audienceReviewRendered(review) + audienceRendered(audience, validation);
-     }}
+      function audiencePipelineRendered(dataProfile, semanticCards, query, calculation, audience, validation, review) {{
+        const retrieved = (semanticCards || []).map(card => '<li><strong>' + esc(card.id) + '</strong>: ' + esc(card.description) + '</li>').join('');
+        const features = (calculation && calculation.feature_summaries || []).map(feature =>
+          '<li><strong>' + esc(feature.name) + '</strong><br><span class="muted">Columns: ' + esc((feature.source_columns || []).join(', ')) + '</span><br>' +
+          esc((feature.filters || []).map(filter => filter.field + ' = ' + filter.value).join(' AND ')) + '</li>').join('');
+         return '<div class="callout"><h3>Stages</h3><ul class="check-list"><li>Safe data profile: ' + (dataProfile ? 'complete' : 'missing') + '</li><li>Local semantic feature retrieval: ' + (semanticCards ? 'complete' : 'missing') + '</li><li>Constrained data query: ' + (query ? 'complete' : 'missing') + '</li><li>Local aggregate calculation: ' + (calculation ? 'complete' : 'missing') + '</li><li>Final interpretation: ' + (audience ? 'complete' : 'missing') + '</li><li>AI critic, validator and privacy review: ' + (review ? 'complete' : 'missing') + '</li><li>Contract validation and safety gate: ' + validationLabel(validation) + '</li></ul></div>' +
+          (retrieved ? '<div class="callout"><h3>Retrieved feature cards</h3><ul>' + retrieved + '</ul></div>' : '') +
+          (calculation ? '<div class="callout"><h3>How this segment was calculated</h3><p><strong>Dataset:</strong> ' + esc(calculation.dataset_ref) + ' · <strong>Rule:</strong> ' + esc(calculation.rule_ref) + '</p><p><strong>Membership:</strong> stored privately; never included in this report.</p><ul>' + features + '</ul></div>' : '') +
+          audienceReviewRendered(review) + audienceRendered(audience, validation);
+      }}
      function audienceReviewRendered(review) {{
-       if (!review) return '<p class="muted">Deterministic critic and validator findings have not been produced yet.</p>';
+        if (!review) return '<p class="muted">Critic, validator and privacy findings have not been produced yet.</p>';
        const checks = items => items.map(check => '<li><span class="tag">' + esc(check.status) + '</span> <strong>' + esc(check.name) + '</strong>: ' + esc(check.detail) + '</li>').join('');
        const pm = review.product_manager_confirmation || {{}};
        return '<div class="callout"><h3>Critic</h3><ul class="check-list">' + checks(review.critic_checks || []) + '</ul></div>' +
