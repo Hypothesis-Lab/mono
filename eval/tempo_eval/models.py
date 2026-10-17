@@ -113,6 +113,159 @@ class StabilityEvaluation(StrictModel):
     limitations: list[str]
 
 
+class AudienceClaim(StrictModel):
+    text: str | None
+    kind: Literal["fact", "inference", "unknown"]
+    source_refs: list[str]
+    rationale: str | None
+
+
+class AudienceWindow(StrictModel):
+    start: str | None
+    end: str | None
+
+
+class AudienceFeature(StrictModel):
+    name: str
+    definition: str
+    window: AudienceWindow
+    source_refs: list[str]
+
+
+class ExcludedAudienceFeature(StrictModel):
+    name: str
+    reason: str
+
+
+class AudienceDataProfile(StrictModel):
+    unit: str | None
+    cutoff_at: str | None
+    observation_window: AudienceWindow
+    snapshot_refs: list[str]
+    coverage: AudienceClaim
+    quality_issues: list[str]
+
+
+class AudienceDefinition(StrictModel):
+    inclusion_rules: list[str]
+    exclusion_rules: list[str]
+    missing_value_policy: str | None
+    method: str | None
+    rule_or_model_ref: str | None
+    membership_ref: str | None
+
+
+class AudienceSize(StrictModel):
+    count: int | None = Field(ge=0, default=None)
+    base_count: int | None = Field(ge=0, default=None)
+    share: float | None = Field(ge=0, le=1, default=None)
+    population: str | None
+    source_refs: list[str]
+
+
+AudienceCheckName = Literal[
+    "data_quality",
+    "relevance",
+    "reproducibility",
+    "min_size",
+    "stability",
+    "privacy_bias",
+    "leakage",
+    "activation",
+]
+
+
+class AudienceCheck(StrictModel):
+    name: AudienceCheckName
+    status: Literal["pass", "fail", "unknown"]
+    detail: str
+    source_refs: list[str]
+
+
+class AudienceInterpretation(StrictModel):
+    context: AudienceClaim
+    jtbd: AudienceClaim
+    pains: list[AudienceClaim]
+    needs: list[AudienceClaim]
+    motivations: list[AudienceClaim]
+    triggers: list[AudienceClaim]
+    barriers: list[AudienceClaim]
+    doubts: list[AudienceClaim]
+
+
+class AudienceSegment(StrictModel):
+    segment_id: str
+    name: str
+    origin: Literal["observed", "proposed"]
+    definition: AudienceDefinition
+    size: AudienceSize
+    characteristics: list[AudienceClaim]
+    interpretation: AudienceInterpretation
+    checks: list[AudienceCheck]
+    risks: list[str]
+
+
+class AudienceOverlaps(StrictModel):
+    status: Literal["measured", "unknown", "not_applicable"]
+    detail: str
+    source_refs: list[str]
+
+
+class AudienceObservation(StrictModel):
+    text: str
+    source_refs: list[str]
+
+
+class AudienceProfile(StrictModel):
+    request_id: str | None
+    product_id: str | None
+    data_profile: AudienceDataProfile
+    features_used: list[AudienceFeature]
+    features_excluded: list[ExcludedAudienceFeature]
+    observations: list[AudienceObservation]
+    missing_data: list[str]
+    questions: list[str] = Field(max_length=3)
+    limitations: list[str]
+
+
+class AudienceSegmentPlan(StrictModel):
+    segment_id: str
+    name: str
+    origin: Literal["observed", "proposed"]
+    definition: AudienceDefinition
+    size: AudienceSize
+    characteristics: list[AudienceClaim]
+    checks: list[AudienceCheck]
+    risks: list[str]
+
+
+class AudiencePlan(StrictModel):
+    status: ExtractionStatus
+    mode: Literal["data_based", "hypothesis_only", "none"]
+    segments: list[AudienceSegmentPlan]
+    overlaps: AudienceOverlaps
+    missing_data: list[str]
+    questions: list[str] = Field(max_length=3)
+    limitations: list[str]
+
+
+class AudienceResult(StrictModel):
+    schema_version: Literal["0.1"]
+    request_id: str | None
+    product_id: str | None
+    status: ExtractionStatus
+    mode: Literal["data_based", "hypothesis_only", "none"]
+    data_profile: AudienceDataProfile
+    features_used: list[AudienceFeature]
+    features_excluded: list[ExcludedAudienceFeature]
+    segments: list[AudienceSegment]
+    overlaps: AudienceOverlaps
+    missing_data: list[str]
+    questions: list[str] = Field(max_length=3)
+    limitations: list[str]
+    review_status: Literal["pending"]
+
+
 class Source(StrictModel):
     source: str
     content: str
