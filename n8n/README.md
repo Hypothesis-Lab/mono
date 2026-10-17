@@ -101,6 +101,28 @@ After the passport is ready, **Оценить паспорт по критери
 
 The current local version reads the same mounted `/product/` files, excluding `README.md`. Edit **Параметры запуска** to change the target product or effective date. Attach a model credential to **OpenAI-compatible model (extraction)** before execution. The workflow is inactive and starts manually from the editor.
 
+## Audience segmentation workflow
+
+Import `workflows/tempo-audience-segmentation.json` to run the audience graph:
+
+```text
+Aggregate audience fixture + product passport handoff
+                 ↓
+profile → segment → interpret → deterministic validation
+                 ↓                         ↓
+               review                    one repair → review
+```
+
+It reads only the aggregate fixture at `/audience/context.json`; the mounted
+directory contains no client records. Paste or connect a real product passport
+JSON at **Паспорт продукта**. The graph refuses an empty handoff and rejects
+obvious raw-record/contact fields before any model call. It keeps product-manager
+confirmation as the external `pending` event.
+
+The n8n graph is operational orchestration, not the benchmark harness. Keep
+using `eval/benchmark.py` for three-run, reordered-input persistence tests and
+the external C9 evaluation.
+
 ## Planned Tempo graph
 
 The starter workflow is deliberately small so the UI can be verified before importing the full passport pipeline. The target graph is:

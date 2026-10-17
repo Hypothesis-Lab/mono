@@ -10,10 +10,20 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
+from .audience_workflow import AudienceWorkflow
 from .client import ModelClient
-from .models import Evaluation, Passport, Source, Validation
+from .models import (
+    AudiencePlan,
+    AudienceProfile,
+    AudienceResult,
+    AudienceReview,
+    Evaluation,
+    Passport,
+    Source,
+    Validation,
+)
 from .workflow import Workflow
 
 
@@ -55,6 +65,9 @@ async def run_models(
     app_url: str | None,
     app_name: str | None,
     run_id: str,
+    pipeline: str = "product",
+    audience_context: dict[str, Any] | None = None,
+    rate_limit_wait_budget_seconds: float = 45.0,
 ) -> None:
     writer = ResultWriter(
         output_path,
@@ -64,6 +77,7 @@ async def run_models(
             "target_product": target_product,
             "as_of_date": as_of_date,
             "source_names": [source.source for source in sources],
+            "pipeline": pipeline,
         },
     )
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -83,6 +97,9 @@ async def run_models(
                 app_name=app_name,
                 run_id=run_id,
                 writer=writer,
+                pipeline=pipeline,
+                audience_context=audience_context,
+                rate_limit_wait_budget_seconds=rate_limit_wait_budget_seconds,
             )
             for model in models
         )
@@ -108,6 +125,10 @@ async def run_one_model(
     checkpoint_path: Path | None = None,
     resume: bool = False,
     source_order: list[str] | None = None,
+    input_order: dict[str, list[str]] | None = None,
+    pipeline: str = "product",
+    audience_context: dict[str, Any] | None = None,
+    rate_limit_wait_budget_seconds: float = 45.0,
 ) -> None:
     started = datetime.now(UTC)
     client: ModelClient | None = None
@@ -118,6 +139,7 @@ async def run_one_model(
         "status": "failed",
         **({"run_number": run_number} if run_number is not None else {}),
         **({"source_order": source_order} if source_order is not None else {}),
+        **({"input_order": input_order} if input_order is not None else {}),
     }
     try:
         client = ModelClient(
@@ -128,37 +150,35 @@ async def run_one_model(
             app_url,
             app_name,
             correction_retries=step_retries,
+            rate_limit_wait_budget_seconds=rate_limit_wait_budget_seconds,
         )
-        with SqliteSaver.from_conn_string(str(checkpoint_path)) as checkpointer:
-            checkpointer.setup()
-            graph = Workflow(client, step_retries=step_retries).compile(checkpointer)
+        async with AsyncSqliteSaver.from_conn_string(str(checkpoint_path)) as checkpointer:
+            await checkpointer.setup()
+            workflow = (
+                AudienceWorkflow(client, step_retries=step_retries)
+                if pipeline == "audience"
+                else Workflow(client, step_retries=step_retries)
+            )
+            graph = workflow.compile(checkpointer)
             thread_id = read_thread_id(checkpoint_path) if resume else None
-            final_state = await asyncio.to_thread(
-                graph.invoke,
+            final_state = await graph.ainvoke(
                 None
                 if resume
-                else {
-                    "model": model,
-                    "target_product": target_product,
-                    "as_of_date": as_of_date,
-                    "sources": sources,
-                },
+                else _initial_state(
+                    pipeline,
+                    model=model,
+                    target_product=target_product,
+                    as_of_date=as_of_date,
+                    sources=sources,
+                    audience_context=audience_context,
+                ),
                 {
                     "configurable": {
                         "thread_id": thread_id or f"{run_id}:{slugify(model)}",
                     }
                 },
             )
-        record.update(
-            {
-                "status": "completed",
-                "result": {
-                    "passport": Passport.model_validate(final_state["passport"]).model_dump(mode="json"),
-                    "validation": Validation.model_validate(final_state["validation"]).model_dump(mode="json"),
-                    "evaluation": Evaluation.model_validate(final_state["evaluation"]).model_dump(mode="json"),
-                },
-            }
-        )
+        record.update({"status": "completed", "result": _result_from_state(final_state, pipeline)})
     except Exception as error:
         record["error"] = f"{type(error).__name__}: {error}"
     record["duration_seconds"] = (datetime.now(UTC) - started).total_seconds()
@@ -175,6 +195,98 @@ def load_sources(input_dir: Path) -> list[Source]:
     if not files:
         return [Source(source="no-source.md", content="")]
     return [Source(source=path.name, content=path.read_text(encoding="utf-8")) for path in files]
+
+
+def load_audience_context(
+    path: Path, product_result: Path | None = None, product_model: str | None = None
+) -> dict[str, Any]:
+    try:
+        context = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"cannot read audience context {path}: {error}") from error
+    if not isinstance(context, dict):
+        raise ValueError(f"audience context must contain a JSON object: {path}")
+    if product_result:
+        context["product_passport"] = compact_product_passport(load_product_passport(product_result, product_model))
+    if not isinstance(context.get("product_passport"), dict):
+        raise ValueError("audience context requires a product passport; pass --product-result")
+    return context
+
+
+def load_product_passport(path: Path, model: str | None = None) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"cannot read product result {path}: {error}") from error
+    candidates = payload.get("results", []) if isinstance(payload, dict) else []
+    if isinstance(payload, dict) and payload.get("result", {}).get("passport"):
+        candidates = [payload]
+    for item in candidates:
+        if model and item.get("model") != model:
+            continue
+        if item.get("status") in (None, "completed") and item.get("result", {}).get("passport"):
+            return item["result"]["passport"]
+    raise ValueError(f"no completed product passport found in {path}")
+
+
+def compact_product_passport(passport: dict[str, Any]) -> dict[str, Any]:
+    categories = {
+        "identity",
+        "purpose",
+        "audience",
+        "features",
+        "benefits",
+        "pricing",
+        "terms",
+        "limitations",
+        "offers_channels",
+        "communication_rules",
+    }
+    return {
+        "product_name": passport.get("product_name"),
+        "extraction_status": passport.get("extraction_status"),
+        "records": [record for record in passport.get("records", []) if record.get("category") in categories],
+        "warnings": passport.get("warnings", []),
+    }
+
+
+def _initial_state(
+    pipeline: str,
+    *,
+    model: str,
+    target_product: str,
+    as_of_date: str | None,
+    sources: list[Source],
+    audience_context: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if pipeline == "audience":
+        if audience_context is None:
+            raise ValueError("audience context is required for the audience pipeline")
+        return {"pipeline": pipeline, "model": model, "context": audience_context}
+    return {
+        "pipeline": pipeline,
+        "model": model,
+        "target_product": target_product,
+        "as_of_date": as_of_date,
+        "sources": sources,
+    }
+
+
+def _result_from_state(state: dict[str, Any], pipeline: str) -> dict[str, Any]:
+    validation = Validation.model_validate(state["validation"]).model_dump(mode="json")
+    if pipeline == "audience":
+        return {
+            "audience": AudienceResult.model_validate(state["audience"]).model_dump(mode="json"),
+            "profile": AudienceProfile.model_validate(state["profile"]).model_dump(mode="json"),
+            "plan": AudiencePlan.model_validate(state["plan"]).model_dump(mode="json"),
+            "validation": validation,
+            "review": AudienceReview.model_validate(state["review"]).model_dump(mode="json"),
+        }
+    return {
+        "passport": Passport.model_validate(state["passport"]).model_dump(mode="json"),
+        "validation": validation,
+        "evaluation": Evaluation.model_validate(state["evaluation"]).model_dump(mode="json"),
+    }
 
 
 def read_thread_id(checkpoint_path: Path) -> str | None:

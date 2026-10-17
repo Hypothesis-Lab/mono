@@ -13,13 +13,14 @@ services:
       N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
       N8N_RUNNERS_ENABLED: "true"
       N8N_SECURE_COOKIE: "false"
-      N8N_RESTRICT_FILE_ACCESS_TO: /files;/product
+      N8N_RESTRICT_FILE_ACCESS_TO: /files;/product;/audience
       GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-Europe/Moscow}
       TZ: ${TZ:-Europe/Moscow}
     volumes:
       - n8n_data:/home/node/.n8n
       - ./local-files:/files
       - ./product:/product:ro
+      - ./audience:/audience:ro
     extra_hosts:
       - host.docker.internal:host-gateway
 

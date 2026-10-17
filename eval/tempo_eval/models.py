@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Category = Literal[
     "identity",
@@ -108,7 +108,7 @@ class StabilityEvaluation(StrictModel):
     acceptance: Literal["accepted", "rejected", "not_tested"]
     score_basis: str
     criterion: EvaluationCriterion
-    run_comparison: list[str]
+    run_comparison: list[str] = Field(min_length=3)
     summary: str
     limitations: list[str]
 
@@ -173,6 +173,18 @@ AudienceCheckName = Literal[
     "leakage",
     "activation",
 ]
+AUDIENCE_CHECK_NAMES = frozenset(
+    {
+        "data_quality",
+        "relevance",
+        "reproducibility",
+        "min_size",
+        "stability",
+        "privacy_bias",
+        "leakage",
+        "activation",
+    }
+)
 
 
 class AudienceCheck(StrictModel):
@@ -180,6 +192,38 @@ class AudienceCheck(StrictModel):
     status: Literal["pass", "fail", "unknown"]
     detail: str
     source_refs: list[str]
+
+
+def _normalized_checks(value: object) -> object:
+    if not isinstance(value, list):
+        return value
+    by_name: dict[str, dict[object, object]] = {}
+    for check in value:
+        if isinstance(check, dict) and isinstance(check.get("name"), str) and check["name"] in AUDIENCE_CHECK_NAMES:
+            by_name.setdefault(check["name"], check)
+    return [
+        by_name.get(
+            name,
+            {
+                "name": name,
+                "status": "unknown",
+                "detail": "Результат проверки не передан.",
+                "source_refs": [],
+            },
+        )
+        for name in sorted(AUDIENCE_CHECK_NAMES)
+    ]
+
+
+def _normalized_segments(value: object) -> object:
+    if not isinstance(value, dict) or not isinstance(value.get("segments"), list):
+        return value
+    result = dict(value)
+    result["segments"] = [
+        {**segment, "segment_id": f"seg_{index:03d}"} if isinstance(segment, dict) else segment
+        for index, segment in enumerate(value["segments"], start=1)
+    ]
+    return result
 
 
 class AudienceInterpretation(StrictModel):
@@ -194,15 +238,32 @@ class AudienceInterpretation(StrictModel):
 
 
 class AudienceSegment(StrictModel):
-    segment_id: str
+    segment_id: str = Field(pattern=r"^seg_[0-9]{3,}$")
     name: str
     origin: Literal["observed", "proposed"]
     definition: AudienceDefinition
     size: AudienceSize
     characteristics: list[AudienceClaim]
     interpretation: AudienceInterpretation
-    checks: list[AudienceCheck]
+    checks: list[AudienceCheck] = Field(min_length=8, max_length=8)
     risks: list[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_checks(cls, value: object) -> object:
+        if not isinstance(value, dict):
+            return value
+        result = dict(value)
+        result["checks"] = _normalized_checks(result.get("checks"))
+        return result
+
+    @model_validator(mode="after")
+    def require_exactly_one_of_each_check(self) -> AudienceSegment:
+        if {check.name for check in self.checks} != AUDIENCE_CHECK_NAMES:
+            raise ValueError("checks must contain each required check exactly once")
+        if self.origin == "observed" and not self.characteristics:
+            raise ValueError("observed segments require at least one characteristic")
+        return self
 
 
 class AudienceOverlaps(StrictModel):
@@ -229,14 +290,31 @@ class AudienceProfile(StrictModel):
 
 
 class AudienceSegmentPlan(StrictModel):
-    segment_id: str
+    segment_id: str = Field(pattern=r"^seg_[0-9]{3,}$")
     name: str
     origin: Literal["observed", "proposed"]
     definition: AudienceDefinition
     size: AudienceSize
     characteristics: list[AudienceClaim]
-    checks: list[AudienceCheck]
+    checks: list[AudienceCheck] = Field(min_length=8, max_length=8)
     risks: list[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_checks(cls, value: object) -> object:
+        if not isinstance(value, dict):
+            return value
+        result = dict(value)
+        result["checks"] = _normalized_checks(result.get("checks"))
+        return result
+
+    @model_validator(mode="after")
+    def require_exactly_one_of_each_check(self) -> AudienceSegmentPlan:
+        if {check.name for check in self.checks} != AUDIENCE_CHECK_NAMES:
+            raise ValueError("checks must contain each required check exactly once")
+        if self.origin == "observed" and not self.characteristics:
+            raise ValueError("observed segments require at least one characteristic")
+        return self
 
 
 class AudiencePlan(StrictModel):
@@ -247,6 +325,11 @@ class AudiencePlan(StrictModel):
     missing_data: list[str]
     questions: list[str] = Field(max_length=3)
     limitations: list[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_segments(cls, value: object) -> object:
+        return _normalized_segments(value)
 
 
 class AudienceResult(StrictModel):
@@ -264,6 +347,29 @@ class AudienceResult(StrictModel):
     questions: list[str] = Field(max_length=3)
     limitations: list[str]
     review_status: Literal["pending"]
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_segments(cls, value: object) -> object:
+        return _normalized_segments(value)
+
+
+class AudienceReviewCheck(StrictModel):
+    name: str
+    status: Literal["pass", "fail", "unknown"]
+    detail: str
+    source_refs: list[str]
+
+
+class ProductManagerConfirmation(StrictModel):
+    status: Literal["pending"]
+    detail: str
+
+
+class AudienceReview(StrictModel):
+    critic_checks: list[AudienceReviewCheck]
+    validator_checks: list[AudienceReviewCheck]
+    product_manager_confirmation: ProductManagerConfirmation
 
 
 class Source(StrictModel):

@@ -4,7 +4,6 @@ z-ai/glm-5.3-flash
 xiaomi/mimo-v2.6-flash
 tencent/hy4-preview
 openai/gpt-6-luna
-z-ai/glm-5.3
 xiaomi/mimo-v2.6-pro
 minimax/minimax-m3
 z-ai/glm-5.2

@@ -6,23 +6,35 @@ import os
 import uuid
 from pathlib import Path
 
-from tempo_eval.runner import load_models, load_sources, run_models
+from tempo_eval.runner import load_audience_context, load_models, load_sources, run_models
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run the Tempo product extraction workflow against OpenRouter models.")
+    parser = argparse.ArgumentParser(description="Run a Tempo evaluation pipeline against OpenRouter models.")
+    parser.add_argument("--pipeline", choices=("product", "audience"), default="product")
     parser.add_argument(
         "--models", nargs="*", default=[], help="OpenRouter model IDs, for example google/gemini-2.5-flash"
     )
     parser.add_argument("--models-file", type=Path, help="Text file (one model per line) or JSON list/object")
     parser.add_argument("--input-dir", type=Path, default=Path(__file__).resolve().parents[1] / "n8n/product")
-    parser.add_argument("--output", type=Path, default=Path("results.json"))
-    parser.add_argument("--checkpoints", type=Path, default=Path("checkpoints"))
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--checkpoints", type=Path)
+    parser.add_argument(
+        "--audience-context",
+        type=Path,
+        default=Path(__file__).resolve().parents[1] / "n8n/audience/context.json",
+        help="Pre-generated JSON context for the audience pipeline",
+    )
+    parser.add_argument(
+        "--product-result", type=Path, help="Required product pipeline JSON whose passport is handed to audience"
+    )
+    parser.add_argument("--product-model", help="Model to select from a product benchmark result")
     parser.add_argument("--target-product", default="Tempo")
     parser.add_argument("--as-of-date")
     parser.add_argument("--api-key", default=os.environ.get("OPENROUTER_API_KEY"))
     parser.add_argument("--base-url", default=os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"))
     parser.add_argument("--timeout", type=float, default=15.0)
+    parser.add_argument("--rate-limit-budget", type=float, default=45.0, help="Maximum seconds to wait on 429 retries")
     parser.add_argument("--step-retries", type=int, default=3, help="Corrective retries after invalid step output")
     parser.add_argument("--app-url", default=os.environ.get("OPENROUTER_APP_URL"))
     parser.add_argument("--app-name", default="Tempo extraction eval")
@@ -36,9 +48,22 @@ def main() -> None:
         raise SystemExit("OPENROUTER_API_KEY or --api-key is required")
     if args.step_retries < 1:
         raise SystemExit("--step-retries must be at least 1")
+    if args.rate_limit_budget < 0:
+        raise SystemExit("--rate-limit-budget must be non-negative")
     configured_model = os.environ.get("OPENROUTER_MODEL")
     models = load_models(args.models or ([configured_model] if configured_model else []), args.models_file)
-    sources = load_sources(args.input_dir)
+    args.output = args.output or (
+        Path("results/audience.json") if args.pipeline == "audience" else Path("results.json")
+    )
+    args.checkpoints = args.checkpoints or (
+        Path("checkpoints/audience") if args.pipeline == "audience" else Path("checkpoints")
+    )
+    sources = load_sources(args.input_dir) if args.pipeline == "product" else []
+    audience_context = (
+        load_audience_context(args.audience_context, args.product_result, args.product_model)
+        if args.pipeline == "audience"
+        else None
+    )
     run_id = args.run_id or uuid.uuid4().hex[:12]
     asyncio.run(
         run_models(
@@ -55,6 +80,9 @@ def main() -> None:
             app_url=args.app_url,
             app_name=args.app_name,
             run_id=run_id,
+            pipeline=args.pipeline,
+            audience_context=audience_context,
+            rate_limit_wait_budget_seconds=args.rate_limit_budget,
         )
     )
 

@@ -19,12 +19,32 @@ ALLOWED_CHECKPOINT_TYPES = [
     ("tempo_eval.models", "Passport"),
     ("tempo_eval.models", "Validation"),
     ("tempo_eval.models", "Evaluation"),
+    ("tempo_eval.models", "AudienceClaim"),
+    ("tempo_eval.models", "AudienceWindow"),
+    ("tempo_eval.models", "AudienceFeature"),
+    ("tempo_eval.models", "ExcludedAudienceFeature"),
+    ("tempo_eval.models", "AudienceDataProfile"),
+    ("tempo_eval.models", "AudienceDefinition"),
+    ("tempo_eval.models", "AudienceSize"),
+    ("tempo_eval.models", "AudienceCheck"),
+    ("tempo_eval.models", "AudienceInterpretation"),
+    ("tempo_eval.models", "AudienceSegment"),
+    ("tempo_eval.models", "AudienceOverlaps"),
+    ("tempo_eval.models", "AudienceObservation"),
+    ("tempo_eval.models", "AudienceProfile"),
+    ("tempo_eval.models", "AudienceSegmentPlan"),
+    ("tempo_eval.models", "AudiencePlan"),
+    ("tempo_eval.models", "AudienceResult"),
+    ("tempo_eval.models", "AudienceReviewCheck"),
+    ("tempo_eval.models", "ProductManagerConfirmation"),
+    ("tempo_eval.models", "AudienceReview"),
 ]
 
 
 @dataclass
 class CheckpointSnapshot:
     model: str
+    pipeline: str
     path: str
     step: int | None
     state: dict[str, Any]
@@ -32,15 +52,21 @@ class CheckpointSnapshot:
 
 
 class ReportBuilder:
-    def __init__(self, results_dir: Path, checkpoints_dir: Path) -> None:
+    def __init__(self, results_dir: Path, checkpoints_dir: Path, pipeline: str = "auto") -> None:
         self.results_dir = results_dir
         self.checkpoints_dir = checkpoints_dir
+        self.pipeline = pipeline
         self.max_runs = 3
 
     def build(self) -> dict[str, Any]:
         models = self._load_results()
         for checkpoint in self._load_checkpoints():
-            item = models.setdefault(checkpoint.model, {"model": checkpoint.model, "checkpoints": []})
+            if self.pipeline != "auto" and checkpoint.pipeline != self.pipeline:
+                continue
+            key = f"{checkpoint.pipeline}:{checkpoint.model}"
+            item = models.setdefault(
+                key, {"model": checkpoint.model, "pipeline": checkpoint.pipeline, "checkpoints": []}
+            )
             snapshot = {
                 "path": checkpoint.path,
                 "step": checkpoint.step,
@@ -63,18 +89,33 @@ class ReportBuilder:
 
     def _load_results(self) -> dict[str, dict[str, Any]]:
         models: dict[str, dict[str, Any]] = {}
-        for path in sorted(self.results_dir.glob("*.json")):
+        paths = [self.results_dir] if self.results_dir.is_file() else sorted(self.results_dir.glob("*.json"))
+        for path in paths:
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
             benchmark = payload.get("benchmark", {})
+            pipeline = (
+                payload.get("pipeline")
+                or (benchmark.get("pipeline") if isinstance(benchmark, dict) else None)
+                or "product"
+            )
+            if self.pipeline != "auto" and pipeline != self.pipeline:
+                continue
             if isinstance(benchmark, dict) and isinstance(benchmark.get("max_runs"), int):
                 self.max_runs = benchmark["max_runs"]
+            elif self.results_dir.is_file() and all(
+                "run_number" not in result for result in payload.get("results", [])
+            ):
+                self.max_runs = 1
             for result in payload.get("results", []):
                 model = result.get("model")
                 if isinstance(model, str):
-                    item = models.setdefault(model, {"model": model, "runs": [], "benchmark_evaluations": []})
+                    key = f"{pipeline}:{model}"
+                    item = models.setdefault(
+                        key, {"model": model, "pipeline": pipeline, "runs": [], "benchmark_evaluations": []}
+                    )
                     if "run_number" in result:
                         item["runs"].append({**result, "result_file": str(path)})
                         item.update(
@@ -92,7 +133,10 @@ class ReportBuilder:
             for evaluation in payload.get("evaluations", []):
                 model = evaluation.get("model")
                 if isinstance(model, str):
-                    item = models.setdefault(model, {"model": model, "runs": [], "benchmark_evaluations": []})
+                    key = f"{pipeline}:{model}"
+                    item = models.setdefault(
+                        key, {"model": model, "pipeline": pipeline, "runs": [], "benchmark_evaluations": []}
+                    )
                     item.setdefault("benchmark_evaluations", []).append(evaluation)
         for item in models.values():
             if not item.get("runs") and item.get("legacy_run"):
@@ -109,7 +153,11 @@ class ReportBuilder:
 
     @staticmethod
     def _result_from_checkpoint(state: dict[str, Any]) -> dict[str, Any]:
-        return {key: state[key] for key in ("passport", "validation", "evaluation") if key in state}
+        return {
+            key: state[key]
+            for key in ("passport", "audience", "profile", "plan", "validation", "review", "evaluation")
+            if key in state
+        }
 
 
 def read_checkpoint(path: Path) -> CheckpointSnapshot | None:
@@ -129,6 +177,7 @@ def read_checkpoint(path: Path) -> CheckpointSnapshot | None:
         model = state.get("model") or _model_from_thread_id(thread_id, path)
         return CheckpointSnapshot(
             model=model,
+            pipeline=state.get("pipeline") or ("audience" if "audience" in state else "product"),
             path=str(path),
             step=metadata.get("step"),
             state=state,
@@ -158,7 +207,7 @@ def render_html(payload: dict[str, Any]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tempo extraction evaluation report</title>
+   <title>Pipeline evaluation report</title>
   <style>
     :root {{ color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }}
     body {{ margin: 0; background: #101318; color: #e8edf4; }}
@@ -222,7 +271,7 @@ def render_html(payload: dict[str, Any]) -> str:
 </head>
 <body>
   <header>
-    <h1>Tempo extraction evaluation report</h1>
+    <h1>Pipeline evaluation report</h1>
     <p class="muted">Snapshot generated at <span id="generated"></span></p>
   </header>
   <div class="layout">
@@ -289,19 +338,25 @@ def render_html(payload: dict[str, Any]) -> str:
          String(snapshot.path || '').endsWith('/run-' + selectedRun.run_number + '.sqlite')
        );
        const state = selectedCheckpoint ? (selectedCheckpoint.state || {{}}) : latestState;
-      const passport = result.passport || state.passport;
+       const passport = result.passport || state.passport;
+       const audience = result.audience || state.audience;
+       const audienceProfile = result.profile || state.profile;
+       const audiencePlan = result.plan || state.plan;
+       const audienceReview = result.review || state.review;
       const validation = result.validation || state.validation;
       const benchmarkEvaluations = item.benchmark_evaluations || [];
       const latestBenchmark = benchmarkEvaluations.length ? benchmarkEvaluations[benchmarkEvaluations.length - 1].evaluation : null;
        const graphEvaluation = result.evaluation || state.evaluation;
       document.getElementById('title').innerHTML = esc(item.model) + ' ' + badge(item.status || 'checkpointed');
        document.getElementById('result-panel').innerHTML = (runs.length ? runSelector(runs, runIndex) : '') +
-         summaryCards(item, state, selectedRun, passport, validation, latestBenchmark) +
-         panelHeader('Passport result' + (selectedRun ? ' · Run ' + selectedRun.run_number : ''), 'result') +
-        '<div data-pane="result" data-mode="rendered">' + resultRendered(passport, validation) + '</div>' +
-        '<div data-pane="result" data-mode="json" class="hidden"><pre>' + esc(pretty(runs.length ? {{ selected_run: selectedRun, runs }} : {{ passport, validation }})) + '</pre></div>';
+         summaryCards(item, state, selectedRun, passport, audience, validation, latestBenchmark) +
+          panelHeader(item.pipeline === 'audience' ? 'Audience result' + (selectedRun ? ' · Run ' + selectedRun.run_number : '') : 'Passport result' + (selectedRun ? ' · Run ' + selectedRun.run_number : ''), 'result') +
+         '<div data-pane="result" data-mode="rendered">' + (item.pipeline === 'audience' ? audienceRendered(audience, validation) : resultRendered(passport, validation)) + '</div>' +
+         '<div data-pane="result" data-mode="json" class="hidden"><pre>' + esc(pretty(runs.length ? {{ selected_run: selectedRun, runs }} : {{ passport, audience, validation }})) + '</pre></div>';
        const runEvaluations = runs.map(run => ({{ run: run.run_number, evaluation: run.result && run.result.evaluation }})).filter(item => item.evaluation);
-       const graphJson = {{ run: selectedRun ? selectedRun.run_number : null, evaluation: graphEvaluation, all_runs: runEvaluations }};
+       const graphJson = item.pipeline === 'audience'
+          ? {{ run: selectedRun ? selectedRun.run_number : null, profile: audienceProfile, plan: audiencePlan, audience, validation, review: audienceReview }}
+         : {{ run: selectedRun ? selectedRun.run_number : null, evaluation: graphEvaluation, all_runs: runEvaluations }};
        const stabilityJson = {{ benchmark: stabilityView(latestBenchmark), runs: runs.map(run => ({{ run: run.run_number, validation: run.result && run.result.validation }})) }};
        document.getElementById('evaluation-panel').innerHTML = panelHeader('Evaluation', 'evaluation') +
          '<div class="subtabs">' +
@@ -309,10 +364,10 @@ def render_html(payload: dict[str, Any]) -> str:
          '<button data-evaluation-tab="stability">Stability evaluation (C9)</button>' +
          '</div>' +
          '<div data-evaluation-pane="graph">' +
-         '<div class="callout"><strong>Evaluation inside the graph</strong><p class="muted">Evaluates the selected extraction run independently.</p></div>' +
+         (item.pipeline === 'audience' ? '<div class="callout"><strong>Audience pipeline validation</strong><p class="muted">Profile → segmentation → interpretation, followed by contract validation.</p></div>' : '<div class="callout"><strong>Evaluation inside the graph</strong><p class="muted">Evaluates the selected extraction run independently.</p></div>') +
          (runs.length ? '<div class="callout"><strong>Per-run validation</strong><ul class="check-list">' + runs.map(run => '<li>Run ' + esc(run.run_number) + ': ' + validationLabel(run.result && run.result.validation) + '</li>').join('') + '</ul></div>' : '') +
-         '<div data-pane="evaluation" data-mode="rendered">' + evaluationRendered(graphEvaluation) +
-         (runEvaluations.length ? '<h3>Individual run evaluations</h3><div class="criterion-list">' + runEvaluations.map(item => '<article class="criterion"><h4>Run ' + esc(item.run) + '</h4>' + evaluationSummary(item.evaluation) + '</article>').join('') + '</div>' : '') +
+          '<div data-pane="evaluation" data-mode="rendered">' + (item.pipeline === 'audience' ? audiencePipelineRendered(audienceProfile, audiencePlan, audience, validation, audienceReview) : evaluationRendered(graphEvaluation)) +
+         (item.pipeline !== 'audience' && runEvaluations.length ? '<h3>Individual run evaluations</h3><div class="criterion-list">' + runEvaluations.map(item => '<article class="criterion"><h4>Run ' + esc(item.run) + '</h4>' + evaluationSummary(item.evaluation) + '</article>').join('') + '</div>' : '') +
          '</div>' +
          '<div data-pane="evaluation" data-mode="json" class="hidden"><pre>' + esc(pretty(graphJson)) + '</pre></div>' +
          '</div>' +
@@ -350,16 +405,18 @@ def render_html(payload: dict[str, Any]) -> str:
       if (!validation) return 'pending';
       return validation.valid ? 'passed' : 'failed';
     }}
-    function summaryCards(item, state, selectedRun, passport, validation, latestBenchmark) {{
+     function summaryCards(item, state, selectedRun, passport, audience, validation, latestBenchmark) {{
       const c9Status = latestBenchmark ? (latestBenchmark.acceptance || latestBenchmark.evaluation_status || 'available') : 'pending';
       const c9Score = latestBenchmark && latestBenchmark.overall_score != null ? latestBenchmark.overall_score + ' / 100' : c9Status;
       const runValidation = validation ? (validation.valid ? '<span class="ok">passed</span>' : '<span class="error">failed</span>') : 'pending';
-      const sourceDrafts = Array.isArray(state.drafts) ? state.drafts.length : '—';
+       const sourceDrafts = item.pipeline === 'audience' ? ((audience && audience.segments) || []).length : (Array.isArray(state.drafts) ? state.drafts.length : '—');
+       const resultCount = item.pipeline === 'audience' ? ((audience && audience.segments) || []).length : (passport && passport.records ? passport.records.length : 0);
       return '<div class="cards">' +
-        card('Stage', stage(item, state, selectedRun)) +
-        card('Selected run', selectedRun ? 'Run ' + selectedRun.run_number : '—') +
-        card('Source drafts', sourceDrafts) +
-        card('Passport records', passport && passport.records ? passport.records.length : 0) +
+         card('Pipeline', item.pipeline || 'product') +
+         card('Stage', stage(item, state, selectedRun)) +
+         card('Selected run', selectedRun ? 'Run ' + selectedRun.run_number : '—') +
+         card(item.pipeline === 'audience' ? 'Segments' : 'Source drafts', sourceDrafts) +
+         card(item.pipeline === 'audience' ? 'Audience segments' : 'Passport records', resultCount) +
         card('Run validation', runValidation) +
         card('C9 stability', c9Score) +
         card('Completed runs', runProgress(item)) +
@@ -386,7 +443,7 @@ def render_html(payload: dict[str, Any]) -> str:
         panel.querySelectorAll('[data-evaluation-pane]').forEach(pane => pane.classList.toggle('hidden', pane.dataset.evaluationPane !== button.dataset.evaluationTab));
       }});
     }}
-    function resultRendered(passport, validation) {{
+     function resultRendered(passport, validation) {{
       if (!passport) return '<p class="muted">No passport has been produced yet.</p>';
       const records = passport.records || [];
       const recordsHtml = records.map((record, index) =>
@@ -414,7 +471,38 @@ def render_html(payload: dict[str, Any]) -> str:
         (conflicts ? '<div class="callout error"><h3>Conflicts</h3><ul>' + conflicts + '</ul></div>' : '') +
         (gaps ? '<div class="callout warn"><h3>Gaps</h3><ul>' + gaps + '</ul></div>' : '') +
         (warnings ? '<div class="callout warn"><h3>Warnings</h3><ul>' + warnings + '</ul></div>' : '');
-    }}
+     }}
+     function audienceRendered(audience, validation) {{
+       if (!audience) return '<p class="muted">No audience result has been produced yet.</p>';
+       const segments = (audience.segments || []).map(segment => {{
+         const size = segment.size || {{}};
+         const checks = (segment.checks || []).map(check => '<li><span class="tag">' + esc(check.status) + '</span> ' + esc(check.name) + ': ' + esc(check.detail) + '</li>').join('');
+         return '<article class="record"><h4>' + esc(segment.name) + '</h4>' +
+           '<div class="record-meta"><span class="tag">' + esc(segment.segment_id) + '</span><span class="tag">' + esc(segment.origin) + '</span></div>' +
+           '<p>' + esc((segment.definition && segment.definition.inclusion_rules || []).join('; ') || 'No inclusion rule') + '</p>' +
+           '<p><strong>Size:</strong> ' + esc(size.count == null ? 'unknown' : size.count) + (size.share == null ? '' : ' (' + esc(size.share * 100) + '%)') + '</p>' +
+           '<p><strong>Checks</strong></p><ul class="check-list">' + checks + '</ul>' +
+           '<p><strong>Risks</strong></p><ul>' + (segment.risks || []).map(risk => '<li>' + esc(risk) + '</li>').join('') + '</ul></article>';
+       }}).join('');
+       const profile = audience.data_profile || {{}};
+       const errors = validation && validation.errors ? validation.errors : [];
+       return '<div class="hero"><strong>' + esc(audience.product_id || 'Audience result') + '</strong><span class="tag">' + esc(audience.status) + '</span><span class="tag">' + esc(audience.mode) + '</span>' + (validation ? '<span class="tag">validation: ' + validationLabel(validation) + '</span>' : '') + '</div>' +
+         '<div class="callout"><strong>Data profile</strong><p>' + esc(profile.unit || 'unknown unit') + ' · cutoff: ' + esc(profile.cutoff_at || 'unknown') + '</p><p>' + esc(profile.coverage && profile.coverage.text || 'Coverage unknown') + '</p></div>' +
+         '<h3>Segments (' + ((audience.segments || []).length) + ')</h3><div class="record-grid">' + segments + '</div>' +
+         (errors.length ? '<div class="callout error"><h3>Validation errors</h3><ul>' + errors.map(error => '<li>' + esc(error) + '</li>').join('') + '</ul></div>' : '') +
+         ((audience.missing_data || []).length ? '<div class="callout warn"><h3>Missing data</h3><ul>' + audience.missing_data.map(item => '<li>' + esc(item) + '</li>').join('') + '</ul></div>' : '');
+     }}
+     function audiencePipelineRendered(profile, plan, audience, validation, review) {{
+       return '<div class="callout"><h3>Stages</h3><ul class="check-list"><li>Profile: ' + (profile ? 'complete' : 'missing') + '</li><li>Segmentation plan: ' + (plan ? 'complete' : 'missing') + '</li><li>Final interpretation: ' + (audience ? 'complete' : 'missing') + '</li><li>Contract validation: ' + validationLabel(validation) + '</li><li>Deterministic review: ' + (review ? 'complete' : 'missing') + '</li></ul></div>' + audienceReviewRendered(review) + audienceRendered(audience, validation);
+     }}
+     function audienceReviewRendered(review) {{
+       if (!review) return '<p class="muted">Deterministic critic and validator findings have not been produced yet.</p>';
+       const checks = items => items.map(check => '<li><span class="tag">' + esc(check.status) + '</span> <strong>' + esc(check.name) + '</strong>: ' + esc(check.detail) + '</li>').join('');
+       const pm = review.product_manager_confirmation || {{}};
+       return '<div class="callout"><h3>Critic</h3><ul class="check-list">' + checks(review.critic_checks || []) + '</ul></div>' +
+         '<div class="callout"><h3>Validators</h3><ul class="check-list">' + checks(review.validator_checks || []) + '</ul></div>' +
+         '<div class="callout warn"><h3>Product-manager confirmation</h3><p><span class="tag">' + esc(pm.status || 'pending') + '</span> ' + esc(pm.detail || '') + '</p></div>';
+     }}
     function evaluationRendered(evaluation) {{
       if (!evaluation) return '<p class="muted">Evaluation has not been produced yet.</p>';
       const score = evaluation.overall_score == null ? 'Not scored' : evaluation.overall_score + ' / 100';
@@ -545,13 +633,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Build a static HTML report from eval results and checkpoints.")
     parser.add_argument("--results", type=Path, default=Path("results"))
     parser.add_argument("--checkpoints", type=Path, default=Path("checkpoints"))
+    parser.add_argument("--pipeline", choices=("auto", "product", "audience"), default="auto")
     parser.add_argument("--output", type=Path, default=Path("report.html"))
     return parser
 
 
 def main() -> None:
     args = build_parser().parse_args()
-    ReportBuilder(args.results, args.checkpoints).write(args.output)
+    ReportBuilder(args.results, args.checkpoints, args.pipeline).write(args.output)
     print(f"Wrote {args.output}")
 
 

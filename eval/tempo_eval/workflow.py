@@ -13,6 +13,7 @@ from .prompts import load_prompt, render
 
 
 class WorkflowState(TypedDict, total=False):
+    pipeline: str
     model: str
     target_product: str
     as_of_date: str | None
@@ -50,7 +51,7 @@ class Workflow:
     def fan_out_sources(self, state: WorkflowState) -> list[Send]:
         return [Send("extract_source", {"source": source, **state}) for source in state["sources"]]
 
-    def extract_source(self, state: dict[str, Any]) -> dict[str, list[Draft]]:
+    async def extract_source(self, state: dict[str, Any]) -> dict[str, list[Draft]]:
         source = Source.model_validate(state["source"])
         prompt = render(
             load_prompt("tempo-product-extraction.md"),
@@ -61,10 +62,10 @@ class Workflow:
                 "CONTENT": source.content,
             },
         )
-        result = self.client.complete_structured("extract_source", prompt, Passport)
+        result = await self.client.complete_structured("extract_source", prompt, Passport)
         return {"drafts": [Draft(source=source.source, result=result)]}
 
-    def consolidate(self, state: WorkflowState) -> dict[str, Passport]:
+    async def consolidate(self, state: WorkflowState) -> dict[str, Passport]:
         drafts = sorted(
             (Draft.model_validate(draft) for draft in state.get("drafts", [])),
             key=lambda draft: draft.source,
@@ -100,7 +101,7 @@ offers_channels, communication_rules.
             as_of_date=state.get("as_of_date") or "null",
             drafts=json.dumps([draft.model_dump(mode="json") for draft in drafts], ensure_ascii=False, indent=2),
         )
-        return {"passport": self.client.complete_structured("consolidate", prompt, Passport)}
+        return {"passport": await self.client.complete_structured("consolidate", prompt, Passport)}
 
     def validate(self, state: WorkflowState) -> dict[str, Validation]:
         passport = _passport_from_state(state.get("passport"))
@@ -115,7 +116,7 @@ offers_channels, communication_rules.
             return "finalize"
         return "repair"
 
-    def repair(self, state: WorkflowState) -> dict[str, object]:
+    async def repair(self, state: WorkflowState) -> dict[str, object]:
         passport = _passport_from_state(state["passport"])
         validation = Validation.model_validate(state["validation"])
         errors = validation.errors
@@ -138,14 +139,14 @@ id, category, subject, statement, statement_type, conditions, time_scope, eviden
             passport=json.dumps(passport.model_dump(mode="json"), ensure_ascii=False, indent=2),
             errors=json.dumps(errors, ensure_ascii=False),
         )
-        repaired = self.client.complete_structured("repair", prompt, Passport)
+        repaired = await self.client.complete_structured("repair", prompt, Passport)
         return {"passport": repaired, "repair_attempted": True}
 
     def finalize(self, state: WorkflowState) -> dict[str, Validation]:
         errors = validate_passport(_passport_from_state(state.get("passport")))
         return {"validation": Validation(valid=not errors, errors=errors)}
 
-    def evaluate(self, state: WorkflowState) -> dict[str, Evaluation]:
+    async def evaluate(self, state: WorkflowState) -> dict[str, Evaluation]:
         passport = _passport_from_state(state.get("passport"))
         validation = Validation.model_validate(state["validation"])
         materials = [Source.model_validate(source).model_dump(mode="json") for source in state["sources"]]
@@ -157,7 +158,7 @@ id, category, subject, statement, statement_type, conditions, time_scope, eviden
                 "SOURCE_MATERIALS_JSON": json.dumps(materials, ensure_ascii=False, indent=2),
             },
         )
-        return {"evaluation": self.client.complete_structured("evaluate", prompt, Evaluation)}
+        return {"evaluation": await self.client.complete_structured("evaluate", prompt, Evaluation)}
 
 
 def validate_passport(passport: Passport | None) -> list[str]:

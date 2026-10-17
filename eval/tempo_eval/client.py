@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import copy
 import json
 from dataclasses import dataclass, field
@@ -33,6 +34,7 @@ class ModelClient:
     app_url: str | None = None
     app_name: str | None = None
     correction_retries: int = 3
+    rate_limit_wait_budget_seconds: float = 45.0
     _calls: list[CallMetrics] = field(default_factory=list, init=False)
     _lock: Lock = field(default_factory=Lock, init=False)
 
@@ -59,35 +61,50 @@ class ModelClient:
         with self._lock:
             return list(self._calls)
 
-    def complete_structured(self, operation: str, prompt: str, output_model: type[ModelT]) -> ModelT:
+    async def complete_structured(self, operation: str, prompt: str, output_model: type[ModelT]) -> ModelT:
         schema = strict_schema(output_model.model_json_schema())
         attempt_prompt = prompt
+        rate_limit_waited = 0.0
         for attempt in range(self.correction_retries + 1):
             started = perf_counter()
             response: AIMessage | None = None
             try:
-                response = self._model.bind(
-                    response_format={
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": _schema_name(output_model),
-                            "schema": schema,
-                            "strict": True,
-                        },
-                    }
-                ).invoke(
-                    [
-                        SystemMessage(content="Return one valid JSON object without Markdown or explanation."),
-                        HumanMessage(content=attempt_prompt),
-                    ]
-                )
+                async with asyncio.timeout(self.timeout_seconds):
+                    response = await self._model.bind(
+                        response_format={
+                            "type": "json_schema",
+                            "json_schema": {
+                                "name": _schema_name(output_model),
+                                "schema": schema,
+                                "strict": True,
+                            },
+                        }
+                    ).ainvoke(
+                        [
+                            SystemMessage(content="Return one valid JSON object without Markdown or explanation."),
+                            HumanMessage(content=attempt_prompt),
+                        ]
+                    )
                 if not isinstance(response, AIMessage) or not isinstance(response.content, str):
                     raise ValueError("model returned a non-text response")
                 result = output_model.model_validate(parse_json(response.content))
             except Exception as error:
+                if isinstance(error, TimeoutError) and not str(error):
+                    error = TimeoutError(f"request exceeded {self.timeout_seconds:.1f}s wall-clock deadline")
                 self._record_call(self._metrics(operation, started, response, outcome="error", error=error))
                 if attempt >= self.correction_retries or not is_retryable(error):
                     raise
+                if is_rate_limit(error):
+                    delay = retry_delay_seconds(error, attempt)
+                    remaining = self.rate_limit_wait_budget_seconds - rate_limit_waited
+                    if delay > remaining:
+                        raise RateLimitBudgetExceeded(
+                            f"rate-limit wait budget exhausted ({self.rate_limit_wait_budget_seconds:.1f}s); "
+                            f"next retry requested {delay:.1f}s"
+                        ) from error
+                    await asyncio.sleep(delay)
+                    rate_limit_waited += delay
+                    continue
                 attempt_prompt = correction_prompt(prompt, response.content if response else None, error)
             else:
                 self._record_call(self._metrics(operation, started, response))
@@ -160,6 +177,26 @@ Do not explain the correction and do not use Markdown fences."""
 def is_retryable(error: Exception) -> bool:
     status_code = getattr(error, "status_code", None)
     return not isinstance(status_code, int) or status_code == 408 or status_code == 429 or status_code >= 500
+
+
+class RateLimitBudgetExceeded(RuntimeError):
+    pass
+
+
+def is_rate_limit(error: Exception) -> bool:
+    return getattr(error, "status_code", None) == 429 or error.__class__.__name__ == "OpenAIRateLimitError"
+
+
+def retry_delay_seconds(error: Exception, attempt: int) -> float:
+    response = getattr(error, "response", None)
+    headers = getattr(response, "headers", {}) if response is not None else {}
+    retry_after = headers.get("retry-after") if headers else None
+    try:
+        if retry_after is not None:
+            return max(0.0, min(float(retry_after), 30.0))
+    except (TypeError, ValueError):
+        pass
+    return float(min(2**attempt, 8))
 
 
 def _error_text(error: Exception) -> str:

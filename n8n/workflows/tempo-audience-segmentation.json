@@ -1,0 +1,538 @@
+{
+  "name": "Tempo audience segmentation — aggregate only",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        -200
+      ],
+      "id": "51fbc223-3dbb-423a-a19b-424b7ad4a697",
+      "name": "Запустить аудитории"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/audience/context.json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        -800,
+        -300
+      ],
+      "id": "f7b81b7a-fcbf-43a0-a740-a7fc28e44cda",
+      "name": "Агрегированный контекст аудитории",
+      "notes": "Only the mounted aggregate fixture is read. Do not replace it with raw client exports.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b3078aae-1727-4acc-8d2e-ffea4d7955ae",
+              "name": "product_passport_json",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -800,
+        -80
+      ],
+      "id": "0429f648-ad02-4416-8c25-a23899d6df93",
+      "name": "Паспорт продукта",
+      "notes": "Paste or connect a real product-passport JSON. Empty or invented fallback passports are rejected.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 2
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -600,
+        -200
+      ],
+      "id": "a7c59d57-5ab4-48ab-a803-8c7536c8f9ac",
+      "name": "Контекст + паспорт"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fixtureIndex = items.findIndex((item) => item.binary?.data);\nconst passportItem = items.find((item) => typeof item.json?.product_passport_json === 'string');\nif (fixtureIndex < 0) throw new Error('Aggregate audience fixture was not loaded.');\nif (!passportItem?.json.product_passport_json?.trim()) {\n  throw new Error('A real product_passport_json handoff is required.');\n}\nconst context = JSON.parse((await this.helpers.getBinaryDataBuffer(fixtureIndex, 'data')).toString('utf8'));\nconst passport = JSON.parse(passportItem.json.product_passport_json);\nconst forbidden = /(^|_)(client_?id|email|phone|contact|first_?name|last_?name|address)($|_)/i;\nconst scan = (value, path = '') => {\n  if (Array.isArray(value)) value.forEach((item, index) => scan(item, `${path}[${index}]`));\n  else if (value && typeof value === 'object') {\n    for (const [key, item] of Object.entries(value)) {\n      if (forbidden.test(key)) throw new Error(`Raw-record/contact field is not allowed: ${path}.${key}`);\n      scan(item, `${path}.${key}`);\n    }\n  }\n};\nscan(context);\nscan(passport);\ncontext.product_passport = passport;\nreturn [{ json: { context } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -360,
+        -200
+      ],
+      "id": "e212dbbb-0261-4bdb-a048-182eb1f03388",
+      "name": "Подготовить безопасный вход"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# Tempo audience segmentation contract\n\nYou work only with a supplied aggregate audience context and a source-backed\nproduct passport. Never request, invent, or expose client-level records, IDs,\nemails, phones, or contact data. Treat missing evidence as `unknown`.\n\nAn observed `data_based` segment is allowed only when a supplied calculation\nartifact provides its rule reference, membership reference, count, base count,\nand share. Do not infer these values. A proposed segment must be\n`hypothesis_only`; it must not have observed size or membership data.\n\nNever mark product-manager confirmation as completed. That remains an external\nevent with status `pending`.\n\n\n# Stage contract\n\nReturn one JSON object only. Keep claims source-backed. For an unsupported or\nmissing claim, use an explicit `unknown` boundary rather than inventing a fact,\ncalculation, source reference, or approval.\n\n\nЭТАП: profile. Сформируй компактный профиль данных, допустимых признаков, наблюдений, неизвестностей и вопросов. Не создавай сегменты.\nКОНТЕКСТ:\n{{ JSON.stringify($json.context) }}",
+        "options": {},
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        -100,
+        -200
+      ],
+      "id": "eb8bf362-9c39-40a4-8249-a96604b716f1",
+      "name": "Профилировать аудиторию"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# Tempo audience segmentation contract\n\nYou work only with a supplied aggregate audience context and a source-backed\nproduct passport. Never request, invent, or expose client-level records, IDs,\nemails, phones, or contact data. Treat missing evidence as `unknown`.\n\nAn observed `data_based` segment is allowed only when a supplied calculation\nartifact provides its rule reference, membership reference, count, base count,\nand share. Do not infer these values. A proposed segment must be\n`hypothesis_only`; it must not have observed size or membership data.\n\nNever mark product-manager confirmation as completed. That remains an external\nevent with status `pending`.\n\n\n# Stage contract\n\nReturn one JSON object only. Keep claims source-backed. For an unsupported or\nmissing claim, use an explicit `unknown` boundary rather than inventing a fact,\ncalculation, source reference, or approval.\n\n\nЭТАП: segment. Используй только доверенные calculation_results из контекста для observed сегментов. Не пересчитывай значения.\nКОНТЕКСТ:\n{{ JSON.stringify($('Подготовить безопасный вход').first().json.context) }}\nПРОФИЛЬ:\n{{ JSON.stringify($json.output ?? $json.text ?? $json) }}",
+        "options": {},
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        180,
+        -200
+      ],
+      "id": "591374b5-a0b8-4334-91e1-c9e56a414eab",
+      "name": "Сегментировать аудиторию"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# Tempo audience segmentation contract\n\nYou work only with a supplied aggregate audience context and a source-backed\nproduct passport. Never request, invent, or expose client-level records, IDs,\nemails, phones, or contact data. Treat missing evidence as `unknown`.\n\nAn observed `data_based` segment is allowed only when a supplied calculation\nartifact provides its rule reference, membership reference, count, base count,\nand share. Do not infer these values. A proposed segment must be\n`hypothesis_only`; it must not have observed size or membership data.\n\nNever mark product-manager confirmation as completed. That remains an external\nevent with status `pending`.\n\n\n# Stage contract\n\nReturn one JSON object only. Keep claims source-backed. For an unsupported or\nmissing claim, use an explicit `unknown` boundary rather than inventing a fact,\ncalculation, source reference, or approval.\n\n\nЭТАП: interpret. Сформируй полный AudienceResult. Unknown остаётся unknown; review_status всегда pending.\nПРОФИЛЬ:\n{{ JSON.stringify($('Профилировать аудиторию').first().json.output ?? $('Профилировать аудиторию').first().json.text ?? $('Профилировать аудиторию').first().json) }}\nПЛАН:\n{{ JSON.stringify($json.output ?? $json.text ?? $json) }}",
+        "options": {},
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        460,
+        -200
+      ],
+      "id": "2fd47015-862a-4753-818a-1fb6e5d792ba",
+      "name": "Интерпретировать сегменты"
+    },
+    {
+      "parameters": {
+        "jsCode": "const unwrap = (value) => typeof value === 'string' ? JSON.parse(value) : value;\nconst audience = unwrap($json.output ?? $json.text ?? $json);\nconst context = $('Подготовить безопасный вход').first().json.context;\nconst calculations = context.calculation_results ?? {};\nconst source = context.audience_sources?.length === 1 ? context.audience_sources[0] : null;\nconst find = (suffix) => Object.entries(calculations).find(([key]) => key.endsWith(suffix));\nconst quality = find('#quality'); const privacy = find('#privacy'); const time = find('#time');\nconst stability = find('#stability'); const activation = find('#activation'); const relevance = find('#relevance');\nconst status = (entry) => ['pass', 'fail', 'unknown'].includes(entry?.[1]?.status) ? entry[1].status : 'unknown';\nconst ref = (entry) => entry ? [entry[0]] : [];\nconst errors = [];\nif (!audience || typeof audience !== 'object') errors.push('Audience result must be a JSON object.');\nif (audience?.mode === 'data_based') {\n  for (const segment of audience.segments ?? []) {\n    const match = Object.entries(calculations).find(([, value]) => value?.rule_ref === segment.definition?.rule_or_model_ref && value?.membership_ref === segment.definition?.membership_ref);\n    if (!match) { errors.push(`Observed segment lacks trusted artifacts: ${segment.segment_id ?? 'unknown'}`); continue; }\n    const [calculationRef, calculation] = match;\n    segment.origin = 'observed';\n    segment.definition = { inclusion_rules: calculation.inclusion_rules ?? [], exclusion_rules: calculation.exclusion_rules ?? [], missing_value_policy: calculation.missing_value_policy ?? null, method: calculation.method ?? null, rule_or_model_ref: calculation.rule_ref, membership_ref: calculation.membership_ref };\n    segment.size = { count: calculation.count, base_count: calculation.base_count, share: calculation.share, population: calculation.population, source_refs: [calculationRef] };\n    segment.checks = [\n      ['data_quality', quality?.[1]?.missing_feature_values === 0 && quality?.[1]?.duplicate_clients_after_deduplication === 0 && quality?.[1]?.join_expansion === false ? 'pass' : 'unknown', ref(quality)],\n      ['relevance', status(relevance), ref(relevance)], ['reproducibility', 'pass', [calculationRef]],\n      ['min_size', calculation.count >= (context.config?.min_segment_size ?? Infinity) && calculation.count >= (context.config?.small_group_suppression_threshold ?? Infinity) ? 'pass' : 'unknown', [calculationRef]],\n      ['stability', status(stability), ref(stability)], ['privacy_bias', privacy?.[1]?.bias_check === 'pass' ? 'pass' : 'unknown', ref(privacy)],\n      ['leakage', time?.[1]?.all_event_times_before_cutoff && time?.[1]?.all_available_at_before_cutoff && time?.[1]?.current_experiment_fields_used === false ? 'pass' : 'unknown', ref(time)],\n      ['activation', status(activation), ref(activation)],\n    ].map(([name, checkStatus, source_refs]) => ({ name, status: checkStatus, detail: 'Status is derived from trusted calculation artifacts.', source_refs }));\n  }\n}\nif (source) {\n  audience.data_profile = { unit: source.unit ?? null, cutoff_at: source.cutoff_at ?? null, observation_window: source.window ?? { start: null, end: null }, snapshot_refs: source.snapshot_ref ? [source.snapshot_ref] : [], coverage: { text: quality?.[1]?.coverage_share == null ? null : `Aggregate coverage: ${quality[1].coverage_share}.`, kind: quality?.[1]?.coverage_share == null ? 'unknown' : 'fact', source_refs: quality?.[1]?.coverage_share == null ? [] : ref(quality), rationale: quality?.[1]?.coverage_share == null ? 'Coverage was not supplied.' : null }, quality_issues: [] };\n}\naudience.review_status = 'pending';\nreturn [{ json: { audience, validation: { valid: errors.length === 0, errors }, repair_attempted: $json.repair_attempted === true } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        -200
+      ],
+      "id": "8ef1f32f-734c-4fae-a6c0-b41b36ebb655",
+      "name": "Нормализовать и проверить"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "97e48e87-5554-4d09-97d9-b07036f69dbd",
+              "leftValue": "={{ $json.validation.valid || $json.repair_attempted === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        980,
+        -200
+      ],
+      "id": "160e1576-e616-47e8-b0d4-8a7da9ba0881",
+      "name": "Валиден?"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# Tempo audience segmentation contract\n\nYou work only with a supplied aggregate audience context and a source-backed\nproduct passport. Never request, invent, or expose client-level records, IDs,\nemails, phones, or contact data. Treat missing evidence as `unknown`.\n\nAn observed `data_based` segment is allowed only when a supplied calculation\nartifact provides its rule reference, membership reference, count, base count,\nand share. Do not infer these values. A proposed segment must be\n`hypothesis_only`; it must not have observed size or membership data.\n\nNever mark product-manager confirmation as completed. That remains an external\nevent with status `pending`.\n\n\n# Stage contract\n\nReturn one JSON object only. Keep claims source-backed. For an unsupported or\nmissing claim, use an explicit `unknown` boundary rather than inventing a fact,\ncalculation, source reference, or approval.\n\n\nЭТАП: repair. Исправь только ошибки проверки. Не добавляй факты, источники, расчёты или подтверждения.\nРЕЗУЛЬТАТ:\n{{ JSON.stringify($json.audience) }}\nОШИБКИ:\n{{ JSON.stringify($json.validation.errors) }}",
+        "options": {},
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        1220,
+        -80
+      ],
+      "id": "91e04ca2-bada-499f-a00d-5b94935187ab",
+      "name": "Исправить только контракт"
+    },
+    {
+      "parameters": {
+        "jsCode": "const repaired = $json.output ?? $json.text ?? $json;\nreturn [{ json: { audience: typeof repaired === 'string' ? JSON.parse(repaired) : repaired, repair_attempted: true } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        -80
+      ],
+      "id": "b11c4166-232d-4f16-9daa-108e3334260f",
+      "name": "Повторно проверить ремонт"
+    },
+    {
+      "parameters": {
+        "jsCode": "const segmentChecks = ($json.audience?.segments ?? []).flatMap((segment) => segment.checks ?? []);\nconst unknown = segmentChecks.filter((check) => check.status === 'unknown').map((check) => check.name);\nreturn [{ json: { ...$json, review: { critic_checks: [], validator_checks: unknown.map((name) => ({ name, status: 'unknown', detail: 'Trusted calculation artifact is missing or unresolved.', source_refs: [] })), product_manager_confirmation: { status: 'pending', detail: 'Product-manager confirmation is an external event.' } } } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        -260
+      ],
+      "id": "f8356cc2-001d-44e6-be5f-9f45199304bf",
+      "name": "Детерминированный review"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        460,
+        140
+      ],
+      "id": "0f25f7d7-eacd-48bf-8620-2d6ea2396367",
+      "name": "OpenAI-compatible model (audience)",
+      "notes": "Attach a credential before execution. This workflow never reads raw client records.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\": \"object\", \"additionalProperties\": true}",
+        "autoFix": true,
+        "customizeRetryPrompt": false
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -100,
+        20
+      ],
+      "id": "94a4a7a0-fea3-4593-a08d-bf5cd7353ac9",
+      "name": "Структура профиля",
+      "notes": "Parses JSON before the deterministic validation layer. Keep the stage prompt and contract editable.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\": \"object\", \"additionalProperties\": true}",
+        "autoFix": true,
+        "customizeRetryPrompt": false
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        180,
+        20
+      ],
+      "id": "b624b506-053f-447b-9998-25b3c0b80d0b",
+      "name": "Структура плана",
+      "notes": "Parses JSON before the deterministic validation layer. Keep the stage prompt and contract editable.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\": \"object\", \"additionalProperties\": true}",
+        "autoFix": true,
+        "customizeRetryPrompt": false
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        460,
+        20
+      ],
+      "id": "64138e89-c18e-4e41-8454-1c937f623e02",
+      "name": "Структура результата",
+      "notes": "Parses JSON before the deterministic validation layer. Keep the stage prompt and contract editable.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\": \"object\", \"additionalProperties\": true}",
+        "autoFix": true,
+        "customizeRetryPrompt": false
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1220,
+        140
+      ],
+      "id": "0b9c0b99-cf14-4cb5-be45-9470968c02e0",
+      "name": "Структура ремонта",
+      "notes": "Parses JSON before the deterministic validation layer. Keep the stage prompt and contract editable.",
+      "notesInFlow": true
+    }
+  ],
+  "connections": {
+    "Запустить аудитории": {
+      "main": [
+        [
+          {
+            "node": "Агрегированный контекст аудитории",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Паспорт продукта",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Агрегированный контекст аудитории": {
+      "main": [
+        [
+          {
+            "node": "Контекст + паспорт",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Паспорт продукта": {
+      "main": [
+        [
+          {
+            "node": "Контекст + паспорт",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Контекст + паспорт": {
+      "main": [
+        [
+          {
+            "node": "Подготовить безопасный вход",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовить безопасный вход": {
+      "main": [
+        [
+          {
+            "node": "Профилировать аудиторию",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Профилировать аудиторию": {
+      "main": [
+        [
+          {
+            "node": "Сегментировать аудиторию",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Сегментировать аудиторию": {
+      "main": [
+        [
+          {
+            "node": "Интерпретировать сегменты",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Интерпретировать сегменты": {
+      "main": [
+        [
+          {
+            "node": "Нормализовать и проверить",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Нормализовать и проверить": {
+      "main": [
+        [
+          {
+            "node": "Валиден?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Валиден?": {
+      "main": [
+        [
+          {
+            "node": "Детерминированный review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Исправить только контракт",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Исправить только контракт": {
+      "main": [
+        [
+          {
+            "node": "Повторно проверить ремонт",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Повторно проверить ремонт": {
+      "main": [
+        [
+          {
+            "node": "Нормализовать и проверить",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Структура профиля": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Профилировать аудиторию",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Структура плана": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Сегментировать аудиторию",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Структура результата": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Интерпретировать сегменты",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Структура ремонта": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Исправить только контракт",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI-compatible model (audience)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Профилировать аудиторию",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Сегментировать аудиторию",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Интерпретировать сегменты",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Исправить только контракт",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1d026e20-28d2-4d3b-8139-7034664aa838",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
