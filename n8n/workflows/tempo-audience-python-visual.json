@@ -1,0 +1,204 @@
+{
+  "id": "tempo-audience-python-visual-v1",
+  "name": "Tempo audience — Python visual mirror (one run)",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -900,
+        0
+      ],
+      "id": "tempo-audience-start",
+      "name": "Запустить аудиторию"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "tempo-audience-model",
+              "name": "model",
+              "value": "minimax/minimax-m3",
+              "type": "string"
+            },
+            {
+              "id": "tempo-audience-product-model",
+              "name": "product_model",
+              "value": "minimax/minimax-m3",
+              "type": "string"
+            },
+            {
+              "id": "tempo-audience-timeout",
+              "name": "timeout",
+              "value": 120,
+              "type": "number"
+            },
+            {
+              "id": "tempo-audience-run-timeout",
+              "name": "run_timeout",
+              "value": 600,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -680,
+        0
+      ],
+      "id": "tempo-audience-config",
+      "name": "Параметры запуска",
+      "notes": "Визуальная копия конфигурации. Фактический запуск выполняет Python audience_service.py; один model run, без benchmark и global evaluator.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8098/audience/run",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $json.model, product_model: $json.product_model, timeout: $json.timeout, run_timeout: $json.run_timeout }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -420,
+        0
+      ],
+      "id": "tempo-audience-python-run",
+      "name": "Python audience pipeline — one run",
+      "notes": "Execution source of truth: eval/audience_service.py → tempo_eval/audience_workflow.py → private SQLite. n8n receives only the safe aggregate result.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => ({ json: { run_id: item.json.run_id, model: item.json.model, status: item.json.status, result: item.json.result, validation: item.json.result?.validation, audience: item.json.result?.audience, calculation: item.json.result?.calculation } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -120,
+        0
+      ],
+      "id": "tempo-audience-safe-result",
+      "name": "Показать aggregate result",
+      "notes": "Только aggregate output. client_id, raw rows и membership list не передаются в n8n.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "content": "# Visualized Python prompts\n\nThese notes are duplicated prompt references for temporary visualization. Python remains authoritative and executes the prompts.\n\nSource: eval/tempo_eval/audience_workflow.py\n\nStages:\n1. data contract + safe profile\n2. semantic feature retrieval\n3. audience_query\n4. SQLite calculation\n5. query result review / refine loop\n6. audience_interpretation\n7. audience_critic\n8. audience_validator\n9. audience_privacy_review\n10. deterministic validation + safety gate",
+        "height": 300,
+        "width": 430,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -850,
+        220
+      ],
+      "id": "tempo-audience-prompt-map",
+      "name": "Prompt map — Python source of truth"
+    },
+    {
+      "parameters": {
+        "content": "# audience_query\n\nTEMPORARY VISUAL COPY — Python remains authoritative and executes this prompt.\n\nPython source: eval/tempo_eval/audience_workflow.py::_query_prompt\n\nThe following is the duplicated Python prompt builder:\n\n```python\ndef _query_prompt(\n    product_passport: dict[str, Any],\n    data_profile: dict[str, Any],\n    max_segments: int,\n    retrieved_cards: list[dict[str, Any]],\n    config: AudiencePipelineConfig,\n) -> str:\n    return f\"\"\"Ты выбираешь один воспроизводимый сегмент клиентов для продукта.\n\n{load_prompt(\"audience-data-contract.md\")}\n\n    Ты не видишь сырые записи, client_id или персональные данные. Ты можешь вернуть только один запрос с условиями по полям и точным значениям из value_catalog. Каждое условие должно встречаться хотя бы раз в каждом календарном месяце выбранного окна. window_start и window_end обязаны быть первым днём календарного месяца; window_end является исключающей границей. Если последний event_timestamp приходится на середину месяца, последний месяц неполный: используй первым днём этого неполного месяца как window_end (например, при последнем событии 2026-09-28 используй window_end=2026-09-01), а не первый день следующего месяца. Не используй forbidden_fields, кампании, баланс, демографию или географию. Не выдумывай поля, значения или период.\n\n    Это начальная версия: max_segments={max_segments}; верни один лучший сегмент, а не несколько.\n\nПОЛИТИКА ПАЙПЛАЙНА:\n{json.dumps(config.as_dict(), ensure_ascii=False)}\nМинимальный размер сегмента учитывается отдельным валидатором. Канал\n`ad_platform` сейчас объявлен доступным конфигурацией; это не доказывает\nналичие согласия или фактическое сопоставление клиентов с каналом.\n\nСЕМАНТИЧЕСКИ НАЙДЕННЫЕ КАРТОЧКИ ПРИЗНАКОВ:\n{json.dumps(retrieved_cards, ensure_ascii=False)}\n\nКарточки помогают выбрать релевантные признаки, но не доказывают существование сегмента. Используй только точные filters из карточек или точные field/value из value_catalog. Расчёт состава и размера выполнит отдельный локальный инструмент.\n\nПАСПОРТ ПРОДУКТА:\n{json.dumps(product_passport, ensure_ascii=False)}\n\n    БЕЗОПАСНЫЙ ПРОФИЛЬ ДАННЫХ:\n{json.dumps(data_profile, ensure_ascii=False)}\n\"\"\"\n\n```",
+        "height": 520,
+        "width": 360,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -360,
+        220
+      ],
+      "id": "tempo-audience-query-prompt",
+      "name": "Prompt — query proposal"
+    },
+    {
+      "parameters": {
+        "content": "# audience_query_result_review\n\nTEMPORARY VISUAL COPY — Python remains authoritative and executes this prompt.\n\nPython source: eval/tempo_eval/audience_workflow.py::_query_result_prompt\n\nThe following is the duplicated Python prompt builder:\n\n```python\ndef _query_result_prompt(\n    product_passport: dict[str, Any],\n    data_profile: dict[str, Any],\n    query: AudienceQuery,\n    calculation: dict[str, Any],\n    query_history: list[dict[str, Any]],\n    semantic_cards: list[dict[str, Any]],\n    config: AudiencePipelineConfig,\n) -> str:\n    return f\"\"\"Ты оцениваешь результат уже выполненного запроса к SQLite.\n\nРеши, достаточно ли результат полезен для продуктовой гипотезы. Верни\ndecision=use_result, если текущий сегмент релевантен и его можно интерпретировать.\nВерни decision=refine, если нужно попробовать другой разрешённый сигнал,\nпериод или комбинацию фильтров. При refine обязательно верни next_query.\nИспользуй только точные поля и значения из безопасного профиля и текущих\nкарточек/запроса. Не выдумывай размер, мотив или персональные данные.\n\nУчитывай конфигурацию: минимальный размер сегмента — это обязательный порог;\nесли он не достигнут, обычно предложи refinement, если в каталоге есть\nразумная альтернатива. Не ослабляй правило только ради размера и не добавляй\nзапрещённые признаки. Если данных недостаточно для уверенного решения,\nвыбери refine только при наличии конкретного допустимого следующего запроса;\nиначе выбери use_result и объясни ограничение в reason. Нулевой или меньший\nминимального порога результат нельзя считать пригодным сегментом.\n\nПредпочитай несколько независимых, взаимно усиливающих поведенческих сигналов\nиз разных полей или типов событий, когда они поддерживают одну продуктовую\nгипотезу. Один общий потребительский сигнал сам по себе недостаточен.\n\nТекущая итерация не должна повторять тот же запрос без изменения.\nЕсли window_diagnostics содержит suggested_window_end, сначала проверь refinement\nс этой исключающей границей: trailing zero months делают recurring-сегмент пустым.\n\nКОНФИГУРАЦИЯ:\n{json.dumps(config.as_dict(), ensure_ascii=False)}\n\nПАСПОРТ ПРОДУКТА:\n{json.dumps(product_passport, ensure_ascii=False)}\n\nПРОФИЛЬ ДАННЫХ:\n{json.dumps(data_profile, ensure_ascii=False)}\n\nТЕКУЩИЙ ЗАПРОС:\n{json.dumps(query.model_dump(mode=\"json\"), ensure_ascii=False)}\n\nРЕЗУЛЬТАТ SQLITE:\n{json.dumps(calculation, ensure_ascii=False)}\n\nИСТОРИЯ ПРЕДЫДУЩИХ ИТЕРАЦИЙ:\n{json.dumps(query_history, ensure_ascii=False)}\n\nДОСТУПНЫЕ КАРТОЧКИ ПРИЗНАКОВ:\n{json.dumps(semantic_cards, ensure_ascii=False)}\n\"\"\"\n\n```",
+        "height": 520,
+        "width": 360,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        40,
+        220
+      ],
+      "id": "tempo-audience-review-prompt",
+      "name": "Prompt — result review and refinement"
+    },
+    {
+      "parameters": {
+        "content": "# audience_interpretation\n\nTEMPORARY VISUAL COPY — Python remains authoritative and executes this prompt.\n\nPython source: eval/tempo_eval/audience_workflow.py::_interpretation_prompt\n\nThe following is the duplicated Python prompt builder:\n\n```python\ndef _interpretation_prompt(\n    product_passport: dict[str, Any], data_profile: dict[str, Any], calculation: dict[str, Any]\n) -> str:\n    return f\"\"\"Интерпретируй уже рассчитанный сегмент для продукта и ответь на вопросы аудитории: кто потенциально релевантен гипотезе, в каком контексте используется продукт, какой JTBD или боль наблюдается, какие реальные сигналы это подтверждают, какие сигналы могут указывать на готовность, какие потребности и мотивации возможны, а также какие есть триггеры, барьеры и сомнения. Не меняй правило, размер, долю, период, признаки или источники. Не утверждай, что поведение доказывает мотив, владение бизнесом, потребность или готовность купить. Не раскрывай персональные данные.\n\n{load_prompt(\"audience-data-contract.md\")}\n\nДля неподтверждённого утверждения верни kind=unknown и text=null. Для интерпретации верни kind=inference с кратким rationale. product relevance обычно является inference, если нет отдельного подтверждённого исследования.\nПоле questions используй только для нерешённых вопросов к продукту или данным,\nнапример для отсутствующих сигналов; это не подтверждение факта и не запрос к\nпользователю внутри текущего запуска.\n\nПАСПОРТ ПРОДУКТА:\n{json.dumps(product_passport, ensure_ascii=False)}\n\nПРОФИЛЬ ДАННЫХ:\n{json.dumps(data_profile, ensure_ascii=False)}\n\nРЕЗУЛЬТАТ РАСЧЁТА:\n{json.dumps(calculation, ensure_ascii=False)}\n\"\"\"\n\n```\n\n# audience_critic\n\nTEMPORARY VISUAL COPY — Python remains authoritative and executes this prompt.\n\nPython source: eval/tempo_eval/audience_workflow.py::_critic_prompt\n\nThe following is the duplicated Python prompt builder:\n\n```python\ndef _critic_prompt(\n    product_passport: dict[str, Any],\n    data_profile: dict[str, Any],\n    audience: AudienceResult,\n    calculation: dict[str, Any],\n    evidence: dict[str, Any],\n    inspection_history: list[dict[str, Any]],\n    config: AudiencePipelineConfig,\n) -> str:\n    return f\"\"\"Ты независимый AI-критик результата сегментации аудитории.\n\nРаботай итеративно. Верни decision=inspect, если для проверки нужен один\nдопустимый агрегатный срез, и заполни request. Верни decision=final, когда\nдоказательств достаточно, и заполни review проверками по категориям relevance,\nsensitive_features_and_bias, interpretability и target_information_leakage.\nСтатус fail ставь только при конкретном противоречии продукту, запрещённом\nпризнаке, утечке или другой проблеме, которая делает результат непригодным.\nЕсли данные не доказывают роль человека, намерение или JTBD, но поведение\nостаётся совместимым с продуктовой гипотезой, верни unknown и объясни\nограничение. Не превращай отсутствие доказательства в fail и не придумывай\nотсутствующие данные.\n\nПроверь в том числе косвенные чувствительные признаки: географию, демографию,\nдоход, баланс, личность, контакты и очевидные поведенческие прокси. Не\nповторяй потенциальные персональные значения в detail или rationale.\n\nПАСПОРТ ПРОДУКТА:\n{json.dumps(product_passport, ensure_ascii=False)}\n\nПРОФИЛЬ ДАННЫХ:\n{json.dumps(data_profile, ensure_ascii=False)}\n\nРЕЗУЛЬТАТ:\n{json.dumps(audience.model_dump(mode=\"json\"), ensure_ascii=False)}\n\nРАСЧЁТ:\n{json.dumps(calculation, ensure_ascii=False)}\n\nДОПОЛНИТЕЛЬНОЕ АГРЕГАТНОЕ ДОКАЗАТЕЛЬСТВО:\n{json.dumps(evidence, ensure_ascii=False)}\n\nИСТОРИЯ ИНСПЕКЦИЙ:\n{json.dumps(inspection_history, ensure_ascii=False)}\n\nРазрешённые виды request.kind: condition_breakdown, monthly_breakdown,\nvalue_distribution, condition_overlap. Один request за итерацию; не проси\nсырые строки, client_id или membership list.\n\"\"\"\n\n```\n\n# audience_validator\n\nTEMPORARY VISUAL COPY — Python remains authoritative and executes this prompt.\n\nPython source: eval/tempo_eval/audience_workflow.py::_validator_prompt\n\nThe following is the duplicated Python prompt builder:\n\n```python\ndef _validator_prompt(\n    data_profile: dict[str, Any],\n    audience: AudienceResult,\n    calculation: dict[str, Any],\n    evidence: dict[str, Any],\n    inspection_history: list[dict[str, Any]],\n    config: AudiencePipelineConfig,\n) -> str:\n    return f\"\"\"Ты независимый AI-валидатор результата сегментации.\n\n    Работай итеративно. Верни decision=inspect, если для проверки нужен один\n    допустимый агрегатный срез, и заполни request. Верни decision=final, когда\n    доказательств достаточно, и заполни review с проверками data_quality,\n    minimum_group_size, stability_across_periods_or_samples и\n    channel_availability. Используй переданные детерминированные результаты\n    SQLite и конфигурацию как источник истины. Не оценивай и не имитируй\n    подтверждение продакт-менеджера: оно происходит после пайплайна человеком.\n\nЕсли данных для проверки нет, верни unknown, а не pass. Для\nchannel_availability различай: разрешение канала политикой — pass для\nконфигурационного чека; фактическое согласие, identity resolution и\nконтактируемость клиентов — внешнее ограничение, а не причина блокировать\nрезультат. Для stability_across_periods_or_samples месячная повторяемость\nвнутри одного окна не равна проверке на альтернативном периоде или выборке:\nбез такого расчёта верни unknown.\n\nКОНФИГУРАЦИЯ:\n{json.dumps(config.as_dict(), ensure_ascii=False)}\n\nПРОФИЛЬ ДАННЫХ:\n{json.dumps(data_profile, ensure_ascii=False)}\n\nРЕЗУЛЬТАТ:\n{json.dumps(audience.model_dump(mode=\"json\"), ensure_ascii=False)}\n\nРАСЧЁТ И ДЕТЕРМИНИРОВАННЫЕ ПРОВЕРКИ:\n{json.dumps(calculation, ensure_ascii=False)}\n\nДОПОЛНИТЕЛЬНОЕ АГРЕГАТНОЕ ДОКАЗАТЕЛЬСТВО:\n{json.dumps(evidence, ensure_ascii=False)}\n\nИСТОРИЯ ИНСПЕКЦИЙ:\n{json.dumps(inspection_history, ensure_ascii=False)}\n\nРазрешённые виды request.kind: condition_breakdown, monthly_breakdown,\nvalue_distribution, condition_overlap. Один request за итерацию; не проси\nсырые строки, client_id или membership list.\n\"\"\"\n\n```\n\n# audience_privacy_review\n\nTEMPORARY VISUAL COPY — Python remains authoritative and executes this prompt.\n\nPython source: eval/tempo_eval/audience_workflow.py::_privacy_prompt\n\nThe following is the duplicated Python prompt builder:\n\n```python\ndef _privacy_prompt(audience: AudienceResult, calculation: dict[str, Any]) -> str:\n    return f\"\"\"Ты выполняешь отдельную проверку приватности результата сегментации.\n\nПроверь только опубликованный результат и расчёт на наличие client_id,\nидентификаторов, контактов, raw records, membership lists, имён, телефонов,\nemail, адресов или иных персональных значений. Не считай dataset_ref,\nrule_ref и membership_ref персональными данными: это закрытые ссылки. Само\nназвание поля client_id в описании политики также не является утечкой; ищи\nреальные идентификаторы, значения и списки.\n\nВерни fail, если обнаружена конкретная утечка; unknown, если проверить нельзя.\nНе цитируй обнаруженные персональные значения и указывай только категорию\nутечки. Эта проверка не раскрывает и не запрашивает состав сегмента.\n\nРЕЗУЛЬТАТ:\n{json.dumps(audience.model_dump(mode=\"json\"), ensure_ascii=False)}\n\nРАСЧЁТ:\n{json.dumps(calculation, ensure_ascii=False)}\n\"\"\"\n\n```",
+        "height": 900,
+        "width": 430,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        440,
+        220
+      ],
+      "id": "tempo-audience-review-prompts",
+      "name": "Prompt map — interpretation and reviews"
+    }
+  ],
+  "connections": {
+    "Запустить аудиторию": {
+      "main": [
+        [
+          {
+            "node": "Параметры запуска",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Параметры запуска": {
+      "main": [
+        [
+          {
+            "node": "Python audience pipeline — one run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Python audience pipeline — one run": {
+      "main": [
+        [
+          {
+            "node": "Показать aggregate result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "tempo-audience-python-visual-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

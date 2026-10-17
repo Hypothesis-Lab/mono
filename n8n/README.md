@@ -101,6 +101,30 @@ After the passport is ready, **Оценить паспорт по критери
 
 The current local version reads the same mounted `/product/` files, excluding `README.md`. Edit **Параметры запуска** to change the target product or effective date. Attach a model credential to **OpenAI-compatible model (extraction)** before execution. The workflow is inactive and starts manually from the editor.
 
+## Audience Python visual mirror
+
+The temporary audience visualization is in
+`workflows/tempo-audience-python-visual.json`. It keeps Python as the execution
+source of truth and shows duplicated prompt stages in n8n notes. It runs one
+model once; it does not run the three-run benchmark or the global evaluator.
+
+Start the local Python bridge from the `eval/` directory:
+
+```sh
+uv run python audience_service.py
+```
+
+Then import the workflow in n8n. The HTTP node calls
+`http://host.docker.internal:8098/audience/run`; the existing compose file
+already maps `host.docker.internal` to the host. The service keeps the XLSX and
+SQLite private and returns only the safe aggregate audience result to n8n.
+
+Regenerate the prompt-copy notes after Python prompt changes:
+
+```sh
+uv run python ../n8n/scripts/generate_audience_visual_workflow.py
+```
+
 ## Planned Tempo graph
 
 The starter workflow is deliberately small so the UI can be verified before importing the full passport pipeline. The target graph is:
