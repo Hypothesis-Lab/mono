@@ -133,7 +133,32 @@ uv run python report.py \
 ```
 
 Open `report.html` in a browser. The report has separate views for the
-passport result, evaluation, latest checkpoint, and raw model entry.
+passport result, evaluation, latest checkpoint, raw model entry, and (for
+multi-model audience results) an algorithmic global comparison tab.
+
+Run the audience graph three times per model and compare run stability:
+
+```sh
+uv run python audience_benchmark.py \
+  --models minimax/minimax-m3 deepseek/deepseek-v4.1-flash \
+  --runs 3 \
+  --product-result results/additional-models.json \
+  --product-model minimax/minimax-m3 \
+  --output results/audience-benchmark.json \
+  --checkpoints checkpoints/audience-benchmark
+```
+
+The global tab algorithmically selects the first completed run for each model.
+An optional model-based cross-model evaluator can be invoked separately:
+
+```sh
+uv run python global_audience_eval.py \
+  --results results/audience-benchmark.json \
+  --evaluator-model minimax/minimax-m3
+```
+
+It writes the comparison into the benchmark JSON; regenerate the report to show
+the evaluator findings in the global tab.
 
 ## Run the C9 benchmark
 

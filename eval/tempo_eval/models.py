@@ -113,6 +113,16 @@ class StabilityEvaluation(StrictModel):
     limitations: list[str]
 
 
+class GlobalAudienceComparison(StrictModel):
+    overall_status: Literal["complete", "partial", "blocked"]
+    summary: str
+    consensus: list[str]
+    model_specific_differences: list[str]
+    inconsistencies: list[str]
+    shared_limitations: list[str]
+    recommended_follow_ups: list[str]
+
+
 class AudienceClaim(StrictModel):
     text: str | None
     kind: Literal["fact", "inference", "unknown"]

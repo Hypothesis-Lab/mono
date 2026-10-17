@@ -64,6 +64,7 @@ class ReportBuilder:
         self.checkpoints_dir = checkpoints_dir
         self.pipeline = pipeline
         self.max_runs = 3
+        self.global_evaluation: dict[str, Any] | None = None
 
     def build(self) -> dict[str, Any]:
         models = self._load_results()
@@ -88,6 +89,7 @@ class ReportBuilder:
             "generated_at": datetime.now(UTC).isoformat(),
             "benchmark": {"max_runs": self.max_runs},
             "models": list(models.values()),
+            "global_evaluation": self.global_evaluation,
         }
 
     def write(self, output: Path) -> None:
@@ -110,6 +112,8 @@ class ReportBuilder:
             )
             if self.pipeline != "auto" and pipeline != self.pipeline:
                 continue
+            if isinstance(payload.get("global_evaluation"), dict):
+                self.global_evaluation = payload["global_evaluation"]
             if isinstance(benchmark, dict) and isinstance(benchmark.get("max_runs"), int):
                 self.max_runs = benchmark["max_runs"]
             elif self.results_dir.is_file() and all(
@@ -302,17 +306,24 @@ def render_html(payload: dict[str, Any]) -> str:
       {fallback}
       <div id="empty" class="muted">No model results or checkpoints found.</div>
       <div id="content" class="hidden">
-        <h2 id="title"></h2>
-        <div class="tabs">
-          <button data-tab="result">Result</button>
-          <button data-tab="evaluation">Evaluation</button>
-          <button data-tab="checkpoint">Checkpoint</button>
-          <button data-tab="raw">Raw model entry</button>
-        </div>
-        <section id="result-panel"></section>
-        <section id="evaluation-panel" class="hidden"></section>
-        <section id="checkpoint-panel" class="hidden"></section>
-        <section id="raw-panel" class="hidden"></section>
+         <div class="tabs global-tabs">
+           <button class="active" data-global-tab="models">Model reports</button>
+           <button data-global-tab="global">Global comparison</button>
+         </div>
+         <div id="model-content">
+           <h2 id="title"></h2>
+           <div class="tabs">
+             <button data-tab="result">Result</button>
+             <button data-tab="evaluation">Evaluation</button>
+             <button data-tab="checkpoint">Checkpoint</button>
+             <button data-tab="raw">Raw model entry</button>
+           </div>
+           <section id="result-panel"></section>
+           <section id="evaluation-panel" class="hidden"></section>
+           <section id="checkpoint-panel" class="hidden"></section>
+           <section id="raw-panel" class="hidden"></section>
+         </div>
+         <section id="global-panel" class="hidden"></section>
       </div>
     </main>
   </div>
@@ -406,8 +417,9 @@ def render_html(payload: dict[str, Any]) -> str:
        bindViewToggle('evaluation');
        bindEvaluationTabs();
        bindRunSelector(item.model);
-      renderNav();
-    }}
+       renderGlobal();
+       renderNav();
+     }}
     function runSelector(runs, runIndex) {{
        return '<div class="run-selector"><strong>Runs (' + runs.length + '/' + maxRuns + '):</strong>' + runs.map((run, index) =>
          '<button class="' + (index === runIndex ? 'active' : '') + '" data-run-index="' + index + '">Run ' +
@@ -462,7 +474,7 @@ def render_html(payload: dict[str, Any]) -> str:
         panel.querySelectorAll('[data-pane="' + kind + '"]').forEach(pane => pane.classList.toggle('hidden', pane.dataset.mode !== button.dataset.viewMode));
       }});
     }}
-    function bindEvaluationTabs() {{
+     function bindEvaluationTabs() {{
       const panel = document.getElementById('evaluation-panel');
       panel.querySelectorAll('[data-evaluation-tab]').forEach(button => button.onclick = () => {{
         panel.querySelectorAll('[data-evaluation-tab]').forEach(tab => tab.classList.toggle('active', tab === button));
@@ -497,6 +509,14 @@ def render_html(payload: dict[str, Any]) -> str:
         (conflicts ? '<div class="callout error"><h3>Conflicts</h3><ul>' + conflicts + '</ul></div>' : '') +
         (gaps ? '<div class="callout warn"><h3>Gaps</h3><ul>' + gaps + '</ul></div>' : '') +
         (warnings ? '<div class="callout warn"><h3>Warnings</h3><ul>' + warnings + '</ul></div>' : '');
+     }}
+     function bindGlobalTabs() {{
+       document.querySelectorAll('[data-global-tab]').forEach(button => button.onclick = () => {{
+         const global = button.dataset.globalTab === 'global';
+         document.querySelectorAll('[data-global-tab]').forEach(tab => tab.classList.toggle('active', tab === button));
+         document.getElementById('model-content').classList.toggle('hidden', global);
+         document.getElementById('global-panel').classList.toggle('hidden', !global);
+       }});
      }}
       function audienceRendered(audience, validation, calculation) {{
         if (!audience) return '<p class="muted">No audience result has been produced yet.</p>';
@@ -545,7 +565,7 @@ def render_html(payload: dict[str, Any]) -> str:
           aggregateProfileRendered(calculation) +
           '</article>';
       }}
-      function aggregateProfileRendered(calculation) {{
+     function aggregateProfileRendered(calculation) {{
         const aggregate = calculation && calculation.aggregate_summary;
         if (!aggregate) return '';
         const distributionRows = (aggregate.value_distributions || []).flatMap(distribution => (distribution.values || []).map(item => ({{
@@ -566,6 +586,69 @@ def render_html(payload: dict[str, Any]) -> str:
           (distributionRows ? '<p><strong>Most common categorical values among segment events</strong></p><div class="table-wrap"><table class="data-table"><thead><tr><th>Field</th><th>Value</th><th>Clients</th><th>Events</th><th>Event share</th></tr></thead><tbody>' + distributionRows + '</tbody></table></div>' : '') +
           (aggregate.excluded_event_types && aggregate.excluded_event_types.length ? '<p class="muted">Campaign event types excluded from activity characteristics: ' + esc(aggregate.excluded_event_types.join(', ')) + '</p>' : '') +
           '<p class="muted">These are aggregate characteristics only. They describe events associated with the qualifying clients, never individual people or membership.</p></div>';
+      }}
+      function firstCompletedRun(item) {{
+        const runs = (item.runs || []).filter(run => run.status === 'completed').sort((left, right) => (left.run_number || 1) - (right.run_number || 1));
+        if (runs.length) return runs[0];
+        if (item.status === 'completed' && item.result) return {{ ...item, run_number: item.run_number || 1 }};
+        return null;
+      }}
+      function globalModelSummary(item) {{
+        const run = firstCompletedRun(item);
+        if (!run) return {{ model: item.model, run: null, result: null }};
+        const result = run.result || {{}};
+        const calculation = result.calculation || {{}};
+        const audience = result.audience || {{}};
+        const segment = (audience.segments || [])[0] || {{}};
+        const query = calculation.query || result.query || {{}};
+        const rules = (segment.definition && segment.definition.inclusion_rules) || (calculation.feature_summaries || []).map(feature =>
+          (feature.filters || []).map(filter => filter.field + ' = ' + filter.value).join(' AND '));
+        return {{
+          model: item.model,
+          run: run.run_number || 1,
+          result,
+          calculation,
+          audience,
+          query,
+          rules,
+          signature: JSON.stringify({{ query: {{ ...query, name: undefined }}, rules, count: calculation.count, base_count: calculation.base_count }})
+        }};
+      }}
+      function globalComparisonRendered() {{
+        const summaries = models.map(globalModelSummary);
+        const available = summaries.filter(item => item.result);
+        if (!available.length) return '<p class="muted">No completed model results are available for comparison.</p>';
+        const globalEvaluation = report.global_evaluation && report.global_evaluation.status === 'completed' ? report.global_evaluation.evaluation : null;
+        const signatures = new Set(available.map(item => item.signature));
+        const windows = new Set(available.map(item => (item.query.window_start || 'unknown') + '..' + (item.query.window_end || 'unknown')));
+        const counts = new Set(available.map(item => String(item.calculation.count == null ? 'unknown' : item.calculation.count)));
+        const rows = summaries.map(item => {{
+          if (!item.result) return '<tr><td>' + esc(item.model) + '</td><td>—</td><td><span class="tag">no completed run</span></td><td>—</td><td>—</td><td>—</td></tr>';
+          const share = item.calculation.share == null ? '—' : (item.calculation.share * 100).toFixed(1) + '%';
+          return '<tr><td>' + esc(item.model) + '</td><td>' + esc(item.run) + '</td><td><span class="tag">' + esc(item.audience.status || 'unknown') + '</span></td><td>' + esc((item.calculation.count == null ? '—' : item.calculation.count) + ' / ' + (item.calculation.base_count == null ? '—' : item.calculation.base_count)) + '</td><td>' + esc(share) + '</td><td>' + esc((item.query.window_start || 'unknown') + ' → ' + (item.query.window_end || 'unknown')) + '</td></tr>';
+        }}).join('');
+        const differences = [];
+        if (signatures.size > 1) differences.push('Models produced different rules, windows, or counts.');
+        if (windows.size > 1) differences.push('Observation windows differ between models.');
+        if (counts.size > 1) differences.push('Calculated segment sizes differ between models.');
+        available.forEach(item => {{
+          if (!item.audience.segments || !item.audience.segments.length) differences.push(item.model + ' has no retained segment.');
+        }});
+        const ruleCards = available.map(item => '<article class="record"><h4>' + esc(item.model) + '</h4><p><strong>Rules</strong></p><ul>' + item.rules.map(rule => '<li>' + esc(rule) + '</li>').join('') + '</ul><p><strong>Candidate facts:</strong> ' + esc((item.calculation.count == null ? 'unknown' : item.calculation.count) + ' / ' + (item.calculation.base_count == null ? 'unknown' : item.calculation.base_count) + ', ' + (item.query.window_start || 'unknown') + ' → ' + (item.query.window_end || 'unknown')) + '</p></article>').join('');
+        const evaluatorPanel = globalEvaluation ? '<div class="callout"><h3>Cross-model evaluator</h3><p>' + esc(globalEvaluation.summary) + '</p>' +
+          '<p><strong>Consensus</strong></p><ul>' + (globalEvaluation.consensus || []).map(item => '<li>' + esc(item) + '</li>').join('') + '</ul>' +
+          '<p><strong>Model-specific differences</strong></p><ul>' + (globalEvaluation.model_specific_differences || []).map(item => '<li>' + esc(item) + '</li>').join('') + '</ul>' +
+          '<p><strong>Inconsistencies</strong></p><ul>' + (globalEvaluation.inconsistencies || []).map(item => '<li>' + esc(item) + '</li>').join('') + '</ul>' +
+          '<p><strong>Recommended follow-ups</strong></p><ul>' + (globalEvaluation.recommended_follow_ups || []).map(item => '<li>' + esc(item) + '</li>').join('') + '</ul></div>' : '<div class="callout"><p class="muted">Cross-model evaluator has not been run yet. Run global_audience_eval.py to add it.</p></div>';
+        return '<div class="hero"><strong>Global model comparison</strong><span class="tag">' + esc(available.length) + ' completed model outputs</span></div>' +
+          '<div class="cards">' + card('Candidate definitions', signatures.size === 1 ? '一致' : signatures.size + ' variants') + card('Windows', windows.size) + card('Sizes', counts.size) + card('First completed runs', available.length) + '</div>' +
+          evaluatorPanel +
+          '<h3>Model comparison</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Model</th><th>Run</th><th>Audience status</th><th>Size</th><th>Share</th><th>Window</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+          '<div class="callout ' + (differences.length ? 'warn' : '') + '"><h3>' + (differences.length ? 'Differences and anomalies' : 'Consensus') + '</h3><ul>' + (differences.length ? differences.map(item => '<li>' + esc(item) + '</li>').join('') : '<li>Completed models agree on the normalized candidate facts.</li>') + '</ul></div>' +
+          '<h3>Candidate definitions</h3><div class="record-grid">' + ruleCards + '</div>';
+      }}
+      function renderGlobal() {{
+        document.getElementById('global-panel').innerHTML = globalComparisonRendered();
       }}
       function audiencePipelineRendered(dataProfile, semanticCards, query, calculation, audience, validation, review) {{
         const retrieved = (semanticCards || []).map(card => '<li><strong>' + esc(card.id) + '</strong>: ' + esc(card.description) + '</li>').join('');
@@ -648,13 +731,14 @@ def render_html(payload: dict[str, Any]) -> str:
       if ((state.drafts || []).length >= (state.sources || []).length && (state.drafts || []).length) return 'consolidation';
       return 'source extraction';
     }}
-     document.querySelectorAll('[data-tab]').forEach(button => button.onclick = () => {{
+      document.querySelectorAll('[data-tab]').forEach(button => button.onclick = () => {{
        document.querySelectorAll('main section').forEach(panel => panel.classList.add('hidden'));
        document.querySelectorAll('[data-tab]').forEach(tab => tab.classList.toggle('active', tab === button));
        document.getElementById(button.dataset.tab + '-panel').classList.remove('hidden');
      }});
-    render();
-    document.querySelector('[data-tab="result"]').click();
+     render();
+     bindGlobalTabs();
+     document.querySelector('[data-tab="result"]').click();
   </script>
 </body>
 </html>
