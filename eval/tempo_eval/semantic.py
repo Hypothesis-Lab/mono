@@ -52,7 +52,7 @@ class LocalFeatureRetriever:
         self._vectors: list[list[float]] | None = None
         self._card_digest = _card_digest(self.cards)
 
-    def search(self, product_text: str, limit: int = 8) -> list[dict[str, Any]]:
+    def search(self, product_text: str, limit: int = 16) -> list[dict[str, Any]]:
         vectors = self._load_or_build_vectors()
         query_vector = _embed([f"query: {product_text}"])[0]
         scored = sorted(

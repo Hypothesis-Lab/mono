@@ -94,7 +94,9 @@ class AudienceWorkflow:
             "calculate", self.route_calculation, ["repair_query", "assess_query", "interpret", "blocked"]
         )
         builder.add_edge("repair_query", "calculate")
-        builder.add_conditional_edges("assess_query", self.route_query_decision, ["refine_query", "interpret"])
+        builder.add_conditional_edges(
+            "assess_query", self.route_query_decision, ["refine_query", "interpret", "blocked"]
+        )
         builder.add_edge("refine_query", "calculate")
         builder.add_edge("interpret", "finalize")
         builder.add_edge("blocked", "validate")
@@ -128,6 +130,7 @@ class AudienceWorkflow:
         calculation_json = _calculation_json(calculation)
         evidence = self.dataset.review_evidence(primary_query)
         calculation_json["review_evidence"] = evidence
+        calculation_json["window_diagnostics"] = _window_diagnostics(calculation_json)
         history = [
             *state.get("query_history", []),
             {
@@ -148,7 +151,7 @@ class AudienceWorkflow:
     ) -> Literal["repair_query", "assess_query", "interpret", "blocked"]:
         if not state.get("query_error"):
             if state.get("query_iteration", 1) >= self.config.max_query_iterations:
-                return "interpret"
+                return "interpret" if state["calculation"]["count"] >= self.config.minimum_segment_size else "blocked"
             return "assess_query"
         return "blocked" if state.get("repair_attempted") else "repair_query"
 
@@ -179,18 +182,25 @@ class AudienceWorkflow:
             state["query"],
             state["calculation"],
             state.get("query_history", []),
+            state.get("semantic_cards", []),
             self.config,
         )
-        return {
-            "query_decision": await self.client.complete_structured(
-                "audience_query_result_review", prompt, AudienceQueryDecision
+        decision = await self.client.complete_structured("audience_query_result_review", prompt, AudienceQueryDecision)
+        if state["calculation"]["count"] < self.config.minimum_segment_size and decision.decision == "use_result":
+            decision = await self.client.complete_structured(
+                "audience_query_result_required_refinement",
+                prompt + "\nОБЯЗАТЕЛЬНО: текущий результат ниже minimum_segment_size. Верни decision=refine "
+                "и конкретный next_query из разрешённых полей; use_result недопустим.",
+                AudienceQueryDecision,
             )
-        }
+        return {"query_decision": decision}
 
-    def route_query_decision(self, state: AudienceWorkflowState) -> Literal["refine_query", "interpret"]:
+    def route_query_decision(self, state: AudienceWorkflowState) -> Literal["refine_query", "interpret", "blocked"]:
         decision = AudienceQueryDecision.model_validate(state["query_decision"])
         if decision.decision == "refine" and decision.next_query is not None:
             return "refine_query"
+        if state["calculation"]["count"] < self.config.minimum_segment_size:
+            return "blocked"
         return "interpret"
 
     def refine_query(self, state: AudienceWorkflowState) -> dict[str, Any]:
@@ -458,19 +468,18 @@ class AudienceWorkflow:
                 request_id=None,
                 product_id=result.product_id,
                 status="blocked",
-                mode="none",
+                mode=result.mode,
                 data_profile=result.data_profile,
-                features_used=[],
+                features_used=result.features_used,
                 features_excluded=result.features_excluded,
-                segments=[],
-                overlaps={
-                    "status": "not_applicable",
-                    "detail": "Результат остановлен проверками качества и безопасности.",
-                    "source_refs": [],
-                },
-                missing_data=["Исправьте замечания критика или валидатора перед использованием сегмента."],
-                questions=[],
-                limitations=failures,
+                segments=result.segments,
+                overlaps=result.overlaps,
+                missing_data=[
+                    *result.missing_data,
+                    "Исправьте замечания критика или валидатора перед использованием сегмента.",
+                ],
+                questions=result.questions,
+                limitations=[*result.limitations, *failures],
                 review_status="pending",
                 configuration=result.configuration,
             )
@@ -540,6 +549,7 @@ def _query_result_prompt(
     query: AudienceQuery,
     calculation: dict[str, Any],
     query_history: list[dict[str, Any]],
+    semantic_cards: list[dict[str, Any]],
     config: AudiencePipelineConfig,
 ) -> str:
     return f"""Ты оцениваешь результат уже выполненного запроса к SQLite.
@@ -556,9 +566,16 @@ decision=use_result, если текущий сегмент релевантен
 разумная альтернатива. Не ослабляй правило только ради размера и не добавляй
 запрещённые признаки. Если данных недостаточно для уверенного решения,
 выбери refine только при наличии конкретного допустимого следующего запроса;
-иначе выбери accept и объясни ограничение в reason.
+иначе выбери use_result и объясни ограничение в reason. Нулевой или меньший
+минимального порога результат нельзя считать пригодным сегментом.
+
+Предпочитай несколько независимых, взаимно усиливающих поведенческих сигналов
+из разных полей или типов событий, когда они поддерживают одну продуктовую
+гипотезу. Один общий потребительский сигнал сам по себе недостаточен.
 
 Текущая итерация не должна повторять тот же запрос без изменения.
+Если window_diagnostics содержит suggested_window_end, сначала проверь refinement
+с этой исключающей границей: trailing zero months делают recurring-сегмент пустым.
 
 КОНФИГУРАЦИЯ:
 {json.dumps(config.as_dict(), ensure_ascii=False)}
@@ -577,6 +594,9 @@ decision=use_result, если текущий сегмент релевантен
 
 ИСТОРИЯ ПРЕДЫДУЩИХ ИТЕРАЦИЙ:
 {json.dumps(query_history, ensure_ascii=False)}
+
+ДОСТУПНЫЕ КАРТОЧКИ ПРИЗНАКОВ:
+{json.dumps(semantic_cards, ensure_ascii=False)}
 """
 
 
@@ -595,8 +615,12 @@ def _critic_prompt(
 допустимый агрегатный срез, и заполни request. Верни decision=final, когда
 доказательств достаточно, и заполни review проверками по категориям relevance,
 sensitive_features_and_bias, interpretability и target_information_leakage.
-Статус fail ставь, если есть конкретная проблема, которая делает результат
-непригодным. Не придумывай отсутствующие данные.
+Статус fail ставь только при конкретном противоречии продукту, запрещённом
+признаке, утечке или другой проблеме, которая делает результат непригодным.
+Если данные не доказывают роль человека, намерение или JTBD, но поведение
+остаётся совместимым с продуктовой гипотезой, верни unknown и объясни
+ограничение. Не превращай отсутствие доказательства в fail и не придумывай
+отсутствующие данные.
 
 Проверь в том числе косвенные чувствительные признаки: географию, демографию,
 доход, баланс, личность, контакты и очевидные поведенческие прокси. Не
@@ -644,8 +668,13 @@ def _validator_prompt(
     SQLite и конфигурацию как источник истины. Не оценивай и не имитируй
     подтверждение продакт-менеджера: оно происходит после пайплайна человеком.
 
-Если данных для проверки нет, верни unknown, а не pass. Не утверждай, что
-канал доступен конкретному клиенту только потому, что он разрешён политикой.
+Если данных для проверки нет, верни unknown, а не pass. Для
+channel_availability различай: разрешение канала политикой — pass для
+конфигурационного чека; фактическое согласие, identity resolution и
+контактируемость клиентов — внешнее ограничение, а не причина блокировать
+результат. Для stability_across_periods_or_samples месячная повторяемость
+внутри одного окна не равна проверке на альтернативном периоде или выборке:
+без такого расчёта верни unknown.
 
 КОНФИГУРАЦИЯ:
 {json.dumps(config.as_dict(), ensure_ascii=False)}
@@ -704,7 +733,30 @@ def _calculation_json(calculation: SegmentCalculation) -> dict[str, Any]:
         "share": calculation.share,
         "population": calculation.population,
         "feature_summaries": calculation.feature_summaries,
+        "aggregate_summary": calculation.aggregate_summary,
         "quality": calculation.quality,
+    }
+
+
+def _window_diagnostics(calculation: dict[str, Any]) -> dict[str, Any]:
+    first_zero_by_feature = {}
+    for feature in calculation["feature_summaries"]:
+        first_zero = next(
+            (item["month"] for item in feature["monthly_client_counts"] if item["client_count"] == 0),
+            None,
+        )
+        if first_zero is not None:
+            first_zero_by_feature[feature["name"]] = first_zero
+    candidates = [month for month in first_zero_by_feature.values() if month > calculation["query"]["window_start"]]
+    return {
+        "first_zero_month_by_feature": first_zero_by_feature,
+        "suggested_window_end": min(candidates) if candidates else None,
+        "interpretation": (
+            "A zero month can make an otherwise useful recurring pattern disappear; "
+            "consider the first zero month as an exclusive window_end."
+            if candidates
+            else "No trailing zero month was detected in the returned feature summaries."
+        ),
     }
 
 

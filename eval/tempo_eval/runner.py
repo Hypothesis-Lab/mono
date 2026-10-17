@@ -240,15 +240,18 @@ def compact_product_passport(passport: dict[str, Any]) -> dict[str, Any]:
         "features",
         "benefits",
         "pricing",
-        "terms",
         "limitations",
         "offers_channels",
-        "communication_rules",
     }
+    fields = ("id", "category", "subject", "statement", "conditions", "time_scope", "evidence_status")
     return {
         "product_name": passport.get("product_name"),
         "extraction_status": passport.get("extraction_status"),
-        "records": [record for record in passport.get("records", []) if record.get("category") in categories],
+        "records": [
+            {field: record.get(field) for field in fields}
+            for record in passport.get("records", [])
+            if record.get("category") in categories
+        ],
         "warnings": passport.get("warnings", []),
     }
 

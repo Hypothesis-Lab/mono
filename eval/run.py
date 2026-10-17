@@ -49,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--run-timeout",
         type=float,
-        default=180.0,
+        default=600.0,
         help="Maximum wall-clock seconds per model run; zero disables the overall limit",
     )
     parser.add_argument("--rate-limit-budget", type=float, default=45.0, help="Maximum seconds to wait on 429 retries")

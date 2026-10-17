@@ -70,8 +70,9 @@ def _agent_checks(value: Any, source: str) -> list[AudienceReviewCheck]:
         checks.append(
             AudienceReviewCheck(
                 name=f"{source}:overall",
-                status="fail",
-                detail="AI-агент сообщил о блокирующей проблеме: " + "; ".join(payload.get("blocking_issues", [])),
+                status="unknown",
+                detail="AI-агент сообщил о проблеме без отдельной проверки со статусом fail: "
+                + "; ".join(payload.get("blocking_issues", [])),
                 source_refs=[],
             )
         )

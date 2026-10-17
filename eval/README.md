@@ -30,6 +30,8 @@ The default model-call timeout is 120 seconds. Override it with `--timeout` if
 an evaluation model needs more time. HTTP 429 responses are retried with short
 exponential backoff (and `Retry-After` when provided), capped by a 45-second
 wait budget per structured call. Override that cap with `--rate-limit-budget`.
+The default overall model-run timeout is 600 seconds; override it with
+`--run-timeout` when the audience feedback loop needs more or less time.
 
 ## Audience pipeline
 

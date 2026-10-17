@@ -47,6 +47,7 @@ _QUERYABLE_FIELDS = {
     "bank_products",
     "app_section",
 }
+_PROFILE_EXCLUDED_EVENT_TYPES = {"показ_кампании", "отклик_на_кампанию"}
 _REVIEW_MAX_ROWS = 100
 
 
@@ -61,6 +62,7 @@ class SegmentCalculation:
     share: float
     population: str
     feature_summaries: list[dict[str, Any]]
+    aggregate_summary: dict[str, Any]
     quality: dict[str, Any]
 
 
@@ -130,10 +132,14 @@ class AudienceDataset:
                 having_sql.append(f"COUNT(DISTINCT CASE WHEN {condition_sql} THEN substr(event_date, 1, 7) END) = ?")
                 having_params.extend(condition_params)
                 having_params.append(len(months))
+            qualifying_sql = (
+                "SELECT client_id FROM events WHERE event_date >= ? AND event_date < ? GROUP BY client_id HAVING "
+                + " AND ".join(having_sql)
+            )
+            qualifying_params = [start.isoformat(), end.isoformat(), *having_params]
             qualifying = connection.execute(
-                "SELECT COUNT(*) FROM (SELECT client_id FROM events "
-                "WHERE event_date >= ? AND event_date < ? GROUP BY client_id HAVING " + " AND ".join(having_sql) + ")",
-                [start.isoformat(), end.isoformat(), *having_params],
+                f"SELECT COUNT(*) FROM ({qualifying_sql})",
+                qualifying_params,
             ).fetchone()[0]
             feature_summaries = []
             for condition in query.conditions:
@@ -164,6 +170,15 @@ class AudienceDataset:
                 ).fetchone()[0]
                 for field in sorted(required_fields)
             }
+            aggregate_summary = _segment_aggregate_summary(
+                connection,
+                qualifying_sql,
+                qualifying_params,
+                start,
+                end,
+                months,
+                qualifying,
+            )
         return SegmentCalculation(
             dataset_ref=self.dataset_ref,
             rule_ref=rule_ref,
@@ -174,6 +189,7 @@ class AudienceDataset:
             share=qualifying / base_count if base_count else 0.0,
             population=f"Уникальные клиенты из {self.dataset_ref}; client_id использован только внутри SQLite.",
             feature_summaries=feature_summaries,
+            aggregate_summary=aggregate_summary,
             quality={"missing_required_event_values": missing, "raw_records_shared_with_model": False},
         )
 
@@ -362,6 +378,76 @@ def _condition_sql(condition: Any) -> tuple[str, list[str]]:
     return " AND ".join(f"{_quote(filter_.field)} = ?" for filter_ in condition.filters), [
         filter_.value for filter_ in condition.filters
     ]
+
+
+def _segment_aggregate_summary(
+    connection: sqlite3.Connection,
+    qualifying_sql: str,
+    qualifying_params: list[Any],
+    start: date,
+    end: date,
+    months: list[date],
+    client_count: int,
+) -> dict[str, Any]:
+    """Return aggregate characteristics for qualifying clients only."""
+    join = f"JOIN ({qualifying_sql}) AS segment_clients ON segment_clients.client_id = events.client_id"
+    columns = _table_columns(connection)
+    profile_filter = ""
+    profile_params: list[str] = []
+    if "event_type" in columns:
+        placeholders = ", ".join("?" for _ in _PROFILE_EXCLUDED_EVENT_TYPES)
+        profile_filter = f" AND (events.event_type IS NULL OR events.event_type NOT IN ({placeholders}))"
+        profile_params = sorted(_PROFILE_EXCLUDED_EVENT_TYPES)
+    event_count = connection.execute(
+        f"SELECT COUNT(*) FROM events {join} WHERE events.event_date >= ? AND events.event_date < ?{profile_filter}",
+        [*qualifying_params, start.isoformat(), end.isoformat(), *profile_params],
+    ).fetchone()[0]
+    monthly = dict(
+        connection.execute(
+            f"SELECT substr(events.event_date, 1, 7), COUNT(*) FROM events {join} "
+            f"WHERE events.event_date >= ? AND events.event_date < ?{profile_filter} GROUP BY 1",
+            [*qualifying_params, start.isoformat(), end.isoformat(), *profile_params],
+        ).fetchall()
+    )
+    monthly_event_counts = [
+        {"month": month.isoformat(), "event_count": monthly.get(month.strftime("%Y-%m"), 0)} for month in months
+    ]
+    distributions = []
+    for field in sorted(_QUERYABLE_FIELDS.intersection(_table_columns(connection))):
+        rows = connection.execute(
+            f"SELECT events.{_quote(field)}, COUNT(*), COUNT(DISTINCT events.client_id) "
+            f"FROM events {join} WHERE events.event_date >= ? AND events.event_date < ? "
+            f"{profile_filter} AND events.{_quote(field)} IS NOT NULL AND events.{_quote(field)} != '' "
+            f"GROUP BY events.{_quote(field)} ORDER BY COUNT(*) DESC LIMIT 5",
+            [*qualifying_params, start.isoformat(), end.isoformat(), *profile_params],
+        ).fetchall()
+        if rows:
+            distributions.append(
+                {
+                    "field": field,
+                    "values": [
+                        {
+                            "value": row[0],
+                            "event_count": row[1],
+                            "unique_client_count": row[2],
+                            "event_share": row[1] / event_count if event_count else 0.0,
+                        }
+                        for row in rows
+                    ],
+                }
+            )
+    return {
+        "matched_client_count": client_count,
+        "event_count": event_count,
+        "average_events_per_client": event_count / client_count if client_count else 0.0,
+        "average_events_per_client_per_month": event_count / client_count / len(months)
+        if client_count and months
+        else 0.0,
+        "monthly_event_counts": monthly_event_counts,
+        "value_distributions": distributions,
+        "excluded_event_types": sorted(_PROFILE_EXCLUDED_EVENT_TYPES) if "event_type" in columns else [],
+        "privacy_boundary": "Aggregate characteristics only; client_id and membership remain private.",
+    }
 
 
 def _quote(identifier: str) -> str:

@@ -37,8 +37,14 @@ ALLOWED_CHECKPOINT_TYPES = [
     ("tempo_eval.models", "AudienceFilter"),
     ("tempo_eval.models", "AudienceQueryCondition"),
     ("tempo_eval.models", "AudienceQuery"),
+    ("tempo_eval.models", "AudienceQueryDecision"),
     ("tempo_eval.models", "AudienceNarrativeClaim"),
     ("tempo_eval.models", "AudienceNarrative"),
+    ("tempo_eval.models", "AudienceAgentCheck"),
+    ("tempo_eval.models", "AudienceAgentReview"),
+    ("tempo_eval.models", "AudienceEvidenceRequest"),
+    ("tempo_eval.models", "AudienceReviewDecision"),
+    ("tempo_eval.models", "AudiencePrivacyReview"),
 ]
 
 
@@ -264,8 +270,13 @@ def render_html(payload: dict[str, Any]) -> str:
     .evidence blockquote {{ margin: 5px 0 0; white-space: pre-wrap; color: #d2dbea; }}
     .callout {{ margin: 16px 0; padding: 14px 16px; border-radius: 8px; background: #1b2330; }}
     .callout.warn {{ border-left: 3px solid #d1a73c; }}
-    .callout.error {{ border-left: 3px solid #d15b6c; }}
-    .criterion-list {{ display: grid; gap: 10px; }}
+     .callout.error {{ border-left: 3px solid #d15b6c; }}
+     .table-wrap {{ overflow-x: auto; margin: 12px 0; }}
+     .data-table {{ width: 100%; border-collapse: collapse; min-width: 620px; }}
+     .data-table th, .data-table td {{ padding: 9px 10px; border-bottom: 1px solid #303846; text-align: left; vertical-align: top; }}
+     .data-table th {{ color: #bcd5ff; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }}
+     .data-table td:nth-child(3), .data-table td:nth-child(4), .data-table td:nth-child(5) {{ white-space: nowrap; text-align: right; }}
+     .criterion-list {{ display: grid; gap: 10px; }}
     .criterion-top {{ display: flex; justify-content: space-between; gap: 12px; }}
     .score {{ font-size: 20px; font-weight: 700; color: #9ef0c8; }}
     .check-list {{ display: grid; gap: 8px; padding: 0; list-style: none; }}
@@ -362,9 +373,9 @@ def render_html(payload: dict[str, Any]) -> str:
        const graphEvaluation = result.evaluation || state.evaluation;
       document.getElementById('title').innerHTML = esc(item.model) + ' ' + badge(item.status || 'checkpointed');
        document.getElementById('result-panel').innerHTML = (runs.length ? runSelector(runs, runIndex) : '') +
-         summaryCards(item, state, selectedRun, passport, audience, validation, latestBenchmark) +
+        summaryCards(item, state, selectedRun, passport, audience, validation, latestBenchmark, audienceCalculation) +
           panelHeader(item.pipeline === 'audience' ? 'Audience result' + (selectedRun ? ' · Run ' + selectedRun.run_number : '') : 'Passport result' + (selectedRun ? ' · Run ' + selectedRun.run_number : ''), 'result') +
-         '<div data-pane="result" data-mode="rendered">' + (item.pipeline === 'audience' ? audienceRendered(audience, validation) : resultRendered(passport, validation)) + '</div>' +
+          '<div data-pane="result" data-mode="rendered">' + (item.pipeline === 'audience' ? audienceRendered(audience, validation, audienceCalculation) : resultRendered(passport, validation)) + '</div>' +
          '<div data-pane="result" data-mode="json" class="hidden"><pre>' + esc(pretty(runs.length ? {{ selected_run: selectedRun, runs }} : {{ passport, audience, validation }})) + '</pre></div>';
        const runEvaluations = runs.map(run => ({{ run: run.run_number, evaluation: run.result && run.result.evaluation }})).filter(item => item.evaluation);
        const graphJson = item.pipeline === 'audience'
@@ -418,18 +429,20 @@ def render_html(payload: dict[str, Any]) -> str:
       if (!validation) return 'pending';
       return validation.valid ? 'passed' : 'failed';
     }}
-     function summaryCards(item, state, selectedRun, passport, audience, validation, latestBenchmark) {{
-      const c9Status = latestBenchmark ? (latestBenchmark.acceptance || latestBenchmark.evaluation_status || 'available') : 'pending';
-      const c9Score = latestBenchmark && latestBenchmark.overall_score != null ? latestBenchmark.overall_score + ' / 100' : c9Status;
-      const runValidation = validation ? (validation.valid ? '<span class="ok">passed</span>' : '<span class="error">failed</span>') : 'pending';
-       const sourceDrafts = item.pipeline === 'audience' ? ((audience && audience.segments) || []).length : (Array.isArray(state.drafts) ? state.drafts.length : '—');
-       const resultCount = item.pipeline === 'audience' ? ((audience && audience.segments) || []).length : (passport && passport.records ? passport.records.length : 0);
-      return '<div class="cards">' +
+     function summaryCards(item, state, selectedRun, passport, audience, validation, latestBenchmark, calculation) {{
+       const c9Status = latestBenchmark ? (latestBenchmark.acceptance || latestBenchmark.evaluation_status || 'available') : 'pending';
+       const c9Score = latestBenchmark && latestBenchmark.overall_score != null ? latestBenchmark.overall_score + ' / 100' : c9Status;
+       const runValidation = validation ? (validation.valid ? '<span class="ok">passed</span>' : '<span class="error">failed</span>') : 'pending';
+        const sourceDrafts = item.pipeline === 'audience' ? ((audience && audience.segments) || []).length : (Array.isArray(state.drafts) ? state.drafts.length : '—');
+        const resultCount = item.pipeline === 'audience' ? ((audience && audience.segments) || []).length : (passport && passport.records ? passport.records.length : 0);
+       const identifiedCount = item.pipeline === 'audience' && resultCount === 0 && calculation && calculation.count > 0 ? 1 : resultCount;
+       return '<div class="cards">' +
          card('Pipeline', item.pipeline || 'product') +
          card('Stage', stage(item, state, selectedRun)) +
          card('Selected run', selectedRun ? 'Run ' + selectedRun.run_number : '—') +
          card(item.pipeline === 'audience' ? 'Segments' : 'Source drafts', sourceDrafts) +
          card(item.pipeline === 'audience' ? 'Audience segments' : 'Passport records', resultCount) +
+         (item.pipeline === 'audience' ? card('Identified candidates', identifiedCount) : '') +
         card('Run validation', runValidation) +
         card('C9 stability', c9Score) +
         card('Completed runs', runProgress(item)) +
@@ -485,26 +498,75 @@ def render_html(payload: dict[str, Any]) -> str:
         (gaps ? '<div class="callout warn"><h3>Gaps</h3><ul>' + gaps + '</ul></div>' : '') +
         (warnings ? '<div class="callout warn"><h3>Warnings</h3><ul>' + warnings + '</ul></div>' : '');
      }}
-     function audienceRendered(audience, validation) {{
-       if (!audience) return '<p class="muted">No audience result has been produced yet.</p>';
-       const segments = (audience.segments || []).map(segment => {{
-         const size = segment.size || {{}};
-         const checks = (segment.checks || []).map(check => '<li><span class="tag">' + esc(check.status) + '</span> ' + esc(check.name) + ': ' + esc(check.detail) + '</li>').join('');
-         return '<article class="record"><h4>' + esc(segment.name) + '</h4>' +
-           '<div class="record-meta"><span class="tag">' + esc(segment.segment_id) + '</span><span class="tag">' + esc(segment.origin) + '</span></div>' +
-           '<p>' + esc((segment.definition && segment.definition.inclusion_rules || []).join('; ') || 'No inclusion rule') + '</p>' +
-           '<p><strong>Size:</strong> ' + esc(size.count == null ? 'unknown' : size.count) + (size.share == null ? '' : ' (' + esc(size.share * 100) + '%)') + '</p>' +
-           '<p><strong>Checks</strong></p><ul class="check-list">' + checks + '</ul>' +
-           '<p><strong>Risks</strong></p><ul>' + (segment.risks || []).map(risk => '<li>' + esc(risk) + '</li>').join('') + '</ul></article>';
-       }}).join('');
-       const profile = audience.data_profile || {{}};
-       const errors = validation && validation.errors ? validation.errors : [];
-       return '<div class="hero"><strong>' + esc(audience.product_id || 'Audience result') + '</strong><span class="tag">' + esc(audience.status) + '</span><span class="tag">' + esc(audience.mode) + '</span>' + (validation ? '<span class="tag">validation: ' + validationLabel(validation) + '</span>' : '') + '</div>' +
-         '<div class="callout"><strong>Data profile</strong><p>' + esc(profile.unit || 'unknown unit') + ' · cutoff: ' + esc(profile.cutoff_at || 'unknown') + '</p><p>' + esc(profile.coverage && profile.coverage.text || 'Coverage unknown') + '</p></div>' +
-         '<h3>Segments (' + ((audience.segments || []).length) + ')</h3><div class="record-grid">' + segments + '</div>' +
-         (errors.length ? '<div class="callout error"><h3>Validation errors</h3><ul>' + errors.map(error => '<li>' + esc(error) + '</li>').join('') + '</ul></div>' : '') +
-         ((audience.missing_data || []).length ? '<div class="callout warn"><h3>Missing data</h3><ul>' + audience.missing_data.map(item => '<li>' + esc(item) + '</li>').join('') + '</ul></div>' : '');
-     }}
+      function audienceRendered(audience, validation, calculation) {{
+        if (!audience) return '<p class="muted">No audience result has been produced yet.</p>';
+        const segments = (audience.segments || []).map(segment => {{
+          const size = segment.size || {{}};
+          const checks = (segment.checks || []).map(check => '<li><span class="tag">' + esc(check.status) + '</span> ' + esc(check.name) + ': ' + esc(check.detail) + '</li>').join('');
+          const characteristics = (segment.characteristics || []).map(item => '<li><span class="tag">' + esc(item.kind) + '</span> ' + esc(item.text) + '</li>').join('');
+          const interpretation = segment.interpretation || {{}};
+          return '<article class="record"><h4>' + esc(segment.name) + '</h4>' +
+            '<div class="record-meta"><span class="tag">' + esc(segment.segment_id) + '</span><span class="tag">' + esc(segment.origin) + '</span></div>' +
+            '<p>' + esc((segment.definition && segment.definition.inclusion_rules || []).join('; ') || 'No inclusion rule') + '</p>' +
+            '<p><strong>Size:</strong> ' + esc(size.count == null ? 'unknown' : size.count) + (size.share == null ? '' : ' (' + esc(size.share * 100) + '%)') + '</p>' +
+            aggregateProfileRendered(calculation) +
+            (characteristics ? '<p><strong>Characteristics</strong></p><ul>' + characteristics + '</ul>' : '') +
+            (interpretation.context ? '<p><strong>Context:</strong> <span class="tag">' + esc(interpretation.context.kind) + '</span> ' + esc(interpretation.context.text) + '</p>' : '') +
+            (interpretation.jtbd ? '<p><strong>JTBD:</strong> <span class="tag">' + esc(interpretation.jtbd.kind) + '</span> ' + esc(interpretation.jtbd.text || interpretation.jtbd.rationale || 'Not established') + '</p>' : '') +
+            '<p><strong>Checks</strong></p><ul class="check-list">' + checks + '</ul>' +
+            '<p><strong>Risks</strong></p><ul>' + (segment.risks || []).map(risk => '<li>' + esc(risk) + '</li>').join('') + '</ul></article>';
+        }}).join('');
+        const candidate = !segments && calculationCandidateRendered(calculation);
+        const segmentHeading = segments
+          ? (audience.status === 'complete' ? 'Segments (' : 'Potential segments (not approved) (') + ((audience.segments || []).length) + ')'
+          : 'Approved segments (0)';
+        const profile = audience.data_profile || {{}};
+        const errors = validation && validation.errors ? validation.errors : [];
+        return '<div class="hero"><strong>' + esc(audience.product_id || 'Audience result') + '</strong><span class="tag">' + esc(audience.status) + '</span><span class="tag">' + esc(audience.mode) + '</span>' + (validation ? '<span class="tag">validation: ' + validationLabel(validation) + '</span>' : '') + '</div>' +
+          '<div class="callout"><strong>Data profile</strong><p>' + esc(profile.unit || 'unknown unit') + ' · cutoff: ' + esc(profile.cutoff_at || 'unknown') + '</p><p>' + esc(profile.coverage && profile.coverage.text || 'Coverage unknown') + '</p></div>' +
+          '<h3>' + segmentHeading + '</h3><div class="record-grid">' + segments + '</div>' +
+          (candidate ? '<h3>Identified candidates (not approved)</h3><div class="record-grid">' + candidate + '</div>' : '') +
+          (errors.length ? '<div class="callout error"><h3>Validation errors</h3><ul>' + errors.map(error => '<li>' + esc(error) + '</li>').join('') + '</ul></div>' : '') +
+          ((audience.missing_data || []).length ? '<div class="callout warn"><h3>Missing data</h3><ul>' + audience.missing_data.map(item => '<li>' + esc(item) + '</li>').join('') + '</ul></div>' : '');
+      }}
+      function calculationCandidateRendered(calculation) {{
+        if (!calculation || calculation.count == null || calculation.count <= 0) return '';
+        const rules = (calculation.feature_summaries || []).map(feature =>
+          '<li><strong>' + esc(feature.name) + '</strong>: ' + esc((feature.filters || []).map(filter => filter.field + ' = ' + filter.value).join(' AND ')) +
+          (feature.monthly_client_counts ? '<br><span class="muted">Monthly matched clients: ' + esc(feature.monthly_client_counts.map(item => item.month + ' = ' + item.client_count).join(', ')) + '</span>' : '') + '</li>'
+        ).join('');
+        const query = calculation.query || {{}};
+        return '<article class="record"><h4>Potential segment: ' + esc(query.name || 'unnamed') + '</h4>' +
+          '<div class="record-meta"><span class="tag">potential segment</span><span class="tag">not approved</span></div>' +
+          '<p><strong>Size:</strong> ' + esc(calculation.count) + ' / ' + esc(calculation.base_count) + (calculation.share == null ? '' : ' (' + esc(calculation.share * 100) + '%)') + '</p>' +
+          '<p><strong>Window:</strong> ' + esc(query.window_start || 'unknown') + ' → ' + esc(query.window_end || 'unknown') + '</p>' +
+          '<p><strong>Rules</strong></p><ul>' + rules + '</ul>' +
+          '<p class="muted">This candidate was identified by the private aggregate calculation. It is shown for inspection but is not an approved activation segment because the final gate did not pass.</p>' +
+          aggregateProfileRendered(calculation) +
+          '</article>';
+      }}
+      function aggregateProfileRendered(calculation) {{
+        const aggregate = calculation && calculation.aggregate_summary;
+        if (!aggregate) return '';
+        const distributionRows = (aggregate.value_distributions || []).flatMap(distribution => (distribution.values || []).map(item => ({{
+          field: distribution.field,
+          value: item.value,
+          clients: item.unique_client_count,
+          events: item.event_count,
+          eventShare: Number(item.event_share) || 0
+        }}))).sort((left, right) => right.eventShare - left.eventShare || String(left.field).localeCompare(String(right.field)) || String(left.value).localeCompare(String(right.value))).map(item =>
+          '<tr><td>' + esc(item.field) + '</td><td>' + esc(item.value) + '</td><td>' + esc(item.clients) + '</td><td>' + esc(item.events) + '</td><td>' + esc((item.eventShare * 100).toFixed(1)) + '%</td></tr>'
+        ).join('');
+        const monthly = (aggregate.monthly_event_counts || []).map(item => esc(item.month) + ': ' + esc(item.event_count)).join(', ');
+        return '<div class="callout"><h4>Common and average activity</h4>' +
+          '<p><strong>Events in this potential segment:</strong> ' + esc(aggregate.event_count) + '</p>' +
+          '<p><strong>Average events per client:</strong> ' + esc(Number(aggregate.average_events_per_client).toFixed(1)) + '</p>' +
+          '<p><strong>Average events per client per month:</strong> ' + esc(Number(aggregate.average_events_per_client_per_month).toFixed(1)) + '</p>' +
+          '<p><strong>Monthly event volume:</strong> ' + monthly + '</p>' +
+          (distributionRows ? '<p><strong>Most common categorical values among segment events</strong></p><div class="table-wrap"><table class="data-table"><thead><tr><th>Field</th><th>Value</th><th>Clients</th><th>Events</th><th>Event share</th></tr></thead><tbody>' + distributionRows + '</tbody></table></div>' : '') +
+          (aggregate.excluded_event_types && aggregate.excluded_event_types.length ? '<p class="muted">Campaign event types excluded from activity characteristics: ' + esc(aggregate.excluded_event_types.join(', ')) + '</p>' : '') +
+          '<p class="muted">These are aggregate characteristics only. They describe events associated with the qualifying clients, never individual people or membership.</p></div>';
+      }}
       function audiencePipelineRendered(dataProfile, semanticCards, query, calculation, audience, validation, review) {{
         const retrieved = (semanticCards || []).map(card => '<li><strong>' + esc(card.id) + '</strong>: ' + esc(card.description) + '</li>').join('');
         const features = (calculation && calculation.feature_summaries || []).map(feature =>
@@ -513,7 +575,7 @@ def render_html(payload: dict[str, Any]) -> str:
          return '<div class="callout"><h3>Stages</h3><ul class="check-list"><li>Safe data profile: ' + (dataProfile ? 'complete' : 'missing') + '</li><li>Local semantic feature retrieval: ' + (semanticCards ? 'complete' : 'missing') + '</li><li>Constrained data query: ' + (query ? 'complete' : 'missing') + '</li><li>Local aggregate calculation: ' + (calculation ? 'complete' : 'missing') + '</li><li>Final interpretation: ' + (audience ? 'complete' : 'missing') + '</li><li>AI critic, validator and privacy review: ' + (review ? 'complete' : 'missing') + '</li><li>Contract validation and safety gate: ' + validationLabel(validation) + '</li></ul></div>' +
           (retrieved ? '<div class="callout"><h3>Retrieved feature cards</h3><ul>' + retrieved + '</ul></div>' : '') +
           (calculation ? '<div class="callout"><h3>How this segment was calculated</h3><p><strong>Dataset:</strong> ' + esc(calculation.dataset_ref) + ' · <strong>Rule:</strong> ' + esc(calculation.rule_ref) + '</p><p><strong>Membership:</strong> stored privately; never included in this report.</p><ul>' + features + '</ul></div>' : '') +
-          audienceReviewRendered(review) + audienceRendered(audience, validation);
+           audienceReviewRendered(review) + audienceRendered(audience, validation, calculation);
       }}
      function audienceReviewRendered(review) {{
         if (!review) return '<p class="muted">Critic, validator and privacy findings have not been produced yet.</p>';
