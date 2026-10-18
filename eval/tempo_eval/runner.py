@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 import sqlite3
 import uuid
@@ -23,6 +24,8 @@ from .models import (
     Validation,
 )
 from .workflow import Workflow
+
+LOGGER = logging.getLogger("tempo_eval.runner")
 
 
 class ResultWriter:
@@ -141,6 +144,7 @@ async def run_one_model(
     run_timeout_seconds: float | None = None,
 ) -> None:
     started = datetime.now(UTC)
+    LOGGER.info("run_start pipeline=%s model=%s run_number=%s", pipeline, model, run_number or "single")
     client: ModelClient | None = None
     checkpoint_path = checkpoint_path or checkpoint_dir / f"{slugify(model)}.sqlite"
     record: dict[str, Any] = {
@@ -200,12 +204,23 @@ async def run_one_model(
         record.update({"status": "completed", "result": _result_from_state(final_state, pipeline)})
     except Exception as error:
         record["error"] = f"{type(error).__name__}: {error}"
+        LOGGER.exception("run_error pipeline=%s model=%s error=%s", pipeline, model, record["error"])
     record["duration_seconds"] = (datetime.now(UTC) - started).total_seconds()
     calls = [asdict(call) for call in client.calls] if client else []
     record["calls"] = calls
     record["call_count"] = len(calls)
     record["input_tokens"] = sum(call["input_tokens"] or 0 for call in calls)
     record["output_tokens"] = sum(call["output_tokens"] or 0 for call in calls)
+    LOGGER.info(
+        "run_end pipeline=%s model=%s status=%s duration=%.1fs calls=%d input_tokens=%d output_tokens=%d",
+        pipeline,
+        model,
+        record["status"],
+        record["duration_seconds"],
+        record["call_count"],
+        record["input_tokens"],
+        record["output_tokens"],
+    )
     await writer.append(record)
 
 
@@ -224,12 +239,33 @@ def load_product_passport(path: Path, model: str | None = None) -> dict[str, Any
     candidates = payload.get("results", []) if isinstance(payload, dict) else []
     if isinstance(payload, dict) and payload.get("result", {}).get("passport"):
         candidates = [payload]
-    for item in candidates:
-        if model and item.get("model") != model:
-            continue
-        if item.get("status") in (None, "completed") and item.get("result", {}).get("passport"):
-            return item["result"]["passport"]
+    eligible = [
+        item
+        for item in candidates
+        if isinstance(item, dict)
+        and (not model or item.get("model") == model)
+        and item.get("status") in (None, "completed")
+        and item.get("result", {}).get("passport")
+    ]
+    eligible.sort(key=_product_result_sort_key)
+    if eligible:
+        selected = eligible[0]
+        LOGGER.info(
+            "product_passport_selected path=%s model=%s run_number=%s",
+            path,
+            selected.get("model", model or "unknown"),
+            selected.get("run_number", "single"),
+        )
+        return selected["result"]["passport"]
     raise ValueError(f"no completed product passport found in {path}")
+
+
+def _product_result_sort_key(item: dict[str, Any]) -> tuple[int, int, str]:
+    run_number = item.get("run_number")
+    if isinstance(run_number, int):
+        return (0, run_number, "")
+    passport = item.get("result", {}).get("passport", {})
+    return (1, 1, json.dumps(passport, ensure_ascii=False, sort_keys=True))
 
 
 def compact_product_passport(passport: dict[str, Any]) -> dict[str, Any]:

@@ -129,6 +129,7 @@ class AudienceClaim(StrictModel):
     kind: Literal["fact", "inference", "unknown"]
     source_refs: list[str]
     rationale: str | None
+    claim_ref: str | None = None
 
 
 class AudienceWindow(StrictModel):
@@ -244,6 +245,7 @@ class AudienceJTBDAlignment(StrictModel):
     product_jtbd_text: str | None
     segment_jtbd_index: int | None
     segment_jtbd_text: str | None
+    segment_jtbd_ref: str | None = None
     relation: Literal["aligned", "partial", "not_aligned", "unknown"]
     rationale: str
     source_refs: list[str] = Field(default_factory=list)
@@ -381,7 +383,7 @@ class AudienceNarrativeClaim(StrictModel):
 class AudienceNarrative(StrictModel):
     name: str
     context: AudienceNarrativeClaim
-    jtbd: list[AudienceNarrativeClaim] = Field(default_factory=list)
+    jtbd: list[AudienceNarrativeClaim] = Field(min_length=1, max_length=5)
     jtbd_alignment: list[AudienceJTBDAlignment] = Field(default_factory=list)
     pains: list[AudienceNarrativeClaim]
     needs: list[AudienceNarrativeClaim]
@@ -403,6 +405,14 @@ class AudienceNarrative(StrictModel):
         jtbd = result.get("jtbd")
         if isinstance(jtbd, dict):
             result["jtbd"] = [jtbd]
+        elif not jtbd:
+            result["jtbd"] = [
+                {
+                    "text": None,
+                    "kind": "unknown",
+                    "rationale": "Данные запуска не дают достаточного основания сформулировать JTBD сегмента.",
+                }
+            ]
         result.setdefault("jtbd_alignment", [])
         return result
 

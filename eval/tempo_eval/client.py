@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+import logging
 from dataclasses import dataclass, field
 from threading import Lock
 from time import perf_counter
@@ -13,6 +14,7 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
+LOGGER = logging.getLogger("tempo_eval.model")
 
 
 @dataclass
@@ -35,6 +37,7 @@ class ModelClient:
     app_name: str | None = None
     correction_retries: int = 3
     rate_limit_wait_budget_seconds: float = 45.0
+    heartbeat_seconds: float = 15.0
     _calls: list[CallMetrics] = field(default_factory=list, init=False)
     _lock: Lock = field(default_factory=Lock, init=False)
 
@@ -68,22 +71,36 @@ class ModelClient:
         for attempt in range(self.correction_retries + 1):
             started = perf_counter()
             response: AIMessage | None = None
+            LOGGER.info(
+                "model_call_start operation=%s attempt=%d/%d model=%s prompt_chars=%d schema=%s",
+                operation,
+                attempt + 1,
+                self.correction_retries + 1,
+                self.model,
+                len(attempt_prompt),
+                _schema_name(output_model),
+            )
             try:
                 async with asyncio.timeout(self.timeout_seconds):
-                    response = await self._model.bind(
-                        response_format={
-                            "type": "json_schema",
-                            "json_schema": {
-                                "name": _schema_name(output_model),
-                                "schema": schema,
-                                "strict": True,
+                    response = await self._invoke_with_heartbeat(
+                        self._model.bind(
+                            response_format={
+                                "type": "json_schema",
+                                "json_schema": {
+                                    "name": _schema_name(output_model),
+                                    "schema": schema,
+                                    "strict": True,
+                                },
                             },
-                        }
-                    ).ainvoke(
-                        [
-                            SystemMessage(content="Return one valid JSON object without Markdown or explanation."),
-                            HumanMessage(content=attempt_prompt),
-                        ]
+                        ).ainvoke(
+                            [
+                                SystemMessage(content="Return one valid JSON object without Markdown or explanation."),
+                                HumanMessage(content=attempt_prompt),
+                            ]
+                        ),
+                        operation,
+                        attempt,
+                        started,
                     )
                 if not isinstance(response, AIMessage) or not isinstance(response.content, str):
                     raise ValueError("model returned a non-text response")
@@ -114,6 +131,34 @@ class ModelClient:
     def _record_call(self, metrics: CallMetrics) -> None:
         with self._lock:
             self._calls.append(metrics)
+        LOGGER.info(
+            "model_call_end operation=%s outcome=%s duration=%.1fs input_tokens=%s output_tokens=%s error=%s",
+            metrics.operation,
+            metrics.outcome,
+            metrics.duration_seconds,
+            metrics.input_tokens,
+            metrics.output_tokens,
+            metrics.error or "-",
+        )
+
+    async def _invoke_with_heartbeat(
+        self, request: Any, operation: str, attempt: int, started: float
+    ) -> AIMessage:
+        task = asyncio.create_task(request)
+        try:
+            while not task.done():
+                done, _ = await asyncio.wait({task}, timeout=self.heartbeat_seconds)
+                if not done:
+                    LOGGER.info(
+                        "model_call_waiting operation=%s attempt=%d elapsed=%.1fs",
+                        operation,
+                        attempt + 1,
+                        perf_counter() - started,
+                    )
+            return task.result()
+        finally:
+            if not task.done():
+                task.cancel()
 
     @staticmethod
     def _metrics(

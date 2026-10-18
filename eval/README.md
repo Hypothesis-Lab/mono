@@ -160,6 +160,35 @@ uv run python global_audience_eval.py \
 It writes the comparison into the benchmark JSON; regenerate the report to show
 the evaluator findings in the global tab.
 
+## One-model dependent pipeline
+
+To run the complete sequence for one model—one product run, one dependent
+audience run with an immediate report, then three fresh audience runs with a
+deterministic consistency check and a final report—use:
+
+```sh
+uv run python one_model_pipeline.py \
+  --model minimax/minimax-m3
+```
+
+The default artifacts are written under:
+
+```text
+results/one-model-pipeline/
+  product-one.json
+  audience-one.json
+  audience-three.json
+reports/one-model-pipeline/
+  single-run.html
+  three-run-consistency.html
+checkpoints/one-model-pipeline/
+```
+
+The product passport is loaded only after the product run completes and is then
+passed to every audience run. The three-run consistency check is deterministic;
+it does not call a second evaluator model. The sequence makes four audience
+calls in total: one single-run smoke report plus three benchmark runs.
+
 ## Run the C9 benchmark
 
 The benchmark CLI gives each model up to three run slots. It resumes an

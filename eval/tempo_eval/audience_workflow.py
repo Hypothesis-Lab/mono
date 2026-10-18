@@ -525,7 +525,7 @@ def _interpretation_prompt(
 ) -> str:
     return f"""Интерпретируй уже рассчитанный сегмент для продукта и ответь на вопросы аудитории: кто потенциально релевантен гипотезе, в каком контексте используется продукт, какие JTBD сегмента или боли возможны, какие реальные сигналы это подтверждают, какие сигналы могут указывать на готовность, какие потребности и мотивации возможны, а также какие есть триггеры, барьеры и сомнения.
 
-Сделай отдельный анализ соответствия JTBD продукта и сегмента. В product_jtbd находятся JTBD, извлечённые первым пайплайном из материалов продукта. В jtbd сформируй список из нуля, одного или нескольких JTBD именно сегмента. Для каждого product_jtbd сравни его с наиболее близким JTBD сегмента и верни объект jtbd_alignment с полями product_jtbd_ref, product_jtbd_text, segment_jtbd_index, segment_jtbd_text, relation=aligned, partial, not_aligned или unknown, rationale и source_refs. Не называй связь aligned только потому, что сегмент использует похожие функции: поведение должно поддерживать совместимость с задачей, а прямое подтверждение намерения допускается только при наличии такого источника. Если данных недостаточно, используй unknown и объясни почему. Не пропускай product_jtbd из сравнения и не создавай продуктовые JTBD самостоятельно.
+Сделай отдельный анализ соответствия JTBD продукта и сегмента. В product_jtbd находятся JTBD, извлечённые первым пайплайном из материалов продукта. В jtbd сформируй список из одного или нескольких JTBD именно сегмента. Если aggregate-сигналы совместимы с продуктовой задачей, сформулируй осторожную inference-гипотезу; если оснований нет, верни один элемент с kind=unknown, text=null и объяснением. Пустой список jtbd недопустим. Для каждого product_jtbd сравни его с наиболее близким JTBD сегмента и верни объект jtbd_alignment с полями product_jtbd_ref, product_jtbd_text, segment_jtbd_index, segment_jtbd_text, relation=aligned, partial, not_aligned или unknown, rationale и source_refs. Оркестратор после ответа присвоит сегментным JTBD детерминированные refs seg_jtbd_001, seg_jtbd_002 и добавит их в alignment. Не называй связь aligned только потому, что сегмент использует похожие функции: поведение должно поддерживать совместимость с задачей, а прямое подтверждение намерения допускается только при наличии такого источника. Если данных недостаточно, используй unknown и объясни почему. Не пропускай product_jtbd из сравнения и не создавай продуктовые JTBD самостоятельно.
 
 Не меняй правило, размер, долю, период, признаки или источники. Не утверждай, что поведение доказывает мотив, роль человека, потребность или готовность купить. Не раскрывай персональные данные.
 
@@ -792,15 +792,21 @@ def _rule_text(feature: dict[str, Any]) -> str:
     return f"{feature['name']}: {filters}; хотя бы одно событие в каждом календарном месяце окна."
 
 
-def _claim(claim: Any, reference: str) -> dict[str, Any]:
+def _claim(claim: Any, reference: str, claim_ref: str | None = None) -> dict[str, Any]:
     if claim.kind == "unknown":
-        return {
+        result = {
             "text": None,
             "kind": "unknown",
             "source_refs": [],
             "rationale": claim.rationale or "Недостаточно данных.",
         }
-    return {"text": claim.text, "kind": claim.kind, "source_refs": [reference], "rationale": claim.rationale}
+        if claim_ref:
+            result["claim_ref"] = claim_ref
+        return result
+    result = {"text": claim.text, "kind": claim.kind, "source_refs": [reference], "rationale": claim.rationale}
+    if claim_ref:
+        result["claim_ref"] = claim_ref
+    return result
 
 
 def _interpretation(
@@ -829,6 +835,7 @@ def _interpretation(
                     "product_jtbd_text": product.get("statement"),
                     "segment_jtbd_index": None,
                     "segment_jtbd_text": None,
+                    "segment_jtbd_ref": None,
                     "relation": "unknown",
                     "rationale": "Для этого JTBD продукта модель не предоставила достаточного сравнения.",
                     "source_refs": [product_ref, reference],
@@ -847,6 +854,11 @@ def _interpretation(
                 "product_jtbd_text": product.get("statement") if product else item.product_jtbd_text,
                 "segment_jtbd_index": item.segment_jtbd_index,
                 "segment_jtbd_text": segment_claim.text if segment_claim else item.segment_jtbd_text,
+                "segment_jtbd_ref": (
+                    f"seg_jtbd_{item.segment_jtbd_index + 1:03d}"
+                    if segment_claim is not None
+                    else None
+                ),
                 "relation": (
                     item.relation
                     if product
@@ -861,7 +873,10 @@ def _interpretation(
         )
     return {
         "context": _claim(narrative.context, reference),
-        "jtbd": [_claim(item, reference) for item in narrative.jtbd],
+        "jtbd": [
+            _claim(item, reference, f"seg_jtbd_{index + 1:03d}")
+            for index, item in enumerate(narrative.jtbd)
+        ],
         "jtbd_alignment": alignment,
         "pains": [_claim(item, reference) for item in narrative.pains],
         "needs": [_claim(item, reference) for item in narrative.needs],

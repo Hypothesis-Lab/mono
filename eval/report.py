@@ -40,6 +40,7 @@ ALLOWED_CHECKPOINT_TYPES = [
     ("tempo_eval.models", "AudienceQueryDecision"),
     ("tempo_eval.models", "AudienceNarrativeClaim"),
     ("tempo_eval.models", "AudienceNarrative"),
+    ("tempo_eval.models", "AudienceJTBDAlignment"),
     ("tempo_eval.models", "AudienceAgentCheck"),
     ("tempo_eval.models", "AudienceAgentReview"),
     ("tempo_eval.models", "AudienceEvidenceRequest"),
@@ -152,6 +153,7 @@ class ReportBuilder:
         for item in models.values():
             if not item.get("runs") and item.get("legacy_run"):
                 item["runs"] = [item["legacy_run"]]
+            item["runs"].sort(key=lambda run: (run.get("run_number", 1), run.get("result_file", "")))
         return models
 
     def _load_checkpoints(self) -> list[CheckpointSnapshot]:
@@ -483,8 +485,8 @@ def render_html(payload: dict[str, Any]) -> str:
     }}
      function resultRendered(passport, validation) {{
       if (!passport) return '<p class="muted">No passport has been produced yet.</p>';
-       const records = passport.records || [];
-       const productJtbd = records.filter(record => record.category === 'jtbd');
+      const records = passport.records || [];
+      const productJtbd = records.filter(record => record.category === 'jtbd');
       const recordsHtml = records.map((record, index) =>
         '<article class="record"><h4>' + esc(record.statement || ('Record ' + (index + 1))) + '</h4>' +
         '<div class="record-meta"><span class="tag">' + esc(record.category) + '</span>' +
@@ -527,19 +529,36 @@ def render_html(payload: dict[str, Any]) -> str:
           const size = segment.size || {{}};
           const checks = (segment.checks || []).map(check => '<li><span class="tag">' + esc(check.status) + '</span> ' + esc(check.name) + ': ' + esc(check.detail) + '</li>').join('');
           const characteristics = (segment.characteristics || []).map(item => '<li><span class="tag">' + esc(item.kind) + '</span> ' + esc(item.text) + '</li>').join('');
-           const interpretation = segment.interpretation || {{}};
-           const segmentJtbd = Array.isArray(interpretation.jtbd) ? interpretation.jtbd : (interpretation.jtbd ? [interpretation.jtbd] : []);
-           const jtbd = segmentJtbd.map((item, index) => '<li><span class="tag">' + esc(item.kind) + '</span> JTBD ' + esc(index + 1) + ': ' + esc(item.text || item.rationale || 'Not established') + '</li>').join('');
-           const jtbdAlignment = (interpretation.jtbd_alignment || []).map(item => '<li><span class="tag">' + esc(item.relation) + '</span> <strong>' + esc(item.product_jtbd_ref || 'Product JTBD') + ':</strong> ' + esc(item.product_jtbd_text || 'Not available') + '<br><span class="muted">Segment: ' + esc(item.segment_jtbd_text || 'Not established') + '</span><br>' + esc(item.rationale || '') + '</li>').join('');
-           return '<article class="record"><h4>' + esc(segment.name) + '</h4>' +
+          const interpretation = segment.interpretation || {{}};
+          const segmentJtbd = Array.isArray(interpretation.jtbd) ? interpretation.jtbd : (interpretation.jtbd ? [interpretation.jtbd] : []);
+          const jtbdCard = (ref, kind, text, rationale) =>
+            '<article class="record"><h4>' + esc(text || 'Not established') + '</h4>' +
+            '<div class="record-meta"><span class="tag">' + esc(ref || 'no ref') + '</span><span class="tag">' + esc(kind) + '</span></div>' +
+            (rationale ? '<p class="muted"><strong>Rationale:</strong> ' + esc(rationale) + '</p>' : '') + '</article>';
+          const productJtbd = (interpretation.jtbd_alignment || []).filter((item, index, items) =>
+            item.product_jtbd_ref && items.findIndex(candidate => candidate.product_jtbd_ref === item.product_jtbd_ref) === index
+          );
+          const productJtbdHtml = productJtbd.map(item => jtbdCard(item.product_jtbd_ref, 'product JTBD', item.product_jtbd_text, '')).join('');
+          const segmentJtbdHtml = segmentJtbd.map((item, index) => jtbdCard(
+            item.claim_ref || ('seg_jtbd_' + String(index + 1).padStart(3, '0')),
+            item.kind,
+            item.text,
+            item.rationale
+          )).join('');
+          const jtbdAlignment = (interpretation.jtbd_alignment || []).map(item => '<li><span class="tag">' + esc(item.relation) + '</span>' +
+            '<p><strong>Product JTBD — pipeline 1 (' + esc(item.product_jtbd_ref || 'no ref') + ')</strong><br>' + esc(item.product_jtbd_text || 'Not available') + '</p>' +
+            '<p><strong>Segment JTBD — pipeline 2 (' + esc(item.segment_jtbd_ref || 'no ref') + ')</strong><br>' + esc(item.segment_jtbd_text || 'Not established') + '</p>' +
+            '<p><strong>Comparison rationale:</strong> ' + esc(item.rationale || 'Not provided') + '</p></li>').join('');
+          return '<article class="record"><h4>' + esc(segment.name) + '</h4>' +
             '<div class="record-meta"><span class="tag">' + esc(segment.segment_id) + '</span><span class="tag">' + esc(segment.origin) + '</span></div>' +
             '<p>' + esc((segment.definition && segment.definition.inclusion_rules || []).join('; ') || 'No inclusion rule') + '</p>' +
             '<p><strong>Size:</strong> ' + esc(size.count == null ? 'unknown' : size.count) + (size.share == null ? '' : ' (' + esc(size.share * 100) + '%)') + '</p>' +
             aggregateProfileRendered(calculation) +
-             (characteristics ? '<p><strong>Characteristics</strong></p><ul>' + characteristics + '</ul>' : '') +
-             (interpretation.context ? '<p><strong>Context:</strong> <span class="tag">' + esc(interpretation.context.kind) + '</span> ' + esc(interpretation.context.text) + '</p>' : '') +
-             (jtbd ? '<p><strong>Segment JTBD</strong></p><ul>' + jtbd + '</ul>' : '<p><strong>Segment JTBD:</strong> not established</p>') +
-             '<p><strong>Product ↔ segment JTBD match</strong></p>' + (jtbdAlignment ? '<ul>' + jtbdAlignment + '</ul>' : '<p class="muted">No product JTBD comparison was produced.</p>') +
+            (characteristics ? '<p><strong>Characteristics</strong></p><ul>' + characteristics + '</ul>' : '') +
+            (interpretation.context ? '<p><strong>Context:</strong> <span class="tag">' + esc(interpretation.context.kind) + '</span> ' + esc(interpretation.context.text) + '</p>' : '') +
+            '<p><strong>Product JTBD</strong></p>' + (productJtbdHtml ? '<div class="record-grid">' + productJtbdHtml + '</div>' : '<p class="muted">Product JTBD were not extracted in this run.</p>') +
+            '<p><strong>Segment JTBD</strong></p>' + (segmentJtbdHtml ? '<div class="record-grid">' + segmentJtbdHtml + '</div>' : '<p class="muted">Segment JTBD were not established.</p>') +
+            '<p><strong>Product JTBD ↔ segment JTBD comparison</strong></p>' + (jtbdAlignment ? '<ul>' + jtbdAlignment + '</ul>' : '<p class="muted">No product JTBD comparison was produced.</p>') +
             '<p><strong>Checks</strong></p><ul class="check-list">' + checks + '</ul>' +
             '<p><strong>Risks</strong></p><ul>' + (segment.risks || []).map(risk => '<li>' + esc(risk) + '</li>').join('') + '</ul></article>';
         }}).join('');

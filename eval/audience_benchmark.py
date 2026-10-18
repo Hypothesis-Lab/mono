@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import os
 import uuid
 from pathlib import Path
@@ -29,6 +30,17 @@ async def run_benchmark(args: argparse.Namespace) -> None:
         raise SystemExit("at least one model is required")
     product_passport = compact_product_passport(load_product_passport(args.product_result, args.product_model))
     payload = load_payload(args.output)
+    selected_models = set(models)
+    payload["results"] = [
+        item
+        for item in payload.get("results", [])
+        if item.get("model") not in selected_models or item.get("status") == "completed"
+    ]
+    payload["evaluations"] = [
+        item
+        for item in payload.get("evaluations", [])
+        if item.get("model") not in selected_models or item.get("status") == "completed"
+    ]
     payload.update(
         {
             "pipeline": "audience",
@@ -259,7 +271,10 @@ def load_payload(path: Path) -> dict[str, Any]:
 
 def has_run(payload: dict[str, Any], model: str, run_number: int) -> bool:
     return any(
-        item.get("model") == model and item.get("run_number") == run_number for item in payload.get("results", [])
+        item.get("model") == model
+        and item.get("run_number") == run_number
+        and item.get("status") == "completed"
+        for item in payload.get("results", [])
     )
 
 
@@ -315,4 +330,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=os.environ.get("TEMPO_LOG_LEVEL", "INFO").upper(),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        force=True,
+    )
     asyncio.run(run_benchmark(build_parser().parse_args()))

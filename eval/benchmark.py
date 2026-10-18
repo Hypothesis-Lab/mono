@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import os
 import random
 import shutil
@@ -234,6 +235,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    logging.basicConfig(
+        level=os.environ.get("TEMPO_LOG_LEVEL", "INFO").upper(),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        force=True,
+    )
     args = build_parser().parse_args()
     if not args.models and not args.models_file and Path("models.txt").exists():
         args.models_file = Path("models.txt")
