@@ -86,7 +86,7 @@ def add_overview() -> ET.Element:
     graph, root = page("Карта product-пайплайна Tempo — полная логика")
     add_cell(root, "note", box_label("Как читать схему", "Синие узлы — вызовы модели; жёлтые — детерминированная логика; зелёные — сохранённые результаты. Нажмите узел или выберите страницу prompt в списке страниц слева: там полный текст разбит на читаемые части."), "rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;", x=30, y=80, width=1500, height=75)
     nodes = [
-        ("sources", "ВХОДНЫЕ ДАННЫЕ\nфайлы источников", "n8n/product/*.md\nload_sources() сортирует файлы и читает полное содержимое. README.md исключается.", 40, 220, 220, 100, "fillColor=#d5e8d4;strokeColor=#82b366;"),
+        ("sources", "ВХОДНЫЕ ДАННЫЕ\nфайлы источников", "n8n/product/<product>/*.md\n--product cafe|bank выбирает набор; load_sources() сортирует файлы. README.md исключается.", 40, 220, 220, 100, "fillColor=#d5e8d4;strokeColor=#82b366;"),
         ("fanout", "START → fan_out_sources", "LangGraph Send создаёт отдельный extract_source для каждого источника.\nЗадачи выполняются параллельно, drafts объединяются через operator.add.", 310, 220, 250, 100, "fillColor=#fff2cc;strokeColor=#d6b656;"),
         ("extract", "МОДЕЛЬ: extract_source", "Один structured-вызов Passport на источник.\nPrompt: tempo-product-extraction.md\nСхема ответа: Passport", 610, 220, 250, 100, "fillColor=#dae8fc;strokeColor=#6c8ebf;"),
         ("drafts", "ЧЕРНОВИКИ", "Draft(source, result) для каждого источника.\nКаждый draft сохраняет локальный паспорт и evidence.", 910, 220, 220, 100, "fillColor=#d5e8d4;strokeColor=#82b366;"),

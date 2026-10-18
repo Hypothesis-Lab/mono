@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from tempo_eval.models import EvaluationCriterion, StabilityEvaluation
+from tempo_eval.products import PRODUCT_SLUGS, product_name
 from tempo_eval.runner import (
     ResultWriter,
     compact_product_passport,
@@ -304,8 +305,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--models", nargs="*", default=[])
     parser.add_argument("--models-file", type=Path)
     parser.add_argument("--runs", type=int, default=3)
-    parser.add_argument("--output", type=Path, default=Path("results/audience-benchmark.json"))
-    parser.add_argument("--checkpoints", type=Path, default=Path("checkpoints/audience-benchmark"))
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--checkpoints", type=Path)
     parser.add_argument("--semantic-index", type=Path, default=Path("semantic-index"))
     parser.add_argument("--audience-db", type=Path, default=Path("audience.sqlite"))
     parser.add_argument(
@@ -315,7 +316,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--product-result", type=Path, required=True)
     parser.add_argument("--product-model")
-    parser.add_argument("--target-product", default="Tempo")
+    parser.add_argument(
+        "--product", choices=PRODUCT_SLUGS, default="cafe", help="Product represented by the supplied passport"
+    )
+    parser.add_argument("--target-product", help="Override the selected product name")
     parser.add_argument("--as-of-date")
     parser.add_argument("--api-key", default=os.environ.get("OPENROUTER_API_KEY"))
     parser.add_argument("--base-url", default=os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"))
@@ -335,4 +339,8 @@ if __name__ == "__main__":
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
         force=True,
     )
-    asyncio.run(run_benchmark(build_parser().parse_args()))
+    args = build_parser().parse_args()
+    args.target_product = args.target_product or product_name(args.product)
+    args.output = args.output or Path(f"results/{args.product}-audience-benchmark.json")
+    args.checkpoints = args.checkpoints or Path(f"checkpoints/{args.product}-audience-benchmark")
+    asyncio.run(run_benchmark(args))

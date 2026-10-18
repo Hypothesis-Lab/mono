@@ -12,6 +12,7 @@ from typing import Any
 
 from tempo_eval.client import ModelClient
 from tempo_eval.models import Source, StabilityEvaluation
+from tempo_eval.products import PRODUCT_SLUGS, product_name, product_source_dir
 from tempo_eval.runner import ResultWriter, load_models, load_sources, run_one_model, slugify
 
 
@@ -47,6 +48,8 @@ async def run_model_slots(model: str, sources: list[Source], *, args: argparse.N
         if has_run(writer.payload, model, run_number):
             continue
         checkpoint_path = args.checkpoints / slugify(model) / f"run-{run_number}.sqlite"
+        if has_invalid_completed_run(writer.payload, model, run_number):
+            reset_run_slot(writer.payload, model, run_number, checkpoint_path)
         checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
         ordered_sources = sources_for_run(sources, run_number)
         tasks.append(
@@ -183,8 +186,37 @@ def reset_failed(payload: dict[str, Any], models: list[str]) -> None:
 
 def has_run(payload: dict[str, Any], model: str, run_number: int) -> bool:
     return any(
-        item.get("model") == model and item.get("run_number") == run_number for item in payload.get("results", [])
+        item.get("model") == model
+        and item.get("run_number") == run_number
+        and _is_valid_product_result(item)
+        for item in payload.get("results", [])
     )
+
+
+def has_invalid_completed_run(payload: dict[str, Any], model: str, run_number: int) -> bool:
+    return any(
+        item.get("model") == model
+        and item.get("run_number") == run_number
+        and item.get("status") == "completed"
+        and not _is_valid_product_result(item)
+        for item in payload.get("results", [])
+    )
+
+
+def _is_valid_product_result(item: dict[str, Any]) -> bool:
+    passport = item.get("result", {}).get("passport")
+    return item.get("status") == "completed" and isinstance(passport, dict) and bool(passport.get("product_name"))
+
+
+def reset_run_slot(payload: dict[str, Any], model: str, run_number: int, checkpoint_path: Path) -> None:
+    payload["results"] = [
+        item
+        for item in payload.get("results", [])
+        if not (item.get("model") == model and item.get("run_number") == run_number)
+    ]
+    payload["evaluations"] = [item for item in payload.get("evaluations", []) if item.get("model") != model]
+    for suffix in ("", "-wal", "-shm"):
+        Path(f"{checkpoint_path}{suffix}").unlink(missing_ok=True)
 
 
 def completed_runs(payload: dict[str, Any], model: str, max_runs: int) -> list[dict[str, Any]]:
@@ -212,13 +244,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--models", nargs="*", default=[])
     parser.add_argument("--models-file", type=Path)
     parser.add_argument("--exclude-model", action="append", default=[])
-    parser.add_argument("--input-dir", type=Path, default=Path(__file__).resolve().parent.parent / "n8n/product")
-    parser.add_argument("--output", type=Path, default=Path("results/benchmark.json"))
-    parser.add_argument("--checkpoints", type=Path, default=Path("checkpoints/benchmark"))
+    parser.add_argument("--product", choices=PRODUCT_SLUGS, default="cafe", help="Product source set to benchmark")
+    parser.add_argument("--input-dir", type=Path, help="Override the selected product source directory")
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--checkpoints", type=Path)
     parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--retry-failed", action="store_true")
-    parser.add_argument("--target-product", default="Tempo")
+    parser.add_argument("--target-product", help="Override the selected product name")
     parser.add_argument("--as-of-date")
     parser.add_argument("--api-key", default=os.environ.get("OPENROUTER_API_KEY"))
     parser.add_argument("--base-url", default=os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"))
@@ -249,6 +282,10 @@ def main() -> None:
         raise SystemExit("use either --force or --retry-failed, not both")
     if not args.evaluation_model:
         raise SystemExit("--evaluation-model or OPENROUTER_MODEL is required")
+    args.input_dir = args.input_dir or product_source_dir(args.product)
+    args.target_product = args.target_product or product_name(args.product)
+    args.output = args.output or Path(f"results/{args.product}-benchmark.json")
+    args.checkpoints = args.checkpoints or Path(f"checkpoints/{args.product}-benchmark")
     if args.rate_limit_budget < 0:
         raise SystemExit("--rate-limit-budget must be non-negative")
     asyncio.run(run_benchmark(args))

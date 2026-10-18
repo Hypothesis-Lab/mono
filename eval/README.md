@@ -102,10 +102,16 @@ cd eval
 uv sync
 export OPENROUTER_API_KEY=...
 uv run python run.py \
+  --product cafe \
   --models google/gemini-2.5-flash openai/gpt-4o-mini \
-  --input-dir ../n8n/product \
   --output results/tempo.json
 ```
+
+Use `--product cafe` for Tempo or `--product bank` for Lumen. The selected
+source directory is `../n8n/product/<product>`; pass `--input-dir` only when
+using a custom source directory. The product pipeline also derives the target
+product name from the selection (`Tempo` or `Lumen`), unless
+`--target-product` is supplied.
 
 Or put one model ID per line in a file:
 
@@ -140,6 +146,7 @@ Run the audience graph three times per model and compare run stability:
 
 ```sh
 uv run python audience_benchmark.py \
+  --product cafe \
   --models minimax/minimax-m3 deepseek/deepseek-v4.1-flash \
   --runs 3 \
   --product-result results/additional-models.json \
@@ -168,6 +175,7 @@ deterministic consistency check and a final report—use:
 
 ```sh
 uv run python one_model_pipeline.py \
+  --product bank \
   --model minimax/minimax-m3
 ```
 
@@ -175,13 +183,14 @@ The default artifacts are written under:
 
 ```text
 results/one-model-pipeline/
-  product-one.json
-  audience-one.json
-  audience-three.json
+  <product>/product-one.json
+  <product>/audience-one.json
+  <product>/audience-three.json
 reports/one-model-pipeline/
-  single-run.html
-  three-run-consistency.html
+  <product>/single-run.html
+  <product>/three-run-consistency.html
 checkpoints/one-model-pipeline/
+  <product>/
 ```
 
 The product passport is loaded only after the product run completes and is then

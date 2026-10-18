@@ -6,12 +6,14 @@ import os
 import uuid
 from pathlib import Path
 
+from tempo_eval.products import PRODUCT_SLUGS, product_name, product_source_dir
 from tempo_eval.runner import compact_product_passport, load_models, load_product_passport, load_sources, run_models
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run a Tempo evaluation pipeline against OpenRouter models.")
     parser.add_argument("--pipeline", choices=("product", "audience"), default="product")
+    parser.add_argument("--product", choices=PRODUCT_SLUGS, default="cafe", help="Product source set to use")
     parser.add_argument(
         "--models", nargs="*", default=[], help="OpenRouter model IDs, for example google/gemini-2.5-flash"
     )
@@ -28,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Private SQLite database imported from the audience XLSX",
     )
     parser.add_argument("--models-file", type=Path, help="Text file (one model per line) or JSON list/object")
-    parser.add_argument("--input-dir", type=Path, default=Path(__file__).resolve().parents[1] / "n8n/product")
+    parser.add_argument("--input-dir", type=Path, help="Override the selected product source directory")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--checkpoints", type=Path)
     parser.add_argument(
@@ -41,7 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--product-result", type=Path, help="Required product pipeline JSON whose passport is handed to audience"
     )
     parser.add_argument("--product-model", help="Model to select from a product benchmark result")
-    parser.add_argument("--target-product", default="Tempo")
+    parser.add_argument("--target-product", help="Override the selected product name")
     parser.add_argument("--as-of-date")
     parser.add_argument("--api-key", default=os.environ.get("OPENROUTER_API_KEY"))
     parser.add_argument("--base-url", default=os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"))
@@ -72,13 +74,16 @@ def main() -> None:
         raise SystemExit("--run-timeout must be non-negative")
     if args.pipeline == "audience" and not args.product_result:
         raise SystemExit("--product-result is required for the audience pipeline")
+    args.input_dir = args.input_dir or product_source_dir(args.product)
+    args.target_product = args.target_product or product_name(args.product)
     configured_model = os.environ.get("OPENROUTER_MODEL")
     models = load_models(args.models or ([configured_model] if configured_model else []), args.models_file)
-    args.output = args.output or (
-        Path("results/audience-data.json") if args.pipeline == "audience" else Path("results.json")
-    )
+    pipeline_name = "audience" if args.pipeline == "audience" else "product"
+    args.output = args.output or Path(f"results/{args.product}-{pipeline_name}.json")
     args.checkpoints = args.checkpoints or (
-        Path("checkpoints/audience-data") if args.pipeline == "audience" else Path("checkpoints")
+        Path(f"checkpoints/{args.product}-audience")
+        if args.pipeline == "audience"
+        else Path(f"checkpoints/{args.product}-product")
     )
     sources = load_sources(args.input_dir) if args.pipeline == "product" else []
     product_passport = (

@@ -310,7 +310,8 @@ const initialEdges: GraphEdge[] = [
 ]
 
 async function loadProductContext(): Promise<ProductContext> {
-  const response = await fetch('/api/product-context')
+  const product = new URLSearchParams(window.location.search).get('product') ?? 'cafe'
+  const response = await fetch(`/api/product-context?product=${encodeURIComponent(product)}`)
   const body = (await response.json()) as ProductContext & { error?: { message?: string } }
   if (!response.ok) throw new Error(body.error?.message ?? `Не удалось загрузить документы продукта (${response.status})`)
   return body

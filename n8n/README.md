@@ -64,7 +64,7 @@ The full graph is in `workflows/tempo-product-passport.json`. Import it after th
 
 It includes:
 
-- a visible **Product documents** node that reads files from `n8n/product/` through the `/product` container mount, excluding `README.md`;
+- a visible **Product documents** node that reads the default cafe files from `n8n/product/cafe/` through the `/product` container mount, excluding `README.md`;
 - an editable **Analysis focus** node;
 - the questions stage;
 - three parallel extraction stages;
@@ -99,7 +99,7 @@ The extraction, consolidation, and repair chains each have a native **Structured
 
 After the passport is ready, **Оценить паспорт по критериям** audits the result against `prompts/tempo-product-extraction-evaluation.md`, the supplied source materials, and the fixed acceptance criteria. It returns the passport together with an evaluation. A single run is reported as `single_run_source_audit` and cannot mark the version accepted without a fixed reference and regression runs.
 
-The current local version reads the same mounted `/product/` files, excluding `README.md`. Edit **Параметры запуска** to change the target product or effective date. Attach a model credential to **OpenAI-compatible model (extraction)** before execution. The workflow is inactive and starts manually from the editor.
+The current local version reads the mounted `/product/cafe/` files, excluding `README.md`. To run the bank product, change the **Product documents** node selector to `/product/bank/*` (or `/product/bank/*.md` in the structured extraction workflow). Edit **Параметры запуска** to change the target product or effective date. Attach a model credential to **OpenAI-compatible model (extraction)** before execution. The workflow is inactive and starts manually from the editor.
 
 ## Audience Python visual mirror
 

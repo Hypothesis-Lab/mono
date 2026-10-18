@@ -216,13 +216,13 @@ def main() -> None:
         "name": "Запустить экстракцию",
     }
     read_sources = {
-        "parameters": {"fileSelector": "/product/*.md", "options": {}},
+        "parameters": {"fileSelector": "/product/cafe/*.md", "options": {}},
         "type": "n8n-nodes-base.readWriteFile",
         "typeVersion": 1.1,
         "position": [-1080, -320],
         "id": node_id(),
         "name": "Материалы продукта",
-        "notes": "Reads the mounted Tempo product documents. Replace this node with an API, database, or webhook input when needed.",
+        "notes": "Reads the mounted cafe product documents by default. Change /product/cafe to /product/bank to run the Lumen product.",
         "notesInFlow": True,
     }
     run_parameters = {

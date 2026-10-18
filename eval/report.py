@@ -364,7 +364,7 @@ def render_html(payload: dict[str, Any]) -> str:
       empty.classList.add('hidden'); content.classList.remove('hidden');
       const item = models[selected];
       const runs = item.runs || [];
-      const runIndex = selectedRuns[item.model] ?? Math.max(runs.length - 1, 0);
+       const runIndex = selectedRuns[item.model] ?? defaultRunIndex(item, runs);
       const selectedRun = runs[runIndex];
       const result = selectedRun ? (selectedRun.result || {{}}) : (item.result || {{}});
        const checkpoint = item.checkpoint || {{}};
@@ -427,12 +427,21 @@ def render_html(payload: dict[str, Any]) -> str:
          '<button class="' + (index === runIndex ? 'active' : '') + '" data-run-index="' + index + '">Run ' +
          esc(run.run_number) + ' · ' + esc(run.status || 'unknown') + ' · validation: ' + validationLabel(run.result && run.result.validation) + '</button>').join('') + '</div>';
      }}
-    function bindRunSelector(model) {{
-      document.querySelectorAll('[data-run-index]').forEach(button => button.onclick = () => {{
-        selectedRuns[model] = Number(button.dataset.runIndex);
-        render();
-      }});
-    }}
+     function bindRunSelector(model) {{
+       document.querySelectorAll('[data-run-index]').forEach(button => button.onclick = () => {{
+         selectedRuns[model] = Number(button.dataset.runIndex);
+         render();
+       }});
+     }}
+     function defaultRunIndex(item, runs) {{
+       if (item.pipeline === 'product') {{
+         for (let index = runs.length - 1; index >= 0; index -= 1) {{
+           const passport = runs[index].result && runs[index].result.passport;
+           if (runs[index].status === 'completed' && passport && passport.product_name) return index;
+         }}
+       }}
+       return Math.max(runs.length - 1, 0);
+     }}
     function evaluationSummary(evaluation) {{
       if (!evaluation) return '<p class="muted">No evaluation.</p>';
       return '<p><strong>' + esc(evaluation.overall_score == null ? 'Not scored' : evaluation.overall_score + ' / 100') +

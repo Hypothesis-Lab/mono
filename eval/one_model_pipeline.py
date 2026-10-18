@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 from audience_benchmark import run_benchmark
 from report import ReportBuilder
+from tempo_eval.products import PRODUCT_SLUGS, product_name, product_source_dir
 from tempo_eval.runner import compact_product_passport, load_product_passport, load_sources, run_models
 
 
@@ -27,14 +28,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("OPENROUTER_MODEL"),
         required=not os.environ.get("OPENROUTER_MODEL"),
     )
-    parser.add_argument("--input-dir", type=Path, default=root.parent / "n8n/product")
+    parser.add_argument("--product", choices=PRODUCT_SLUGS, default="cafe", help="Product source set to run")
+    parser.add_argument("--input-dir", type=Path, help="Override the selected product source directory")
     parser.add_argument("--audience-data", type=Path, default=root / "События аудиторий (датасет).xlsx")
     parser.add_argument("--audience-db", type=Path, default=root / "audience.sqlite")
     parser.add_argument("--semantic-index", type=Path, default=root / "semantic-index")
-    parser.add_argument("--output-dir", type=Path, default=root / "results/one-model-pipeline")
-    parser.add_argument("--checkpoints-dir", type=Path, default=root / "checkpoints/one-model-pipeline")
-    parser.add_argument("--reports-dir", type=Path, default=root / "reports/one-model-pipeline")
-    parser.add_argument("--target-product", default="Tempo")
+    parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--checkpoints-dir", type=Path)
+    parser.add_argument("--reports-dir", type=Path)
+    parser.add_argument("--target-product", help="Override the selected product name")
     parser.add_argument("--as-of-date")
     parser.add_argument("--api-key", default=os.environ.get("OPENROUTER_API_KEY"))
     parser.add_argument("--base-url", default=os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"))
@@ -165,7 +167,14 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
         force=True,
     )
-    asyncio.run(run_pipeline(build_parser().parse_args()))
+    args = build_parser().parse_args()
+    root = Path(__file__).resolve().parent
+    args.input_dir = args.input_dir or product_source_dir(args.product)
+    args.target_product = args.target_product or product_name(args.product)
+    args.output_dir = args.output_dir or root / "results" / "one-model-pipeline" / args.product
+    args.checkpoints_dir = args.checkpoints_dir or root / "checkpoints" / "one-model-pipeline" / args.product
+    args.reports_dir = args.reports_dir or root / "reports" / "one-model-pipeline" / args.product
+    asyncio.run(run_pipeline(args))
 
 
 if __name__ == "__main__":

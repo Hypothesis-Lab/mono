@@ -62,7 +62,7 @@ def main() -> None:
     focus_ref = "$('Собрать документы').first().json.focus"
 
     read_documents = {
-        "parameters": {"fileSelector": "/product/*.md", "options": {}},
+        "parameters": {"fileSelector": "/product/cafe/*.md", "options": {}},
         "type": "n8n-nodes-base.readWriteFile",
         "typeVersion": 1.1,
         "position": [-760, -220],

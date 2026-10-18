@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig, type ViteDevServer } from 'vite'
 import { DEFAULT_PROMPTS, type PromptId } from './src/prompts.js'
 
-const PRODUCT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../n8n/product')
+const PRODUCT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../n8n/product')
 const DATA_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'data')
 const PROMPTS_DB_PATH = resolve(DATA_DIR, 'prompts.sqlite')
 const PROMPT_IDS = Object.keys(DEFAULT_PROMPTS) as PromptId[]
@@ -92,17 +92,23 @@ function installOpenCodeProxy(server: ViteDevServer) {
     }
 
     try {
-      const files = (await readdir(PRODUCT_DIR))
+      const product = new URL(request.url ?? '/', 'http://localhost').searchParams.get('product') ?? 'cafe'
+      if (!['cafe', 'bank'].includes(product)) {
+        writeJson(response, 400, { error: { message: 'Unknown product. Choose cafe or bank.' } })
+        return
+      }
+      const productDir = resolve(PRODUCT_ROOT, product)
+      const files = (await readdir(productDir))
         .filter((filename) => filename.endsWith('.md'))
         .sort()
       const contents = await Promise.all(files.map(async (filename) => ({
         name: filename,
-        content: await readFile(resolve(PRODUCT_DIR, filename), 'utf8'),
+        content: await readFile(resolve(productDir, filename), 'utf8'),
       })))
       const context = contents
         .map(({ name, content }) => `\n===== ИСТОЧНИК: ${name} =====\n${content}\n`)
         .join('')
-      writeJson(response, 200, { productName: 'Tempo', files: contents, context })
+      writeJson(response, 200, { productName: product === 'bank' ? 'Lumen' : 'Tempo', files: contents, context })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not load product documents'
       writeJson(response, 500, { error: { message } })
