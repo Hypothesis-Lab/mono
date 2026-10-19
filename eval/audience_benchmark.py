@@ -29,7 +29,13 @@ async def run_benchmark(args: argparse.Namespace) -> None:
     models = load_models(args.models, args.models_file)
     if not models:
         raise SystemExit("at least one model is required")
-    product_passport = compact_product_passport(load_product_passport(args.product_result, args.product_model))
+    if args.product_model:
+        shared_passport = compact_product_passport(load_product_passport(args.product_result, args.product_model))
+        product_passports = {model: shared_passport for model in models}
+    else:
+        product_passports = {
+            model: compact_product_passport(load_product_passport(args.product_result, model)) for model in models
+        }
     payload = load_payload(args.output)
     selected_models = set(models)
     payload["results"] = [
@@ -59,7 +65,7 @@ async def run_benchmark(args: argparse.Namespace) -> None:
     writer = ResultWriter(args.output, {}, payload)
     await asyncio.gather(
         *(
-            run_model_slots(model, args=args, writer=writer, product_passport=product_passport)
+            run_model_slots(model, args=args, writer=writer, product_passport=product_passports[model])
             for model in models
         )
     )
@@ -185,8 +191,8 @@ def build_stability_evaluation(runs: list[dict[str, Any]]) -> StabilityEvaluatio
 
 
 def _run_summary(run: dict[str, Any]) -> dict[str, Any]:
-    result = run.get("result", {})
-    calculation = result.get("calculation", {})
+    result = run.get("result") or {}
+    calculation = result.get("calculation") or {}
     query = calculation.get("query") or result.get("query") or {}
     audience = result.get("audience") or {}
     segment = (audience.get("segments") or [None])[0] or {}
