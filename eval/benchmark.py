@@ -105,6 +105,20 @@ async def evaluate_stability(
         evaluation = await client.complete_structured(
             "benchmark_evaluation", product_benchmark_prompt(model, runs, sources), StabilityEvaluation
         )
+        if evaluation.criterion.score is not None:
+            normalized_score = evaluation.criterion.score * 20
+            evaluation = evaluation.model_copy(
+                update={
+                    "criterion": evaluation.criterion.model_copy(
+                        update={"weighted_score": normalized_score}
+                    ),
+                    "overall_score": (
+                        normalized_score
+                        if evaluation.overall_score is not None and evaluation.overall_score <= 5
+                        else evaluation.overall_score
+                    ),
+                }
+            )
         entry.update({"status": "completed", "evaluation": evaluation.model_dump(mode="json")})
     except Exception as error:
         entry["error"] = f"{type(error).__name__}: {error}"
@@ -129,8 +143,11 @@ evidence, conflicts, gaps, and product boundaries. Local IDs, wording, and
 record order may differ only when their meaning is preserved.
 
 Return a StabilityEvaluation JSON object. Use mode=benchmark; criterion id=c9,
-name=`Устойчивость результата`, and weight=5. Explain all material drift in
-run_comparison. Do not claim acceptance merely because outputs look similar.
+name=`Устойчивость результата`, and weight=5. The criterion score is from 0 to 5.
+For this single-criterion benchmark, both `overall_score` and `weighted_score` must
+be the normalized 0 to 100 equivalent (`score * 20`), not `score * weight`.
+Explain all material drift in run_comparison. Do not claim acceptance merely because
+outputs look similar.
 
 RUNS:
 {json.dumps(passports, ensure_ascii=False, indent=2)}
@@ -258,7 +275,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--evaluation-model", default=os.environ.get("OPENROUTER_EVALUATION_MODEL", os.environ.get("OPENROUTER_MODEL"))
     )
-    parser.add_argument("--timeout", type=float, default=15.0)
+    parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("--rate-limit-budget", type=float, default=45.0)
     parser.add_argument("--step-retries", type=int, default=3)
     parser.add_argument("--app-url", default=os.environ.get("OPENROUTER_APP_URL"))

@@ -149,7 +149,9 @@ class ReportBuilder:
                     item = models.setdefault(
                         key, {"model": model, "pipeline": pipeline, "runs": [], "benchmark_evaluations": []}
                     )
-                    item.setdefault("benchmark_evaluations", []).append(evaluation)
+                    item.setdefault("benchmark_evaluations", []).append(
+                        normalize_stability_evaluation(evaluation)
+                    )
         for item in models.values():
             if not item.get("runs") and item.get("legacy_run"):
                 item["runs"] = [item["legacy_run"]]
@@ -181,6 +183,24 @@ class ReportBuilder:
             )
             if key in state
         }
+
+
+def normalize_stability_evaluation(evaluation: dict[str, Any]) -> dict[str, Any]:
+    """Keep C9's displayed score fields on the same 0–100 normalized scale."""
+    criterion = evaluation.get("evaluation", {}).get("criterion")
+    if not isinstance(criterion, dict) or criterion.get("id") != "c9":
+        return evaluation
+    score = criterion.get("score")
+    if not isinstance(score, (int, float)):
+        return evaluation
+    normalized = score * 20
+    normalized_evaluation = {**evaluation, "evaluation": {**evaluation["evaluation"]}}
+    normalized_evaluation["evaluation"]["overall_score"] = normalized
+    normalized_evaluation["evaluation"]["criterion"] = {
+        **criterion,
+        "weighted_score": normalized,
+    }
+    return normalized_evaluation
 
 
 def read_checkpoint(path: Path) -> CheckpointSnapshot | None:
@@ -310,17 +330,18 @@ def render_html(payload: dict[str, Any]) -> str:
       <div id="content" class="hidden">
          <div class="tabs global-tabs">
            <button class="active" data-global-tab="models">Model reports</button>
-           <button data-global-tab="global">Global comparison</button>
+            <button data-global-tab="global">Cross-model comparison</button>
          </div>
          <div id="model-content">
            <h2 id="title"></h2>
-           <div class="tabs">
-             <button data-tab="result">Result</button>
-             <button data-tab="evaluation">Evaluation</button>
-             <button data-tab="checkpoint">Checkpoint</button>
-             <button data-tab="raw">Raw model entry</button>
-           </div>
-           <section id="result-panel"></section>
+            <div class="tabs">
+              <button data-tab="result">Result</button>
+              <button data-tab="evaluation">Evaluation</button>
+              <button data-tab="checkpoint">Checkpoint</button>
+              <button data-tab="raw">Raw model entry</button>
+            </div>
+            <div id="run-selector"></div>
+            <section id="result-panel"></section>
            <section id="evaluation-panel" class="hidden"></section>
            <section id="checkpoint-panel" class="hidden"></section>
            <section id="raw-panel" class="hidden"></section>
@@ -385,8 +406,9 @@ def render_html(payload: dict[str, Any]) -> str:
       const latestBenchmark = benchmarkEvaluations.length ? benchmarkEvaluations[benchmarkEvaluations.length - 1].evaluation : null;
        const graphEvaluation = result.evaluation || state.evaluation;
       document.getElementById('title').innerHTML = esc(item.model) + ' ' + badge(item.status || 'checkpointed');
-       document.getElementById('result-panel').innerHTML = (runs.length ? runSelector(runs, runIndex) : '') +
-        summaryCards(item, state, selectedRun, passport, audience, validation, latestBenchmark, audienceCalculation) +
+        document.getElementById('run-selector').innerHTML = runs.length ? runSelector(runs, runIndex) : '';
+        document.getElementById('result-panel').innerHTML =
+         summaryCards(item, state, selectedRun, passport, audience, validation, latestBenchmark, audienceCalculation) +
           panelHeader(item.pipeline === 'audience' ? 'Audience result' + (selectedRun ? ' · Run ' + selectedRun.run_number : '') : 'Passport result' + (selectedRun ? ' · Run ' + selectedRun.run_number : ''), 'result') +
           '<div data-pane="result" data-mode="rendered">' + (item.pipeline === 'audience' ? audienceRendered(audience, validation, audienceCalculation) : resultRendered(passport, validation)) + '</div>' +
          '<div data-pane="result" data-mode="json" class="hidden"><pre>' + esc(pretty(runs.length ? {{ selected_run: selectedRun, runs }} : {{ passport, audience, validation }})) + '</pre></div>';
@@ -454,7 +476,7 @@ def render_html(payload: dict[str, Any]) -> str:
     }}
      function summaryCards(item, state, selectedRun, passport, audience, validation, latestBenchmark, calculation) {{
        const c9Status = latestBenchmark ? (latestBenchmark.acceptance || latestBenchmark.evaluation_status || 'available') : 'pending';
-       const c9Score = latestBenchmark && latestBenchmark.overall_score != null ? latestBenchmark.overall_score + ' / 100' : c9Status;
+        const c9Score = latestBenchmark ? stabilityScoreLabel(latestBenchmark) : c9Status;
        const runValidation = validation ? (validation.valid ? '<span class="ok">passed</span>' : '<span class="error">failed</span>') : 'pending';
         const sourceDrafts = item.pipeline === 'audience' ? ((audience && audience.segments) || []).length : (Array.isArray(state.drafts) ? state.drafts.length : '—');
         const resultCount = item.pipeline === 'audience' ? ((audience && audience.segments) || []).length : (passport && passport.records ? passport.records.length : 0);
@@ -690,10 +712,10 @@ def render_html(payload: dict[str, Any]) -> str:
         const features = (calculation && calculation.feature_summaries || []).map(feature =>
           '<li><strong>' + esc(feature.name) + '</strong><br><span class="muted">Columns: ' + esc((feature.source_columns || []).join(', ')) + '</span><br>' +
           esc((feature.filters || []).map(filter => filter.field + ' = ' + filter.value).join(' AND ')) + '</li>').join('');
-         return '<div class="callout"><h3>Stages</h3><ul class="check-list"><li>Safe data profile: ' + (dataProfile ? 'complete' : 'missing') + '</li><li>Local semantic feature retrieval: ' + (semanticCards ? 'complete' : 'missing') + '</li><li>Constrained data query: ' + (query ? 'complete' : 'missing') + '</li><li>Local aggregate calculation: ' + (calculation ? 'complete' : 'missing') + '</li><li>Final interpretation: ' + (audience ? 'complete' : 'missing') + '</li><li>AI critic, validator and privacy review: ' + (review ? 'complete' : 'missing') + '</li><li>Contract validation and safety gate: ' + validationLabel(validation) + '</li></ul></div>' +
-          (retrieved ? '<div class="callout"><h3>Retrieved feature cards</h3><ul>' + retrieved + '</ul></div>' : '') +
-          (calculation ? '<div class="callout"><h3>How this segment was calculated</h3><p><strong>Dataset:</strong> ' + esc(calculation.dataset_ref) + ' · <strong>Rule:</strong> ' + esc(calculation.rule_ref) + '</p><p><strong>Membership:</strong> stored privately; never included in this report.</p><ul>' + features + '</ul></div>' : '') +
-           audienceReviewRendered(review) + audienceRendered(audience, validation, calculation);
+         return audienceReviewRendered(review) + audienceRendered(audience, validation, calculation) +
+           (calculation ? '<div class="callout"><h3>How this segment was calculated</h3><p><strong>Dataset:</strong> ' + esc(calculation.dataset_ref) + ' · <strong>Rule:</strong> ' + esc(calculation.rule_ref) + '</p><p><strong>Membership:</strong> stored privately; never included in this report.</p><ul>' + features + '</ul></div>' : '') +
+           (retrieved ? '<div class="callout"><h3>Retrieved feature cards</h3><ul>' + retrieved + '</ul></div>' : '') +
+           '<div class="callout"><h3>Pipeline stages</h3><ul class="check-list"><li>Safe data profile: ' + (dataProfile ? 'complete' : 'missing') + '</li><li>Local semantic feature retrieval: ' + (semanticCards ? 'complete' : 'missing') + '</li><li>Constrained data query: ' + (query ? 'complete' : 'missing') + '</li><li>Local aggregate calculation: ' + (calculation ? 'complete' : 'missing') + '</li><li>Final interpretation: ' + (audience ? 'complete' : 'missing') + '</li><li>AI critic, validator and privacy review: ' + (review ? 'complete' : 'missing') + '</li><li>Contract validation and safety gate: ' + validationLabel(validation) + '</li></ul></div>';
       }}
      function audienceReviewRendered(review) {{
         if (!review) return '<p class="muted">Critic, validator and privacy findings have not been produced yet.</p>';
@@ -703,13 +725,13 @@ def render_html(payload: dict[str, Any]) -> str:
          '<div class="callout"><h3>Validators</h3><ul class="check-list">' + checks(review.validator_checks || []) + '</ul></div>' +
          '<div class="callout warn"><h3>Product-manager confirmation</h3><p><span class="tag">' + esc(pm.status || 'pending') + '</span> ' + esc(pm.detail || '') + '</p></div>';
      }}
-    function evaluationRendered(evaluation) {{
-      if (!evaluation) return '<p class="muted">Evaluation has not been produced yet.</p>';
-      const score = evaluation.overall_score == null ? 'Not scored' : evaluation.overall_score + ' / 100';
-      const criteria = (evaluation.criteria || []).map(criterion => '<article class="criterion"><div class="criterion-top"><h4>' +
-        esc(criterion.name) + ' <span class="muted">(' + esc(criterion.id) + ')</span></h4><span class="score">' +
-        (criterion.score == null ? '—' : esc(criterion.score) + ' / 5') + '</span></div>' +
-        '<p class="muted">Weight: ' + esc(criterion.weight) + ' · ' + esc(criterion.status) + '</p>' +
+     function evaluationRendered(evaluation) {{
+       if (!evaluation) return '<p class="muted">Evaluation has not been produced yet.</p>';
+       const score = evaluation.overall_score == null ? 'Not scored' : evaluation.overall_score + ' / 100';
+       const criteria = (evaluation.criteria || []).map(criterion => '<article class="criterion"><div class="criterion-top"><h4>' +
+         esc(criterion.name) + ' <span class="muted">(' + esc(criterion.id) + ')</span></h4><span class="score">' +
+         (criterion.score == null ? '—' : esc(criterion.score) + ' / 5') + '</span></div>' +
+         '<p class="muted">Weight: ' + esc(criterion.weight) + ' · Normalized: ' + criterionNormalizedScore(criterion) + ' · ' + esc(criterion.status) + '</p>' +
         '<p><strong>Findings</strong></p><ul>' + (criterion.findings || []).map(item => '<li>' + esc(item) + '</li>').join('') + '</ul>' +
         '<p><strong>Recommendations</strong></p><ul>' + (criterion.recommendations || []).map(item => '<li>' + esc(item) + '</li>').join('') + '</ul></article>').join('');
       const checks = (evaluation.mandatory_checks || []).map(check => '<li><span class="tag">' + esc(check.status) + '</span> ' + esc(check.name) + ': ' + esc(check.finding) + '</li>').join('');
@@ -738,15 +760,15 @@ def render_html(payload: dict[str, Any]) -> str:
         limitations: evaluation.limitations || []
       }};
     }}
-    function stabilityEvaluationRendered(evaluation) {{
+     function stabilityEvaluationRendered(evaluation) {{
       const view = stabilityView(evaluation);
       if (!view) return '<p class="muted">Stability evaluation has not been produced yet.</p>';
-      const score = view.overall_score == null ? 'Not scored' : view.overall_score + ' / 100';
+       const score = stabilityScoreLabel(view);
       const criterion = view.criterion;
-      const criterionHtml = criterion ? '<article class="criterion"><div class="criterion-top"><h4>' +
-        esc(criterion.name) + ' <span class="muted">(' + esc(criterion.id) + ')</span></h4><span class="score">' +
-        (criterion.score == null ? '—' : esc(criterion.score) + ' / 5') + '</span></div>' +
-        '<p class="muted">Weight: ' + esc(criterion.weight) + ' · ' + esc(criterion.status) + '</p>' +
+       const criterionHtml = criterion ? '<article class="criterion"><div class="criterion-top"><h4>' +
+         esc(criterion.name) + ' <span class="muted">(' + esc(criterion.id) + ')</span></h4><span class="score">' +
+         (criterion.score == null ? '—' : esc(criterion.score) + ' / 5') + '</span></div>' +
+         '<p class="muted">Weight: ' + esc(criterion.weight) + ' · Normalized: ' + criterionNormalizedScore(criterion) + ' · ' + esc(criterion.status) + '</p>' +
         '<p><strong>Findings</strong></p><ul>' + (criterion.findings || []).map(item => '<li>' + esc(item) + '</li>').join('') + '</ul>' +
         '<p><strong>Recommendations</strong></p><ul>' + (criterion.recommendations || []).map(item => '<li>' + esc(item) + '</li>').join('') + '</ul></article>' : '';
       const comparison = (view.run_comparison || []).map(item => '<li>' + esc(item) + '</li>').join('');
@@ -757,7 +779,14 @@ def render_html(payload: dict[str, Any]) -> str:
         (comparison ? '<div class="callout"><h3>Run comparison</h3><ul>' + comparison + '</ul></div>' : '') +
         (view.limitations.length ? '<div class="callout warn"><h3>Limitations</h3><ul>' + view.limitations.map(item => '<li>' + esc(item) + '</li>').join('') + '</ul></div>' : '');
     }}
-    function card(label, value) {{ return '<div class="card"><span class="muted">' + label + '</span><strong>' + value + '</strong></div>'; }}
+     function stabilityScoreLabel(evaluation) {{
+       const criterion = evaluation && (evaluation.criterion || (evaluation.criteria || []).find(item => item.id === 'c9'));
+       return criterion && criterion.score != null ? criterion.score + ' / 5' : 'Not scored';
+     }}
+     function criterionNormalizedScore(criterion) {{
+       return criterion && criterion.score != null ? (Number(criterion.score) * 20) + ' / 100' : '—';
+     }}
+     function card(label, value) {{ return '<div class="card"><span class="muted">' + label + '</span><strong>' + value + '</strong></div>'; }}
     function stage(item, state, selectedRun) {{
       if (selectedRun && selectedRun.status) return selectedRun.status;
       if (item.status === 'completed') return 'completed';
