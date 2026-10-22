@@ -252,3 +252,42 @@ features/bias evidence, segment count, interpretability, leakage, data quality,
 absence of raw-record fields in LLM context, minimum size, stability, channel
 availability, and contract validity. It never simulates product-manager
 approval; that confirmation remains `pending` until supplied externally.
+
+## Hypothesis pipeline
+
+The third standalone pipeline consumes the saved results of the product and
+audience pipelines. It does not read raw audience rows. The product result is
+loaded for the selected model, and the audience result is loaded for the
+selected audience model (the product model is used when `--audience-model` is
+omitted).
+
+The graph ranks every generated candidate before detailed validation. It
+generates five candidates by default, validates candidates in rank order until
+three are accepted, and promotes the next candidate when a validation returns
+`fail`. All candidates and their ordering rationale remain in the result;
+validation details are included for every attempted candidate.
+
+```sh
+uv run python run.py \
+  --pipeline hypothesis \
+  --models minimax/minimax-m3 \
+  --product-result results/one-model-pipeline/product-one.json \
+  --audience-result results/one-model-pipeline/audience-one.json \
+  --output results/tempo-hypothesis.json \
+  --checkpoints checkpoints/tempo-hypothesis
+```
+
+Build both the interactive HTML report and the Markdown report:
+
+```sh
+uv run python report.py \
+  --pipeline hypothesis \
+  --results results/tempo-hypothesis.json \
+  --checkpoints checkpoints/tempo-hypothesis \
+  --output reports/tempo-hypothesis.html \
+  --markdown-output reports/tempo-hypothesis.md
+```
+
+The persisted result JSON is the pipeline artifact. SQLite checkpoints contain
+the LangGraph state needed to inspect or resume an interrupted run; reports
+combine completed result entries with the latest available checkpoint.

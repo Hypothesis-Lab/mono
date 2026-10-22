@@ -462,3 +462,237 @@ class Draft(StrictModel):
 class Validation(StrictModel):
     valid: bool
     errors: list[str]
+
+
+HypothesisKind = Literal["fact", "inference", "unknown"]
+HypothesisMode = Literal["grounded", "exploratory"]
+HypothesisRating = Literal["high", "medium", "low", "unknown"]
+HypothesisCheckStatus = Literal["pass", "fail", "unknown"]
+
+
+class HypothesisClaim(StrictModel):
+    text: str | None
+    kind: HypothesisKind
+    source_refs: list[str]
+    rationale: str
+
+
+class HypothesisAssumption(StrictModel):
+    text: str
+    basis_refs: list[str]
+    rationale: str
+    verification: str
+
+
+class HypothesisSegmentRef(StrictModel):
+    segment_id: str
+    version: str | None
+
+
+class HypothesisChange(StrictModel):
+    object: str
+    proposal: str
+    control: HypothesisClaim
+    variable: str
+    implementation_dependency: str | None
+
+
+class HypothesisExpectedEffect(StrictModel):
+    direction: Literal["increase", "decrease", "maintain"]
+    amount: float | None
+    unit: str | None
+    amount_kind: Literal["provided_target", "scenario_estimate"] | None
+    source_refs: list[str]
+    assumptions: list[str]
+
+
+class HypothesisMetricValue(StrictModel):
+    value: float | None
+    unit: str | None
+    source_refs: list[str]
+
+
+class HypothesisMetric(StrictModel):
+    name: str
+    definition: str
+    formula: str | None
+    unit_of_analysis: str | None
+    event: str | None
+    population: str | None
+    window: str | None
+    direction: Literal["increase", "decrease", "maintain"]
+    availability: Literal["available", "requires_instrumentation", "unknown"]
+    baseline: HypothesisMetricValue
+    threshold: HypothesisMetricValue
+    purpose: str
+    source_refs: list[str]
+
+
+class HypothesisTestCandidate(StrictModel):
+    question: str
+    control: HypothesisClaim
+    treatment: str
+    variable: str
+    channel: str | None
+    observations: list[str]
+    dependencies: list[str]
+    supported_conclusion: str
+    unsupported_conclusions: list[str]
+
+
+class HypothesisHistoricalAnalog(StrictModel):
+    experiment_id: str
+    outcome: str
+    similarities: list[str]
+    differences: list[str]
+    implication: str
+    source_refs: list[str]
+
+
+class HypothesisExternalFactor(StrictModel):
+    factor: HypothesisClaim
+    date: str | None
+    affected_metric: str
+    implication: str
+    verification: str
+
+
+class HypothesisCheck(StrictModel):
+    name: str
+    criterion: str
+    status: HypothesisCheckStatus
+    detail: str
+    source_refs: list[str]
+
+
+class HypothesisFactor(StrictModel):
+    name: Literal[
+        "evidence",
+        "business_value",
+        "feasibility",
+        "novelty",
+        "measurability",
+        "risk",
+    ]
+    rating: HypothesisRating
+    score: float | None
+    rationale: str
+    source_refs: list[str]
+
+
+class HypothesisPriority(StrictModel):
+    rank: int = Field(ge=1)
+    method: str
+    provisional: bool
+    total_score: float | None
+    factors: list[HypothesisFactor] = Field(min_length=6, max_length=6)
+    rationale: str
+
+
+class HypothesisHandoff(StrictModel):
+    offer_task: str
+    experiment_design_questions: list[str]
+
+
+class HypothesisDraft(StrictModel):
+    candidate_id: str = Field(pattern=r"^hyp_[0-9]{3,}$")
+    mode: HypothesisMode
+    title: str
+    statement: str
+    segment_refs: list[HypothesisSegmentRef]
+    context: HypothesisClaim
+    problem_jtbd: HypothesisClaim
+    product_value: HypothesisClaim
+    business_link: HypothesisClaim
+    change: HypothesisChange
+    mechanism: HypothesisAssumption
+    expected_effect: HypothesisExpectedEffect
+    primary_metric: HypothesisMetric
+    guardrail_metrics: list[HypothesisMetric]
+    assumptions: list[HypothesisAssumption]
+    alternative_explanations: list[HypothesisAssumption]
+    falsifying_observation: str
+    learning_value: str
+    test_candidate: HypothesisTestCandidate
+    historical_analogs: list[HypothesisHistoricalAnalog]
+    external_factors: list[HypothesisExternalFactor]
+    risks: list[HypothesisClaim]
+    handoff: HypothesisHandoff
+    source_refs: list[str]
+
+
+class HypothesisDraftBatch(StrictModel):
+    candidates: list[HypothesisDraft] = Field(min_length=1, max_length=12)
+    missing_data: list[str]
+    limitations: list[str]
+
+
+class HypothesisRankingItem(StrictModel):
+    candidate_id: str
+    priority: HypothesisPriority
+
+
+class HypothesisRanking(StrictModel):
+    ordered: list[HypothesisRankingItem] = Field(min_length=1, max_length=12)
+    method: str
+    provisional: bool
+    rationale: str
+    missing_data: list[str]
+
+
+class HypothesisValidation(StrictModel):
+    candidate_id: str
+    overall_status: HypothesisCheckStatus
+    checks: list[HypothesisCheck] = Field(min_length=1)
+    blocking_issues: list[str]
+    limitations: list[str]
+
+
+class HypothesisInputRef(StrictModel):
+    artifact_type: Literal["product_result", "audience_result"]
+    artifact_id: str
+    version: str | None
+    source_refs: list[str]
+
+
+class HypothesisContextSummary(StrictModel):
+    product: HypothesisClaim
+    business_goal: HypothesisClaim
+    audience_ids: list[str]
+    constraints: list[HypothesisClaim]
+
+
+class HypothesisExcludedCandidate(StrictModel):
+    title: str
+    reason: str
+    source_refs: list[str]
+
+
+class HypothesisCard(HypothesisDraft):
+    hypothesis_id: str | None
+    hypothesis_version: str | None
+    checks: list[HypothesisCheck]
+    priority: HypothesisPriority
+    selection_status: Literal["selected", "backup", "rejected_validation"]
+    validation_status: Literal["pass", "fail", "unknown", "not_attempted"]
+    validation_issues: list[str]
+
+
+class HypothesisPipelineResult(StrictModel):
+    schema_version: Literal["0.1"]
+    request_id: str
+    workspace_id: str | None
+    product_id: str
+    status: Literal["complete", "partial", "blocked"]
+    input_refs: list[HypothesisInputRef]
+    context_summary: HypothesisContextSummary
+    hypotheses: list[HypothesisCard]
+    excluded_candidates: list[HypothesisExcludedCandidate]
+    conflicts: list[str]
+    missing_data: list[str]
+    questions: list[str] = Field(max_length=3)
+    limitations: list[str]
+    review_status: Literal["pending"]
+    human_decision: Literal["pending"]
+    validation_attempts: list[HypothesisValidation]
+    selected_candidate_ids: list[str]

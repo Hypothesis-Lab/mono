@@ -15,10 +15,12 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from .audience_workflow import AudienceWorkflow
 from .client import ModelClient
+from .hypothesis_workflow import HypothesisWorkflow
 from .models import (
     AudienceResult,
     AudienceReview,
     Evaluation,
+    HypothesisPipelineResult,
     Passport,
     Source,
     Validation,
@@ -70,6 +72,11 @@ async def run_models(
     audience_dataset: Path | None = None,
     audience_db: Path | None = None,
     product_passport: dict[str, Any] | None = None,
+    audience_result: dict[str, Any] | None = None,
+    product_result_ref: str | None = None,
+    audience_result_ref: str | None = None,
+    hypothesis_candidate_count: int = 5,
+    hypothesis_validation_target: int = 3,
     semantic_index_dir: Path | None = None,
     rate_limit_wait_budget_seconds: float = 45.0,
     run_timeout_seconds: float = 180.0,
@@ -106,6 +113,11 @@ async def run_models(
                 audience_dataset=audience_dataset,
                 audience_db=audience_db,
                 product_passport=product_passport,
+                audience_result=audience_result,
+                product_result_ref=product_result_ref,
+                audience_result_ref=audience_result_ref,
+                hypothesis_candidate_count=hypothesis_candidate_count,
+                hypothesis_validation_target=hypothesis_validation_target,
                 semantic_index_dir=semantic_index_dir,
                 rate_limit_wait_budget_seconds=rate_limit_wait_budget_seconds,
                 run_timeout_seconds=run_timeout_seconds,
@@ -139,6 +151,11 @@ async def run_one_model(
     audience_dataset: Path | None = None,
     audience_db: Path | None = None,
     product_passport: dict[str, Any] | None = None,
+    audience_result: dict[str, Any] | None = None,
+    product_result_ref: str | None = None,
+    audience_result_ref: str | None = None,
+    hypothesis_candidate_count: int = 5,
+    hypothesis_validation_target: int = 3,
     semantic_index_dir: Path | None = None,
     rate_limit_wait_budget_seconds: float = 45.0,
     run_timeout_seconds: float | None = None,
@@ -177,6 +194,14 @@ async def run_one_model(
                     db_path=audience_db,
                     semantic_index_dir=semantic_index_dir or checkpoint_dir / "semantic-index",
                 )
+            elif pipeline == "hypothesis":
+                if product_passport is None or audience_result is None:
+                    raise ValueError("hypothesis pipeline requires product and audience results")
+                workflow = HypothesisWorkflow(
+                    client,
+                    candidate_count=hypothesis_candidate_count,
+                    validation_target=hypothesis_validation_target,
+                )
             else:
                 workflow = Workflow(client, step_retries=step_retries)
             graph = workflow.compile(checkpointer)
@@ -192,7 +217,13 @@ async def run_one_model(
                     sources=sources,
                     audience_dataset=audience_dataset,
                     product_passport=product_passport,
+                    audience_result=audience_result,
+                    product_result_ref=product_result_ref,
+                    audience_result_ref=audience_result_ref,
+                    hypothesis_candidate_count=hypothesis_candidate_count,
+                    hypothesis_validation_target=hypothesis_validation_target,
                     audience_data_profile=workflow.dataset.profile() if pipeline == "audience" else None,
+                    request_id=run_id,
                 )
             )
             graph_config = {"configurable": {"thread_id": thread_id or f"{run_id}:{slugify(model)}"}}
@@ -260,6 +291,40 @@ def load_product_passport(path: Path, model: str | None = None) -> dict[str, Any
     raise ValueError(f"no completed product passport found in {path}")
 
 
+def load_completed_pipeline_result(path: Path, pipeline: str, model: str | None = None) -> dict[str, Any]:
+    """Load one completed result entry from a product or audience result file."""
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"cannot read {pipeline} result {path}: {error}") from error
+    if not isinstance(payload, dict):
+        raise ValueError(f"{pipeline} result {path} must contain a JSON object")
+    candidates = payload.get("results", [])
+    if isinstance(payload.get("result"), dict):
+        candidates = [payload]
+    eligible = [
+        item
+        for item in candidates
+        if isinstance(item, dict)
+        and (not model or item.get("model") == model)
+        and item.get("status") in (None, "completed")
+        and isinstance(item.get("result"), dict)
+    ]
+    eligible.sort(key=_product_result_sort_key)
+    if not eligible:
+        raise ValueError(f"no completed {pipeline} result found in {path}")
+    selected = eligible[0]
+    LOGGER.info(
+        "pipeline_result_selected pipeline=%s path=%s model=%s run_number=%s",
+        pipeline,
+        path,
+        selected.get("model", model or "unknown"),
+        selected.get("run_number", "single"),
+    )
+    return selected["result"]
+
+
 def _product_result_sort_key(item: dict[str, Any]) -> tuple[int, int, str]:
     run_number = item.get("run_number")
     if isinstance(run_number, int):
@@ -306,7 +371,13 @@ def _initial_state(
     sources: list[Source],
     audience_dataset: Path | None,
     product_passport: dict[str, Any] | None,
+    audience_result: dict[str, Any] | None,
+    product_result_ref: str | None,
+    audience_result_ref: str | None,
+    hypothesis_candidate_count: int,
+    hypothesis_validation_target: int,
     audience_data_profile: dict[str, Any] | None,
+    request_id: str,
 ) -> dict[str, Any]:
     if pipeline == "audience":
         if audience_dataset is None or product_passport is None or audience_data_profile is None:
@@ -316,6 +387,21 @@ def _initial_state(
             "model": model,
             "product_passport": product_passport,
             "data_profile": audience_data_profile,
+        }
+    if pipeline == "hypothesis":
+        if product_passport is None or audience_result is None:
+            raise ValueError("hypothesis pipeline requires product and audience results")
+        return {
+            "pipeline": pipeline,
+            "model": model,
+            "request_id": request_id,
+            "target_product": target_product,
+            "product_passport": product_passport,
+            "audience_result": audience_result,
+            "product_result_ref": product_result_ref or "product-result",
+            "audience_result_ref": audience_result_ref or "audience-result",
+            "candidate_count": hypothesis_candidate_count,
+            "validation_target": hypothesis_validation_target,
         }
     return {
         "pipeline": pipeline,
@@ -327,6 +413,12 @@ def _initial_state(
 
 
 def _result_from_state(state: dict[str, Any], pipeline: str) -> dict[str, Any]:
+    if pipeline == "hypothesis":
+        return {
+            "hypothesis": HypothesisPipelineResult.model_validate(state["result"]).model_dump(mode="json"),
+            "ranking": state.get("ranking"),
+            "validation_attempts": state.get("validation_attempts", []),
+        }
     validation = Validation.model_validate(state["validation"]).model_dump(mode="json")
     if pipeline == "audience":
         return {

@@ -7,12 +7,19 @@ import uuid
 from pathlib import Path
 
 from tempo_eval.products import PRODUCT_SLUGS, product_name, product_source_dir
-from tempo_eval.runner import compact_product_passport, load_models, load_product_passport, load_sources, run_models
+from tempo_eval.runner import (
+    compact_product_passport,
+    load_completed_pipeline_result,
+    load_models,
+    load_product_passport,
+    load_sources,
+    run_models,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run a Tempo evaluation pipeline against OpenRouter models.")
-    parser.add_argument("--pipeline", choices=("product", "audience"), default="product")
+    parser.add_argument("--pipeline", choices=("product", "audience", "hypothesis"), default="product")
     parser.add_argument("--product", choices=PRODUCT_SLUGS, default="cafe", help="Product source set to use")
     parser.add_argument(
         "--models", nargs="*", default=[], help="OpenRouter model IDs, for example google/gemini-2.5-flash"
@@ -42,7 +49,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--product-result", type=Path, help="Required product pipeline JSON whose passport is handed to audience"
     )
+    parser.add_argument(
+        "--audience-result", type=Path, help="Required audience pipeline JSON for the hypothesis pipeline"
+    )
     parser.add_argument("--product-model", help="Model to select from a product benchmark result")
+    parser.add_argument("--audience-model", help="Model to select from an audience benchmark result")
+    parser.add_argument("--hypothesis-count", type=int, default=5, help="Candidate hypotheses to generate")
+    parser.add_argument("--validate-top", type=int, default=3, help="Accepted hypotheses required after validation")
     parser.add_argument("--target-product", help="Override the selected product name")
     parser.add_argument("--as-of-date")
     parser.add_argument("--api-key", default=os.environ.get("OPENROUTER_API_KEY"))
@@ -72,25 +85,31 @@ def main() -> None:
         raise SystemExit("--rate-limit-budget must be non-negative")
     if args.run_timeout < 0:
         raise SystemExit("--run-timeout must be non-negative")
-    if args.pipeline == "audience" and not args.product_result:
-        raise SystemExit("--product-result is required for the audience pipeline")
+    if args.pipeline in {"audience", "hypothesis"} and not args.product_result:
+        raise SystemExit("--product-result is required for the audience and hypothesis pipelines")
+    if args.pipeline == "hypothesis" and not args.audience_result:
+        raise SystemExit("--audience-result is required for the hypothesis pipeline")
+    if args.hypothesis_count < 1:
+        raise SystemExit("--hypothesis-count must be at least 1")
+    if args.validate_top < 1:
+        raise SystemExit("--validate-top must be at least 1")
     args.input_dir = args.input_dir or product_source_dir(args.product)
     args.target_product = args.target_product or product_name(args.product)
     configured_model = os.environ.get("OPENROUTER_MODEL")
     models = load_models(args.models or ([configured_model] if configured_model else []), args.models_file)
-    pipeline_name = "audience" if args.pipeline == "audience" else "product"
+    pipeline_name = args.pipeline
     args.output = args.output or Path(f"results/{args.product}-{pipeline_name}.json")
-    args.checkpoints = args.checkpoints or (
-        Path(f"checkpoints/{args.product}-audience")
-        if args.pipeline == "audience"
-        else Path(f"checkpoints/{args.product}-product")
-    )
+    args.checkpoints = args.checkpoints or Path(f"checkpoints/{args.product}-{pipeline_name}")
     sources = load_sources(args.input_dir) if args.pipeline == "product" else []
-    product_passport = (
-        compact_product_passport(load_product_passport(args.product_result, args.product_model))
-        if args.pipeline == "audience"
-        else None
-    )
+    product_passport = None
+    audience_result = None
+    if args.pipeline == "audience":
+        product_passport = compact_product_passport(load_product_passport(args.product_result, args.product_model))
+    elif args.pipeline == "hypothesis":
+        product_passport = load_product_passport(args.product_result, args.product_model)
+        audience_result = load_completed_pipeline_result(
+            args.audience_result, "audience", args.audience_model or args.product_model
+        )
     run_id = args.run_id or uuid.uuid4().hex[:12]
     asyncio.run(
         run_models(
@@ -111,6 +130,11 @@ def main() -> None:
             audience_dataset=args.audience_data if args.pipeline == "audience" else None,
             audience_db=args.audience_db if args.pipeline == "audience" else None,
             product_passport=product_passport,
+            audience_result=audience_result,
+            product_result_ref=str(args.product_result) if args.product_result else None,
+            audience_result_ref=str(args.audience_result) if args.audience_result else None,
+            hypothesis_candidate_count=args.hypothesis_count,
+            hypothesis_validation_target=args.validate_top,
             semantic_index_dir=args.semantic_index if args.pipeline == "audience" else None,
             rate_limit_wait_budget_seconds=args.rate_limit_budget,
             run_timeout_seconds=args.run_timeout or None,

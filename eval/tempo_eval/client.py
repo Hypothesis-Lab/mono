@@ -4,6 +4,7 @@ import asyncio
 import copy
 import json
 import logging
+import os
 from dataclasses import dataclass, field
 from threading import Lock
 from time import perf_counter
@@ -47,6 +48,8 @@ class ModelClient:
             for key, value in {
                 "HTTP-Referer": self.app_url,
                 "X-Title": self.app_name,
+                "Helicone-Auth": os.environ.get("HELICONE_AUTH"),
+                "Helicone-Manual-Access-Key": os.environ.get("HELICONE_MANUAL_ACCESS_KEY"),
             }.items()
             if value
         }
