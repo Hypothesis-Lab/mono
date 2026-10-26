@@ -75,7 +75,45 @@ The seven stage prompts are embedded as editable node text. They use n8n express
 
 ## Product extraction workflow
 
-The separate workflow `workflows/tempo-product-extraction.json` implements the extraction prompt from `prompts/tempo-product-extraction.md`. The structured version is imported as **Tempo product extraction — structured output** and does not replace the existing passport workflow.
+### Standalone implementation
+
+`workflows/tempo-product-extraction.json` is the standalone n8n implementation
+of the product pipeline. Its runtime does not import Python, call `eval/`, or
+depend on the evaluation runner. Everything required for orchestration is in
+the imported workflow and the mounted product documents under `n8n/product/`.
+The prompt files under `n8n/prompts/` are the editable source/reference used
+when regenerating the workflow; n8n executes the prompts embedded in the
+imported JSON.
+
+Use this workflow when you want to demonstrate the complete pipeline to a
+colleague:
+
+```text
+manual trigger
+  -> read product documents
+  -> extract a structured draft per source
+  -> consolidate records, duplicates, conflicts, and gaps
+  -> deterministic passport validation
+  -> conditional structural repair
+  -> final passport
+  -> criteria-based source audit
+  -> passport + evaluation
+```
+
+To run it:
+
+1. Start n8n with the compose setup described above.
+2. Import `workflows/tempo-product-extraction.json`.
+3. In **Материалы продукта**, use `/product/cafe/*.md` for Tempo or
+   `/product/bank/*.md` for Lumen.
+4. In **Параметры запуска**, set `target_product` and optionally `as_of_date`.
+5. Attach an OpenAI-compatible credential to **OpenAI-compatible model
+   (extraction)**.
+6. Execute **Запустить экстракцию** manually.
+
+The final node returns one JSON item containing `passport`, deterministic
+`validation`, and criteria-based `evaluation`. The workflow is inactive by
+default, so importing it does not start an execution automatically.
 
 Its pipeline is:
 
