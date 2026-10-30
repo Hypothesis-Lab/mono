@@ -1,0 +1,436 @@
+{
+  "version": 1,
+  "method": "selected_robust_numeric_and_one_hot",
+  "numeric_params": {
+    "version": 1,
+    "method": "median_iqr",
+    "fields": [
+      {
+        "field": "__t01__recency_days",
+        "median": 0.3579861111111111,
+        "scale": 0.3428819444444445,
+        "lower": 0.0034583333333333332,
+        "upper": 0.7013958333333333,
+        "scale_method": "iqr"
+      },
+      {
+        "field": "__t01__observed_tenure_days",
+        "median": 259.1097222222222,
+        "scale": 26.942881944444423,
+        "lower": 197.12161805555556,
+        "upper": 270.38310416666667,
+        "scale_method": "iqr"
+      },
+      {
+        "field": "__t01__observed_row_count_30d",
+        "median": 2.0,
+        "scale": 2.0,
+        "lower": 1.0,
+        "upper": 5.0,
+        "scale_method": "iqr"
+      },
+      {
+        "field": "__t01__observed_row_count_90d",
+        "median": 5.0,
+        "scale": 2.0,
+        "lower": 2.0,
+        "upper": 9.0,
+        "scale_method": "iqr"
+      },
+      {
+        "field": "__t01__source_system__distinct_count",
+        "median": 4.0,
+        "scale": 1.0,
+        "lower": 4.0,
+        "upper": 5.0,
+        "scale_method": "p99_minus_p01_floor_1"
+      },
+      {
+        "field": "__t01__event_type__distinct_count",
+        "median": 5.0,
+        "scale": 1.0,
+        "lower": 5.0,
+        "upper": 6.0,
+        "scale_method": "p99_minus_p01_floor_1"
+      },
+      {
+        "field": "__t01__age_years__median",
+        "median": 45.0,
+        "scale": 24.0,
+        "lower": 21.0,
+        "upper": 69.0,
+        "scale_method": "iqr"
+      },
+      {
+        "field": "__t01__estimated_monthly_income_rub__median",
+        "median": 114000.0,
+        "scale": 73000.0,
+        "lower": 35990.0,
+        "upper": 223010.0,
+        "scale_method": "iqr"
+      },
+      {
+        "field": "__t01__region_at_event__distinct_count",
+        "median": 1.0,
+        "scale": 1.0,
+        "lower": 1.0,
+        "upper": 2.0,
+        "scale_method": "p99_minus_p01_floor_1"
+      },
+      {
+        "field": "__t01__previous_region__distinct_count",
+        "median": 0.0,
+        "scale": 1.0,
+        "lower": 0.0,
+        "upper": 1.0,
+        "scale_method": "p99_minus_p01_floor_1"
+      },
+      {
+        "field": "__t01__city_at_event__distinct_count",
+        "median": 1.0,
+        "scale": 1.0,
+        "lower": 1.0,
+        "upper": 2.0,
+        "scale_method": "p99_minus_p01_floor_1"
+      },
+      {
+        "field": "__t01__previous_city__distinct_count",
+        "median": 0.0,
+        "scale": 1.0,
+        "lower": 0.0,
+        "upper": 1.0,
+        "scale_method": "p99_minus_p01_floor_1"
+      },
+      {
+        "field": "__t01__account_scope__distinct_count",
+        "median": 1.0,
+        "scale": 1.0,
+        "lower": 1.0,
+        "upper": 2.0,
+        "scale_method": "p99_minus_p01_floor_1"
+      },
+      {
+        "field": "__t01__transaction_category__distinct_count",
+        "median": 6.0,
+        "scale": 2.0,
+        "lower": 4.0,
+        "upper": 8.0,
+        "scale_method": "iqr"
+      },
+      {
+        "field": "__t01__expense_category__distinct_count",
+        "median": 5.0,
+        "scale": 2.0,
+        "lower": 3.0,
+        "upper": 7.0,
+        "scale_method": "iqr"
+      },
+      {
+        "field": "__t01__expense_amount_rub__median",
+        "median": 6459.5,
+        "scale": 3667.5,
+        "lower": 2181.35,
+        "upper": 88139.18,
+        "scale_method": "iqr"
+      },
+      {
+        "field": "__t01__mcc_code__distinct_count",
+        "median": 5.0,
+        "scale": 1.0,
+        "lower": 3.0,
+        "upper": 7.0,
+        "scale_method": "iqr"
+      },
+      {
+        "field": "__t01__mcc_role__distinct_count",
+        "median": 1.0,
+        "scale": 1.0,
+        "lower": 1.0,
+        "upper": 2.0,
+        "scale_method": "p99_minus_p01_floor_1"
+      },
+      {
+        "field": "__t01__expense_count_prior_30d__latest",
+        "median": 1.0,
+        "scale": 1.0,
+        "lower": 0.0,
+        "upper": 3.0,
+        "scale_method": "iqr"
+      },
+      {
+        "field": "__t01__expense_sum_prior_30d_rub__median",
+        "median": 1905.5,
+        "scale": 5914.125,
+        "lower": 0.0,
+        "upper": 233242.03499999997,
+        "scale_method": "iqr"
+      },
+      {
+        "field": "__t01__app_section__distinct_count",
+        "median": 2.0,
+        "scale": 1.0,
+        "lower": 1.0,
+        "upper": 3.0,
+        "scale_method": "iqr"
+      },
+      {
+        "field": "__t01__app_visits_prior_30d__latest",
+        "median": 0.0,
+        "scale": 2.0,
+        "lower": 0.0,
+        "upper": 2.0,
+        "scale_method": "p99_minus_p01_floor_1"
+      },
+      {
+        "field": "__t01__days_since_prior_app_visit__median",
+        "median": 42.0,
+        "scale": 21.0,
+        "lower": 9.99,
+        "upper": 104.03999999999996,
+        "scale_method": "iqr"
+      },
+      {
+        "field": "__t01__campaign_action__distinct_count",
+        "median": 1.0,
+        "scale": 1.0,
+        "lower": 1.0,
+        "upper": 2.0,
+        "scale_method": "p99_minus_p01_floor_1"
+      },
+      {
+        "field": "__t01__campaign_touches_prior_90d__latest",
+        "median": 1.0,
+        "scale": 1.0,
+        "lower": 0.0,
+        "upper": 1.0,
+        "scale_method": "p99_minus_p01_floor_1"
+      },
+      {
+        "field": "__t01__balance_change_rub__median",
+        "median": -823.5,
+        "scale": 1419.75,
+        "lower": -8145.575,
+        "upper": -143.5,
+        "scale_method": "iqr"
+      },
+      {
+        "field": "__t01__balance_after_event_rub__median",
+        "median": 346618.25,
+        "scale": 312758.125,
+        "lower": 65455.38,
+        "upper": 4616833.535,
+        "scale_method": "iqr"
+      }
+    ]
+  },
+  "categories": [
+    {
+      "field": "__t01__gender__most_common",
+      "levels": [
+        "женский",
+        "мужской"
+      ]
+    },
+    {
+      "field": "__t01__region_at_event__most_common",
+      "levels": [
+        "Новосибирская область",
+        "Ростовская область",
+        "Московская область",
+        "Свердловская область",
+        "Санкт-Петербург",
+        "Республика Татарстан",
+        "Краснодарский край",
+        "Самарская область",
+        "Нижегородская область",
+        "Москва"
+      ]
+    },
+    {
+      "field": "__t01__city_at_event__most_common",
+      "levels": [
+        "Санкт-Петербург",
+        "Москва",
+        "Бердск",
+        "Ростов-на-Дону",
+        "Казань",
+        "Екатеринбург",
+        "Сочи",
+        "Нижний Тагил",
+        "Новосибирск",
+        "Тольятти",
+        "Таганрог",
+        "Дзержинск"
+      ]
+    },
+    {
+      "field": "__t01__account_types__most_common",
+      "levels": [
+        "текущий",
+        "текущий; накопительный",
+        "текущий; счет ИП"
+      ]
+    },
+    {
+      "field": "__t01__bank_products__most_common",
+      "levels": [
+        "дебетовая карта",
+        "дебетовая карта; кредитная карта",
+        "дебетовая карта; эквайринг"
+      ]
+    },
+    {
+      "field": "__t01__account_scope__most_common",
+      "levels": [
+        "личный счет",
+        "счет ИП"
+      ]
+    },
+    {
+      "field": "__t01__transaction_category__most_common",
+      "levels": [
+        "аптеки",
+        "кафе",
+        "выплаты персоналу",
+        "коммунальные услуги",
+        "продукты",
+        "одежда",
+        "стриминг",
+        "фитнес"
+      ]
+    },
+    {
+      "field": "__t01__expense_category__most_common",
+      "levels": [
+        "аптеки",
+        "кафе",
+        "выплаты персоналу",
+        "коммунальные услуги",
+        "продукты",
+        "одежда",
+        "стриминг",
+        "фитнес"
+      ]
+    },
+    {
+      "field": "__t01__mcc_code__most_common",
+      "levels": [
+        "5812",
+        "4899",
+        "4900",
+        "5411",
+        "5651",
+        "5912",
+        "5499",
+        "7997"
+      ]
+    },
+    {
+      "field": "__t01__app_section__most_common",
+      "levels": [
+        "бонусы",
+        "история операций",
+        "карты",
+        "платежи",
+        "подписки",
+        "эквайринг"
+      ]
+    },
+    {
+      "field": "__t01__campaign_id__most_common",
+      "levels": [
+        "credit_card_2026",
+        "debit_rewards_2026",
+        "savings_2026",
+        "business_tools_2026"
+      ]
+    },
+    {
+      "field": "__t01__campaign_action__most_common",
+      "levels": [
+        "показ",
+        "отклик"
+      ]
+    }
+  ],
+  "fit_as_of_utc": [
+    "2026-09-28 22:59:00+00:00"
+  ],
+  "output_columns": [
+    "__t01__recency_days__scaled",
+    "__t01__observed_tenure_days__scaled",
+    "__t01__observed_row_count_30d__scaled",
+    "__t01__observed_row_count_90d__scaled",
+    "__t01__source_system__distinct_count__scaled",
+    "__t01__event_type__distinct_count__scaled",
+    "__t01__age_years__median__scaled",
+    "__t01__estimated_monthly_income_rub__median__scaled",
+    "__t01__region_at_event__distinct_count__scaled",
+    "__t01__transaction_category__distinct_count__scaled",
+    "__t01__expense_amount_rub__median__scaled",
+    "__t01__mcc_code__distinct_count__scaled",
+    "__t01__expense_count_prior_30d__latest__scaled",
+    "__t01__expense_sum_prior_30d_rub__median__scaled",
+    "__t01__app_section__distinct_count__scaled",
+    "__t01__app_visits_prior_30d__latest__scaled",
+    "__t01__days_since_prior_app_visit__median__scaled",
+    "__t01__campaign_touches_prior_90d__latest__scaled",
+    "__t01__balance_change_rub__median__scaled",
+    "__t01__balance_after_event_rub__median__scaled",
+    "__cat001__value_01",
+    "__cat001__value_02",
+    "__cat002__value_01",
+    "__cat002__value_02",
+    "__cat002__value_03",
+    "__cat002__value_04",
+    "__cat002__value_05",
+    "__cat002__value_06",
+    "__cat002__value_07",
+    "__cat002__value_08",
+    "__cat002__value_09",
+    "__cat002__value_10",
+    "__cat003__value_01",
+    "__cat003__value_03",
+    "__cat003__value_04",
+    "__cat003__value_05",
+    "__cat003__value_06",
+    "__cat003__value_07",
+    "__cat003__value_08",
+    "__cat003__value_09",
+    "__cat003__value_10",
+    "__cat003__value_11",
+    "__cat003__value_12",
+    "__cat003__other",
+    "__cat004__value_01",
+    "__cat004__value_02",
+    "__cat004__value_03",
+    "__cat005__value_01",
+    "__cat005__value_02",
+    "__cat006__value_01",
+    "__cat007__value_01",
+    "__cat007__value_02",
+    "__cat007__value_04",
+    "__cat007__value_05",
+    "__cat007__value_06",
+    "__cat007__value_07",
+    "__cat007__value_08",
+    "__cat009__value_01",
+    "__cat009__value_02",
+    "__cat009__value_03",
+    "__cat009__value_04",
+    "__cat009__value_05",
+    "__cat009__value_06",
+    "__cat009__value_07",
+    "__cat010__value_01",
+    "__cat010__value_02",
+    "__cat010__value_03",
+    "__cat010__value_04",
+    "__cat010__value_05",
+    "__cat010__value_06",
+    "__cat011__value_01",
+    "__cat011__value_02",
+    "__cat011__value_03",
+    "__cat012__value_01",
+    "__cat012__value_02"
+  ]
+}

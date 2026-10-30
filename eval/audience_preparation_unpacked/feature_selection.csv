@@ -1,0 +1,198 @@
+﻿feature,decision,reason
+__t01__last_observed_at_utc,derived_days,__t01__recency_days
+__t01__first_observed_at_utc,derived_days,__t01__observed_tenure_days
+__t01__recency_days,selected_numeric,устойчивое масштабирование
+__t01__observed_tenure_days,selected_numeric,устойчивое масштабирование
+__t01__observed_row_count_30d,selected_numeric,устойчивое масштабирование
+__t01__observed_row_count_90d,selected_numeric,устойчивое масштабирование
+__t01__source_system__distinct_count,selected_numeric,устойчивое масштабирование
+__t01__event_type__distinct_count,selected_numeric,устойчивое масштабирование
+__t01__gender__distinct_count,excluded,постоянное или пустое поле
+__t01__age_years__median,selected_numeric,устойчивое масштабирование
+__t01__estimated_monthly_income_rub__median,selected_numeric,устойчивое масштабирование
+__t01__region_at_event__distinct_count,selected_numeric,устойчивое масштабирование
+__t01__previous_region__distinct_count,selected_numeric,устойчивое масштабирование
+__t01__city_at_event__distinct_count,selected_numeric,устойчивое масштабирование
+__t01__previous_city__distinct_count,selected_numeric,устойчивое масштабирование
+__t01__account_types__distinct_count,excluded,постоянное или пустое поле
+__t01__bank_products__distinct_count,excluded,постоянное или пустое поле
+__t01__account_scope__distinct_count,selected_numeric,устойчивое масштабирование
+__t01__transaction_category__distinct_count,selected_numeric,устойчивое масштабирование
+__t01__expense_category__distinct_count,selected_numeric,устойчивое масштабирование
+__t01__expense_amount_rub__median,selected_numeric,устойчивое масштабирование
+__t01__mcc_code__distinct_count,selected_numeric,устойчивое масштабирование
+__t01__mcc_role__distinct_count,selected_numeric,устойчивое масштабирование
+__t01__expense_count_prior_30d__latest,selected_numeric,устойчивое масштабирование
+__t01__expense_sum_prior_30d_rub__median,selected_numeric,устойчивое масштабирование
+__t01__app_section__distinct_count,selected_numeric,устойчивое масштабирование
+__t01__app_visits_prior_30d__latest,selected_numeric,устойчивое масштабирование
+__t01__days_since_prior_app_visit__median,selected_numeric,устойчивое масштабирование
+__t01__campaign_id__distinct_count,excluded,постоянное или пустое поле
+__t01__campaign_action__distinct_count,selected_numeric,устойчивое масштабирование
+__t01__campaign_touches_prior_90d__latest,selected_numeric,устойчивое масштабирование
+__t01__balance_change_rub__median,selected_numeric,устойчивое масштабирование
+__t01__balance_after_event_rub__median,selected_numeric,устойчивое масштабирование
+__t01__source_system__most_common,excluded,одна категория или пустое поле
+__t01__event_type__most_common,excluded,одна категория или пустое поле
+__t01__gender__most_common,selected_category,категории в числовом виде
+__t01__region_at_event__most_common,selected_category,категории в числовом виде
+__t01__previous_region__most_common,excluded,пропусков больше порога
+__t01__city_at_event__most_common,selected_category,частые категории + прочие
+__t01__previous_city__most_common,excluded,пропусков больше порога
+__t01__account_types__most_common,selected_category,категории в числовом виде
+__t01__bank_products__most_common,selected_category,категории в числовом виде
+__t01__account_scope__most_common,selected_category,категории в числовом виде
+__t01__transaction_category__most_common,selected_category,категории в числовом виде
+__t01__expense_category__most_common,selected_category,категории в числовом виде
+__t01__mcc_code__most_common,selected_category,категории в числовом виде
+__t01__mcc_role__most_common,excluded,одна категория или пустое поле
+__t01__app_section__most_common,selected_category,категории в числовом виде
+__t01__campaign_id__most_common,selected_category,категории в числовом виде
+__t01__campaign_action__most_common,selected_category,категории в числовом виде
+__t01__recency_days__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__observed_tenure_days__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__observed_row_count_30d__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__observed_row_count_90d__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__source_system__distinct_count__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__event_type__distinct_count__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__age_years__median__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__estimated_monthly_income_rub__median__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__region_at_event__distinct_count__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__previous_region__distinct_count__scaled,excluded_duplicate_matrix_column,точная копия __t01__region_at_event__distinct_count__scaled
+__t01__previous_region__distinct_count__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__city_at_event__distinct_count__scaled,excluded_duplicate_matrix_column,точная копия __t01__region_at_event__distinct_count__scaled
+__t01__city_at_event__distinct_count__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__previous_city__distinct_count__scaled,excluded_duplicate_matrix_column,точная копия __t01__region_at_event__distinct_count__scaled
+__t01__previous_city__distinct_count__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__account_scope__distinct_count__scaled,excluded_duplicate_matrix_column,точная копия __t01__source_system__distinct_count__scaled
+__t01__account_scope__distinct_count__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__transaction_category__distinct_count__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__expense_category__distinct_count__scaled,excluded_duplicate_matrix_column,точная копия __t01__transaction_category__distinct_count__scaled
+__t01__expense_category__distinct_count__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__expense_amount_rub__median__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__mcc_code__distinct_count__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__mcc_role__distinct_count__scaled,excluded_duplicate_matrix_column,точная копия __t01__source_system__distinct_count__scaled
+__t01__mcc_role__distinct_count__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__expense_count_prior_30d__latest__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__expense_sum_prior_30d_rub__median__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__app_section__distinct_count__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__app_visits_prior_30d__latest__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__days_since_prior_app_visit__median__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__campaign_action__distinct_count__scaled,excluded_duplicate_matrix_column,точная копия __t01__event_type__distinct_count__scaled
+__t01__campaign_action__distinct_count__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__campaign_touches_prior_90d__latest__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__balance_change_rub__median__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__balance_after_event_rub__median__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat001__other,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat001__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat002__other,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat002__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat003__value_02,excluded_duplicate_matrix_column,точная копия __cat002__value_10
+__cat003__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat004__other,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat004__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat005__value_03,excluded_duplicate_matrix_column,точная копия __cat004__value_03
+__cat005__other,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat005__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat006__value_02,excluded_duplicate_matrix_column,точная копия __cat004__value_03
+__cat006__other,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat006__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat007__value_03,excluded_duplicate_matrix_column,точная копия __cat004__value_03
+__cat007__other,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat007__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat008__value_01,excluded_duplicate_matrix_column,точная копия __cat007__value_01
+__cat008__value_02,excluded_duplicate_matrix_column,точная копия __cat007__value_02
+__cat008__value_03,excluded_duplicate_matrix_column,точная копия __cat004__value_03
+__cat008__value_04,excluded_duplicate_matrix_column,точная копия __cat007__value_04
+__cat008__value_05,excluded_duplicate_matrix_column,точная копия __cat007__value_05
+__cat008__value_06,excluded_duplicate_matrix_column,точная копия __cat007__value_06
+__cat008__value_07,excluded_duplicate_matrix_column,точная копия __cat007__value_07
+__cat008__value_08,excluded_duplicate_matrix_column,точная копия __cat007__value_08
+__cat008__other,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat008__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat009__value_08,excluded_duplicate_matrix_column,точная копия __cat007__value_08
+__cat009__other,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat009__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat010__other,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat010__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat011__value_04,excluded_duplicate_matrix_column,точная копия __cat004__value_03
+__cat011__other,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat011__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat012__other,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__cat012__missing,excluded_constant_matrix_column,постоянное значение на обучающей выборке
+__t01__observed_row_count,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__source_system__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__event_type__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__gender__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__age_years__valid_count,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__age_years__min,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__age_years__max,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__age_years__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__estimated_monthly_income_rub__valid_count,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__estimated_monthly_income_rub__min,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__estimated_monthly_income_rub__max,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__estimated_monthly_income_rub__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__region_at_event__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__previous_region__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__city_at_event__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__previous_city__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__account_types__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__bank_products__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__account_scope__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__transaction_category__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__expense_category__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__expense_amount_rub__valid_count,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__expense_amount_rub__min,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__expense_amount_rub__max,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__expense_amount_rub__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__mcc_code__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__mcc_role__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__expense_count_prior_30d__distinct_count,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__expense_sum_prior_30d_rub__valid_count,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__expense_sum_prior_30d_rub__min,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__expense_sum_prior_30d_rub__max,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__expense_sum_prior_30d_rub__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__app_section__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__app_visits_prior_30d__distinct_count,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__days_since_prior_app_visit__valid_count,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__days_since_prior_app_visit__min,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__days_since_prior_app_visit__max,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__days_since_prior_app_visit__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__campaign_id__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__campaign_action__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__campaign_touches_prior_90d__distinct_count,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__balance_change_rub__valid_count,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__balance_change_rub__min,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__balance_change_rub__max,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__balance_change_rub__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__balance_after_event_rub__valid_count,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__balance_after_event_rub__min,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__balance_after_event_rub__max,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__balance_after_event_rub__latest,not_selected,"другой агрегат того же поля, ID, дата или источник без надежного времени"
+__t01__recency_days,normalization,missing=0; clipped=12; median=0.3579861111111111; scale=0.3428819444444445
+__t01__observed_tenure_days,normalization,missing=0; clipped=12; median=259.1097222222222; scale=26.942881944444423
+__t01__observed_row_count_30d,normalization,missing=0; clipped=5; median=2.0; scale=2.0
+__t01__observed_row_count_90d,normalization,missing=0; clipped=9; median=5.0; scale=2.0
+__t01__source_system__distinct_count,normalization,missing=0; clipped=0; median=4.0; scale=1.0
+__t01__event_type__distinct_count,normalization,missing=0; clipped=0; median=5.0; scale=1.0
+__t01__age_years__median,normalization,missing=0; clipped=0; median=45.0; scale=24.0
+__t01__estimated_monthly_income_rub__median,normalization,missing=0; clipped=12; median=114000.0; scale=73000.0
+__t01__region_at_event__distinct_count,normalization,missing=0; clipped=0; median=1.0; scale=1.0
+__t01__previous_region__distinct_count,normalization,missing=0; clipped=0; median=0.0; scale=1.0
+__t01__city_at_event__distinct_count,normalization,missing=0; clipped=0; median=1.0; scale=1.0
+__t01__previous_city__distinct_count,normalization,missing=0; clipped=0; median=0.0; scale=1.0
+__t01__account_scope__distinct_count,normalization,missing=0; clipped=0; median=1.0; scale=1.0
+__t01__transaction_category__distinct_count,normalization,missing=0; clipped=4; median=6.0; scale=2.0
+__t01__expense_category__distinct_count,normalization,missing=0; clipped=4; median=5.0; scale=2.0
+__t01__expense_amount_rub__median,normalization,missing=0; clipped=12; median=6459.5; scale=3667.5
+__t01__mcc_code__distinct_count,normalization,missing=0; clipped=1; median=5.0; scale=1.0
+__t01__mcc_role__distinct_count,normalization,missing=0; clipped=0; median=1.0; scale=1.0
+__t01__expense_count_prior_30d__latest,normalization,missing=0; clipped=4; median=1.0; scale=1.0
+__t01__expense_sum_prior_30d_rub__median,normalization,missing=0; clipped=6; median=1905.5; scale=5914.125
+__t01__app_section__distinct_count,normalization,missing=0; clipped=0; median=2.0; scale=1.0
+__t01__app_visits_prior_30d__latest,normalization,missing=0; clipped=0; median=0.0; scale=2.0
+__t01__days_since_prior_app_visit__median,normalization,missing=0; clipped=12; median=42.0; scale=21.0
+__t01__campaign_action__distinct_count,normalization,missing=0; clipped=0; median=1.0; scale=1.0
+__t01__campaign_touches_prior_90d__latest,normalization,missing=0; clipped=0; median=1.0; scale=1.0
+__t01__balance_change_rub__median,normalization,missing=0; clipped=11; median=-823.5; scale=1419.75
+__t01__balance_after_event_rub__median,normalization,missing=0; clipped=12; median=346618.25; scale=312758.125

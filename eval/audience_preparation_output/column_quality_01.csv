@@ -1,0 +1,32 @@
+﻿field,source_dtype,inferred_type,rows,missing_count,missing_share,distinct_nonempty,parse_failures,conversion_applied,inference,review_flags,repeated_nonempty_rows,unique_share_nonempty,possible_missing_markers,earliest_utc,latest_utc,ambiguous_day_month_format_flag,rare_values_under_3_rows,case_variant_groups_flag,min,median,p99,max,negative_count_flag,high_iqr_outliers_flag
+event_id,object,identifier,10000,0,0.0,10000,0,False,"{'reason': 'много различных коротких значений', 'unique_values': 10000}",[],0.0,1.0,{},,,,,,,,,,,
+client_id,object,identifier,10000,0,0.0,600,0,False,"{'reason': 'много различных коротких значений', 'unique_values': 600}",[],10000.0,0.06,{},,,,,,,,,,,
+event_timestamp,object,datetime,10000,0,0.0,9642,0,True,"{'reason': 'значения похожи на даты', 'parse_ratio': 1.0}",[],,,{},2026-01-01 06:23:00+00:00,2026-09-28 22:59:00+00:00,0.0,,,,,,,,
+source_system,object,categorical,10000,0,0.0,5,0,False,"{'reason': 'повторяющиеся значения', 'unique_values': 5}",[],,,{},,,,0.0,0.0,,,,,,
+event_type,object,categorical,10000,0,0.0,6,0,False,"{'reason': 'повторяющиеся значения', 'unique_values': 6}",[],,,{},,,,0.0,0.0,,,,,,
+gender,object,categorical,10000,0,0.0,2,0,False,"{'reason': 'повторяющиеся значения', 'unique_values': 2}",[],,,{},,,,0.0,0.0,,,,,,
+age_years,object,numeric,10000,0,0.0,49,0,True,"{'reason': 'значения похожи на числа', 'parse_ratio': 1.0}",[],,,{},,,,,,21.0,45.0,69.0,69.0,0.0,0.0
+estimated_monthly_income_rub,object,numeric,10000,0,0.0,161,0,True,"{'reason': 'значения похожи на числа', 'parse_ratio': 1.0}",[],,,{},,,,,,35000.0,118000.0,226000.0,229000.0,0.0,0.0
+region_at_event,object,categorical,10000,0,0.0,10,0,False,"{'reason': 'повторяющиеся значения', 'unique_values': 10}",[],,,{},,,,0.0,0.0,,,,,,
+previous_region,object,categorical,10000,9485,0.9485,10,0,False,"{'reason': 'повторяющиеся значения', 'unique_values': 10}",[],,,{},,,,0.0,0.0,,,,,,
+city_at_event,object,categorical,10000,0,0.0,19,0,False,"{'reason': 'повторяющиеся значения', 'unique_values': 19}",[],,,{},,,,0.0,0.0,,,,,,
+previous_city,object,categorical,10000,9485,0.9485,18,0,False,"{'reason': 'повторяющиеся значения', 'unique_values': 18}",[],,,{},,,,1.0,0.0,,,,,,
+region_since,object,datetime,10000,0,0.0,80,0,True,"{'reason': 'значения похожи на даты', 'parse_ratio': 1.0}",[],,,{},2025-10-01 00:00:00+00:00,2026-07-24 18:38:00+00:00,0.0,,,,,,,,
+account_types,object,categorical,10000,0,0.0,3,0,False,"{'reason': 'повторяющиеся значения', 'unique_values': 3}",[],,,{},,,,0.0,0.0,,,,,,
+bank_products,object,categorical,10000,0,0.0,3,0,False,"{'reason': 'повторяющиеся значения', 'unique_values': 3}",[],,,{},,,,0.0,0.0,,,,,,
+account_scope,object,categorical,10000,3600,0.36,2,0,False,"{'reason': 'повторяющиеся значения', 'unique_values': 2}",[],,,{},,,,0.0,0.0,,,,,,
+transaction_category,object,categorical,10000,3600,0.36,11,0,False,"{'reason': 'повторяющиеся значения', 'unique_values': 11}",[],,,{},,,,0.0,0.0,,,,,,
+expense_category,object,categorical,10000,4700,0.47,9,0,False,"{'reason': 'повторяющиеся значения', 'unique_values': 9}",[],,,{},,,,0.0,0.0,,,,,,
+expense_amount_rub,object,numeric,10000,4700,0.47,4641,0,True,"{'reason': 'значения похожи на числа', 'parse_ratio': 1.0}",[],,,{},,,,,,251.0,7667.0,228916.30000000005,239942.0,0.0,1200.0
+mcc_code,object,categorical,10000,4700,0.47,8,0,False,"{'reason': 'равная длина повторяющихся цифровых значений: возможный код; смысл проверьте', 'unique_values': 8}",[],,,{},,,,0.0,0.0,,,,,,
+mcc_role,object,categorical,10000,4700,0.47,2,0,False,"{'reason': 'повторяющиеся значения', 'unique_values': 2}",[],,,{},,,,0.0,0.0,,,,,,
+expense_count_prior_30d,object,numeric_discrete,10000,0,0.0,7,0,True,"{'reason': 'значения похожи на числа', 'parse_ratio': 1.0}",['may_be_numeric_code_or_count; no_outlier_detection'],,,{},,,,,,,,,,,
+expense_sum_prior_30d_rub,object,numeric,10000,0,0.0,4780,0,True,"{'reason': 'значения похожи на числа', 'parse_ratio': 1.0}",[],,,{},,,,,,0.0,5155.5,324880.96,510324.0,0.0,2324.0
+app_section,object,categorical,10000,8200,0.82,6,0,False,"{'reason': 'повторяющиеся значения', 'unique_values': 6}",[],,,{},,,,0.0,0.0,,,,,,
+app_visits_prior_30d,object,numeric_discrete,10000,0,0.0,4,0,True,"{'reason': 'значения похожи на числа', 'parse_ratio': 1.0}",['may_be_numeric_code_or_count; no_outlier_detection'],,,{},,,,,,,,,,,
+days_since_prior_app_visit,object,numeric,10000,2351,0.2351,223,0,True,"{'reason': 'значения похожи на числа', 'parse_ratio': 1.0}",[],,,{},,,,,,0.0,42.0,183.0,243.0,0.0,177.0
+campaign_id,object,categorical,10000,8800,0.88,4,0,False,"{'reason': 'повторяющиеся значения', 'unique_values': 4}",[],,,{},,,,0.0,0.0,,,,,,
+campaign_action,object,categorical,10000,8800,0.88,2,0,False,"{'reason': 'повторяющиеся значения', 'unique_values': 2}",[],,,{},,,,0.0,0.0,,,,,,
+campaign_touches_prior_90d,object,numeric_discrete,10000,0,0.0,3,0,True,"{'reason': 'значения похожи на числа', 'parse_ratio': 1.0}",['may_be_numeric_code_or_count; no_outlier_detection'],,,{},,,,,,,,,,,
+balance_change_rub,object,numeric,10000,0,0.0,5490,0,True,"{'reason': 'значения похожи на числа', 'parse_ratio': 1.0}",[],,,{},,,,,,-239942.0,-1114.5,619957.68,689807.0,5300.0,1100.0
+balance_after_event_rub,object,numeric,10000,0,0.0,6558,0,True,"{'reason': 'значения похожи на числа', 'parse_ratio': 1.0}",[],,,{},,,,,,18835.0,385334.5,4975514.0,5576461.0,0.0,0.0

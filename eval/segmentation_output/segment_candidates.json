@@ -1,0 +1,337 @@
+{
+  "schema_version": 1,
+  "status": "exploratory_not_ground_truth",
+  "source_archive": "audience_preparation_output.zip",
+  "as_of": [
+    "2026-09-28 22:59:00+00:00"
+  ],
+  "data_provenance": "synthetic_demo",
+  "segments": [
+    {
+      "segment_id": "seg_01",
+      "size": 500,
+      "volume": {
+        "observed_clients": 500,
+        "share_of_input": 0.8333,
+        "population_estimate": null
+      },
+      "key_features": [
+        {
+          "feature": "__t01__source_system__distinct_count",
+          "kind": "numeric",
+          "direction": "lower",
+          "effect_size": 0.447,
+          "segment_median": 4.0,
+          "overall_median": 4.0,
+          "segment_mean": 4.0,
+          "overall_mean": 4.17
+        },
+        {
+          "feature": "__t01__account_types__most_common",
+          "value": "текущий; счет ИП",
+          "kind": "category",
+          "segment_share": 0.0,
+          "overall_share": 0.1667,
+          "direction": "lower",
+          "effect_size": 0.447
+        },
+        {
+          "feature": "__t01__account_scope__most_common",
+          "value": "личный счет",
+          "kind": "category",
+          "segment_share": 1.0,
+          "overall_share": 0.8333,
+          "direction": "higher",
+          "effect_size": 0.447
+        },
+        {
+          "feature": "__t01__expense_sum_prior_30d_rub__median",
+          "kind": "numeric",
+          "direction": "lower",
+          "effect_size": 0.438,
+          "segment_median": 1091.0,
+          "overall_median": 1905.5,
+          "segment_mean": 2053.16,
+          "overall_mean": 33467.25
+        },
+        {
+          "feature": "__t01__expense_amount_rub__median",
+          "kind": "numeric",
+          "direction": "lower",
+          "effect_size": 0.434,
+          "segment_median": 6006.5,
+          "overall_median": 6459.5,
+          "segment_mean": 6026.83,
+          "overall_mean": 16438.44
+        },
+        {
+          "feature": "__t01__balance_after_event_rub__median",
+          "kind": "numeric",
+          "direction": "lower",
+          "effect_size": 0.434,
+          "segment_median": 304563.5,
+          "overall_median": 346618.25,
+          "segment_mean": 326871.59,
+          "overall_mean": 886363.71
+        },
+        {
+          "feature": "__t01__balance_change_rub__median",
+          "kind": "numeric",
+          "direction": "higher",
+          "effect_size": 0.4,
+          "segment_median": -636.0,
+          "overall_median": -823.5,
+          "segment_mean": -838.56,
+          "overall_mean": -1631.28
+        },
+        {
+          "feature": "__t01__transaction_category__distinct_count",
+          "kind": "numeric",
+          "direction": "lower",
+          "effect_size": 0.269,
+          "segment_median": 6.0,
+          "overall_median": 6.0,
+          "segment_mean": 5.67,
+          "overall_mean": 5.94
+        }
+      ],
+      "context": {
+        "status": "observed_behavior_only",
+        "signals": [
+          {
+            "feature": "__t01__source_system__distinct_count",
+            "kind": "numeric",
+            "direction": "lower",
+            "effect_size": 0.447,
+            "segment_median": 4.0,
+            "overall_median": 4.0,
+            "segment_mean": 4.0,
+            "overall_mean": 4.17
+          },
+          {
+            "feature": "__t01__account_types__most_common",
+            "value": "текущий; счет ИП",
+            "kind": "category",
+            "segment_share": 0.0,
+            "overall_share": 0.1667,
+            "direction": "lower",
+            "effect_size": 0.447
+          },
+          {
+            "feature": "__t01__account_scope__most_common",
+            "value": "личный счет",
+            "kind": "category",
+            "segment_share": 1.0,
+            "overall_share": 0.8333,
+            "direction": "higher",
+            "effect_size": 0.447
+          },
+          {
+            "feature": "__t01__expense_sum_prior_30d_rub__median",
+            "kind": "numeric",
+            "direction": "lower",
+            "effect_size": 0.438,
+            "segment_median": 1091.0,
+            "overall_median": 1905.5,
+            "segment_mean": 2053.16,
+            "overall_mean": 33467.25
+          },
+          {
+            "feature": "__t01__expense_amount_rub__median",
+            "kind": "numeric",
+            "direction": "lower",
+            "effect_size": 0.434,
+            "segment_median": 6006.5,
+            "overall_median": 6459.5,
+            "segment_mean": 6026.83,
+            "overall_mean": 16438.44
+          }
+        ]
+      },
+      "jtbd": null,
+      "pains": null,
+      "motivation": null,
+      "needs": null,
+      "interpretation_status": "not_observed_in_available_data",
+      "stability": {
+        "resample_jaccard": 1.0,
+        "seed_ari_for_chosen_k": 1.0,
+        "temporal_status": "not_evaluated"
+      },
+      "technical_activatability": {
+        "status": "unverified",
+        "reason": "Нужны связь client_id с разрешенным каналом, доступность ID и правила коммуникации"
+      },
+      "risks": [
+        "Размер и закономерности получены на синтетических данных",
+        "Устойчивость между периодами не проверена",
+        "Дата старта эксперимента не задана: отсутствие будущих событий в признаках не подтверждено",
+        "JTBD, боли и мотивация не наблюдаются напрямую в банковских событиях"
+      ]
+    },
+    {
+      "segment_id": "seg_02",
+      "size": 100,
+      "volume": {
+        "observed_clients": 100,
+        "share_of_input": 0.1667,
+        "population_estimate": null
+      },
+      "key_features": [
+        {
+          "feature": "__t01__source_system__distinct_count",
+          "kind": "numeric",
+          "direction": "higher",
+          "effect_size": 2.236,
+          "segment_median": 5.0,
+          "overall_median": 4.0,
+          "segment_mean": 5.0,
+          "overall_mean": 4.17
+        },
+        {
+          "feature": "__t01__account_types__most_common",
+          "value": "текущий; счет ИП",
+          "kind": "category",
+          "segment_share": 1.0,
+          "overall_share": 0.1667,
+          "direction": "higher",
+          "effect_size": 2.236
+        },
+        {
+          "feature": "__t01__account_scope__most_common",
+          "value": "личный счет",
+          "kind": "category",
+          "segment_share": 0.0,
+          "overall_share": 0.8333,
+          "direction": "lower",
+          "effect_size": 2.236
+        },
+        {
+          "feature": "__t01__expense_sum_prior_30d_rub__median",
+          "kind": "numeric",
+          "direction": "higher",
+          "effect_size": 2.189,
+          "segment_median": 193732.25,
+          "overall_median": 1905.5,
+          "segment_mean": 190537.65,
+          "overall_mean": 33467.25
+        },
+        {
+          "feature": "__t01__balance_after_event_rub__median",
+          "kind": "numeric",
+          "direction": "higher",
+          "effect_size": 2.172,
+          "segment_median": 3686098.25,
+          "overall_median": 346618.25,
+          "segment_mean": 3683824.33,
+          "overall_mean": 886363.71
+        },
+        {
+          "feature": "__t01__expense_amount_rub__median",
+          "kind": "numeric",
+          "direction": "higher",
+          "effect_size": 2.171,
+          "segment_median": 67860.25,
+          "overall_median": 6459.5,
+          "segment_mean": 68496.53,
+          "overall_mean": 16438.44
+        },
+        {
+          "feature": "__t01__balance_change_rub__median",
+          "kind": "numeric",
+          "direction": "lower",
+          "effect_size": 2.002,
+          "segment_median": -5737.0,
+          "overall_median": -823.5,
+          "segment_mean": -5594.88,
+          "overall_mean": -1631.28
+        },
+        {
+          "feature": "__t01__transaction_category__distinct_count",
+          "kind": "numeric",
+          "direction": "higher",
+          "effect_size": 1.345,
+          "segment_median": 7.0,
+          "overall_median": 6.0,
+          "segment_mean": 7.27,
+          "overall_mean": 5.94
+        }
+      ],
+      "context": {
+        "status": "observed_behavior_only",
+        "signals": [
+          {
+            "feature": "__t01__source_system__distinct_count",
+            "kind": "numeric",
+            "direction": "higher",
+            "effect_size": 2.236,
+            "segment_median": 5.0,
+            "overall_median": 4.0,
+            "segment_mean": 5.0,
+            "overall_mean": 4.17
+          },
+          {
+            "feature": "__t01__account_types__most_common",
+            "value": "текущий; счет ИП",
+            "kind": "category",
+            "segment_share": 1.0,
+            "overall_share": 0.1667,
+            "direction": "higher",
+            "effect_size": 2.236
+          },
+          {
+            "feature": "__t01__account_scope__most_common",
+            "value": "личный счет",
+            "kind": "category",
+            "segment_share": 0.0,
+            "overall_share": 0.8333,
+            "direction": "lower",
+            "effect_size": 2.236
+          },
+          {
+            "feature": "__t01__expense_sum_prior_30d_rub__median",
+            "kind": "numeric",
+            "direction": "higher",
+            "effect_size": 2.189,
+            "segment_median": 193732.25,
+            "overall_median": 1905.5,
+            "segment_mean": 190537.65,
+            "overall_mean": 33467.25
+          },
+          {
+            "feature": "__t01__balance_after_event_rub__median",
+            "kind": "numeric",
+            "direction": "higher",
+            "effect_size": 2.172,
+            "segment_median": 3686098.25,
+            "overall_median": 346618.25,
+            "segment_mean": 3683824.33,
+            "overall_mean": 886363.71
+          }
+        ]
+      },
+      "jtbd": null,
+      "pains": null,
+      "motivation": null,
+      "needs": null,
+      "interpretation_status": "not_observed_in_available_data",
+      "stability": {
+        "resample_jaccard": 1.0,
+        "seed_ari_for_chosen_k": 1.0,
+        "temporal_status": "not_evaluated"
+      },
+      "technical_activatability": {
+        "status": "unverified",
+        "reason": "Нужны связь client_id с разрешенным каналом, доступность ID и правила коммуникации"
+      },
+      "risks": [
+        "Размер и закономерности получены на синтетических данных",
+        "Устойчивость между периодами не проверена",
+        "Дата старта эксперимента не задана: отсутствие будущих событий в признаках не подтверждено",
+        "JTBD, боли и мотивация не наблюдаются напрямую в банковских событиях"
+      ]
+    }
+  ],
+  "interpretation_rule": "Наблюдаемые признаки подтверждаются данными; мотивы и боли требуют отдельного подтверждения",
+  "quality_report": "segmentation_report.json"
+}
