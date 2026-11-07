@@ -9,7 +9,6 @@ import {
 import {
   useGetHypothesisProductQuery,
   useGetHypothesisQuery,
-  useLaunchHypothesisMutation,
   useStopHypothesisMutation,
 } from '../../store/generatedApi'
 import * as S from './styles'
@@ -25,12 +24,9 @@ export function HypothesisPage() {
   const { data: product, isLoading: productLoading } = useGetHypothesisProductQuery(
     id ? { id } : skipToken,
   )
-  const [launchHypothesis, { isLoading: launching }] = useLaunchHypothesisMutation()
   const [stopHypothesis, { isLoading: stopping }] = useStopHypothesisMutation()
 
-  const [launchError, setLaunchError] = useState<string | null>(null)
   const [stopError, setStopError] = useState<string | null>(null)
-  const [launchConnectionError, setLaunchConnectionError] = useState(false)
   const [stopConnectionError, setStopConnectionError] = useState(false)
 
   if (!id) {
@@ -39,25 +35,6 @@ export function HypothesisPage() {
         <S.ErrorMessage>Отсутствует идентификатор гипотезы</S.ErrorMessage>
       </S.Page>
     )
-  }
-
-  async function handleLaunch() {
-    if (!id) {
-      return
-    }
-
-    setLaunchError(null)
-    setLaunchConnectionError(false)
-
-    try {
-      await launchHypothesis({ id }).unwrap()
-    } catch (err) {
-      if (isYandexDirectNotConnectedError(err)) {
-        setLaunchConnectionError(true)
-      } else {
-        setLaunchError(rtkErrorMessage(err, 'Не удалось запустить'))
-      }
-    }
   }
 
   async function handleStop() {
@@ -124,10 +101,10 @@ export function HypothesisPage() {
             {hypothesis.status === 'idle' && (
               <S.LaunchButton
                 type="button"
-                onClick={handleLaunch}
-                disabled={launching}
+                disabled
+                title="Запуск пока не реализован"
               >
-                {launching ? 'Запускаем…' : 'Запустить'}
+                Запуск пока не реализован
               </S.LaunchButton>
             )}
             {hypothesis.status === 'in_progress' && (
@@ -141,17 +118,6 @@ export function HypothesisPage() {
             )}
           </S.ButtonGroup>
 
-          {launchError && <S.ErrorMessage>{launchError}</S.ErrorMessage>}
-          {launchConnectionError && (
-            <S.ConnectionError>
-              <S.ErrorMessage>
-                Чтобы запустить гипотезу, подключите или переподключите Yandex Direct.
-              </S.ErrorMessage>
-              <S.ConnectionLink to="/user">
-                Перейти к подключению Yandex Direct
-              </S.ConnectionLink>
-            </S.ConnectionError>
-          )}
           {stopError && <S.ErrorMessage>{stopError}</S.ErrorMessage>}
           {stopConnectionError && (
             <S.ConnectionError>

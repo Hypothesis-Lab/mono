@@ -1,0 +1,1 @@
+"""Product passport extraction pipeline."""

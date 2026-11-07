@@ -602,26 +602,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrBody"
-  /api/v1/product/{id}/audience-generation:
+  /api/v1/product/{id}/analysis:
     get:
-      operationId: getProductAudienceGenerationStatus
-      tags: [audience]
-      summary: Get audience generation status for a product
+      operationId: getProductAnalysis
+      tags: [product]
+      summary: Get the latest product analysis and generated hypotheses
       parameters:
         - name: id
           in: path
           required: true
-          schema:
-            type: string
+          schema: { type: string }
       responses:
         "200":
-          description: audience generation status
+          description: latest analysis
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AudienceGenerationStatusResponse"
+                $ref: "#/components/schemas/ProductAnalysisResponse"
         "404":
-          description: product or audience generation not found
+          description: product or analysis not found
           content:
             application/json:
               schema:
@@ -633,28 +632,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrBody"
     post:
-      operationId: queueProductAudienceGeneration
-      tags: [audience]
-      summary: Queue audience generation for a product
+      operationId: startProductAnalysis
+      tags: [product]
+      summary: Analyze the saved product, select an audience, and generate hypotheses
       parameters:
         - name: id
           in: path
           required: true
-          schema:
-            type: string
+          schema: { type: string }
       responses:
         "201":
-          description: audience generation queued
+          description: analysis queued
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AudienceGenerationStatusResponse"
-        "400":
-          description: product does not contain all generator-required fields
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
+                $ref: "#/components/schemas/ProductAnalysisResponse"
         "404":
           description: product not found
           content:
@@ -662,75 +654,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrBody"
         "409":
-          description: product audience generation is already queued
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
-        "500":
-          description: internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
-  /api/v1/product/{id}/audience-generation/retry:
-    post:
-      operationId: retryProductAudienceGeneration
-      tags: [audience]
-      summary: Retry failed audience generation for a product
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: audience generation requeued
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AudienceGenerationStatusResponse"
-        "404":
-          description: product not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
-        "409":
-          description: audience generation is not failed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
-        "500":
-          description: internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrBody"
-  /api/v1/product/{id}/audiences:
-    get:
-      operationId: listProductAudiences
-      tags: [audience]
-      summary: List audiences for a product
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: list of audiences
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AudienceResponse"
-        "404":
-          description: product not found
+          description: analysis already running or segment dataset unavailable
           content:
             application/json:
               schema:
@@ -794,7 +718,7 @@ paths:
                 file:
                   type: string
                   format: binary
-                  description: The file to upload. Only .docx, .doc, .pdf, and .txt files are accepted.
+                  description: The file to upload. Only .docx, .doc, .pdf, .txt, and .md files are accepted.
                 type:
                   type: string
                   enum: [product, brandbook, reference, other]
@@ -1168,13 +1092,16 @@ components:
           enum: [eq, in, gte, lte, between, truthy]
         value: {}
         description: { type: string, minLength: 1 }
-    AudienceGenerationStatusResponse:
+    ProductAnalysisResponse:
       type: object
-      required: [status]
+      required: [id, status, current_stage, product_result, audience_result, hypothesis_result]
       properties:
-        status:
-          type: string
-          enum: [created, working, completed, failed]
+        id: { type: string }
+        status: { type: string, enum: [queued, running, blocked, failed, completed] }
+        current_stage: { type: string, enum: [product, audience, hypotheses] }
+        product_result: { nullable: true }
+        audience_result: { nullable: true }
+        hypothesis_result: { nullable: true }
     ProductCategory:
       type: string
       enum:
@@ -1195,21 +1122,6 @@ components:
         - music
         - banking_card
         - other
-    AudienceResponse:
-      type: object
-      required: [id, product_id, generator_job_id, persona_id, persona, research, metrics, hypotheses, rank, score, created_at]
-      properties:
-        id:               { type: string }
-        product_id:       { type: string }
-        generator_job_id: { type: string }
-        persona_id:       { type: string }
-        persona:          {}
-        research:         {}
-        metrics:          {}
-        hypotheses:       {}
-        rank:             { type: integer }
-        score:            { type: number }
-        created_at:       { type: string, format: date-time }
     ProductFileResponse:
       type: object
       required: [id, hypothesis_id, type, filename, content_type, size, created_at]

@@ -43,7 +43,8 @@ class JobRepository:
     def __init__(self, database_url: str) -> None:
         self.database_url = database_url
 
-    def create(self, product_id: str, kind: str, input_data: dict[str, Any]) -> Job:
+    def create(self, product_id: str, kind: str, input_data: dict[str, Any], job_id: UUID | None = None) -> Job:
+        job_id = job_id or uuid4()
         try:
             with (
                 connect(self.database_url) as connection,
@@ -55,10 +56,19 @@ class JobRepository:
                     VALUES (%s, %s, %s, %s)
                     RETURNING id, product_id, kind, input, status, retry_generation, result, created_at, finished_at
                     """,
-                    (uuid4(), product_id, kind, Jsonb(input_data)),
+                    (job_id, product_id, kind, Jsonb(input_data)),
                 )
                 row = cursor.fetchone()
         except psycopg.errors.UniqueViolation as error:
+            existing = self.get(job_id)
+            if (
+                existing is not None
+                and existing.product_id == product_id
+                and existing.kind == kind
+                and existing.input == input_data
+            ):
+                return existing
+
             raise JobAlreadyQueuedError from error
 
         if row is None:
@@ -134,6 +144,14 @@ class JobRepository:
         with connect(self.database_url) as connection, connection.cursor() as cursor:
             cursor.execute(
                 "UPDATE generator.job SET persisted = TRUE WHERE id = %s AND status = 'completed'", (job_id,)
+            )
+            return cursor.rowcount == 1
+
+    def acknowledge_terminal(self, job_id: UUID) -> bool:
+        with connect(self.database_url) as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE generator.job SET persisted = TRUE WHERE id = %s AND status IN ('completed', 'failed')",
+                (job_id,),
             )
             return cursor.rowcount == 1
 

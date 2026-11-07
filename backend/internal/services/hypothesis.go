@@ -295,6 +295,10 @@ func (s *HypothesisService) Delete(ctx context.Context, userID, id string) error
 		if err := s.storage.Delete(ctx, f.S3Key); err != nil {
 			return fmt.Errorf("deleting file: %w", err)
 		}
+
+		if err := s.storage.Delete(ctx, f.S3Key+".extracted.txt"); err != nil {
+			return fmt.Errorf("deleting extracted hypothesis file text: %w", err)
+		}
 	}
 
 	if err := s.hypotheses.Delete(ctx, userID, id); err != nil {

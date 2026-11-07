@@ -35,6 +35,27 @@ def complete_structured[ModelT: BaseModel](
         raise ValueError(_compact_error(error)) from error
 
 
+def complete_with_repair[ModelT: BaseModel](
+    model_client: LanguageModelClient,
+    context: ModelCallContext,
+    output_model: type[ModelT],
+    prompt: str,
+    correction_feedback: str | None,
+    response_schema: dict[str, Any] | None = None,
+) -> ModelT:
+    feedback = correction_feedback
+    for attempt in range(3):
+        try:
+            return complete_structured(model_client, context, output_model, prompt, feedback, response_schema)
+        except ValueError as error:
+            if context.raw_response is None or attempt == 2:
+                raise
+
+            feedback = f"{error}\nPrevious response: {context.raw_response[:12000]}"
+
+    raise RuntimeError("structured generation repair loop ended unexpectedly")
+
+
 def _strict_schema(schema: dict[str, Any]) -> dict[str, Any]:
     values: list[object] = [schema]
     while values:

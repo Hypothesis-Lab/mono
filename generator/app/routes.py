@@ -38,11 +38,11 @@ def create_job(request: Request, body: CreateJobRequest) -> CreateJobResponse:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
 
     try:
-        job = repository.create(body.product_id, pipeline.kind, input_data)
+        job = repository.create(body.product_id, pipeline.kind, input_data, body.id)
     except JobAlreadyQueuedError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="product pipeline already queued") from error
 
-    return CreateJobResponse(id=str(job.id), kind=job.kind, status="queued")
+    return CreateJobResponse(id=str(job.id), kind=job.kind, status=job.status)
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
@@ -52,6 +52,14 @@ def get_job(request: Request, job_id: UUID) -> JobResponse:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found")
 
     return _job_response(job)
+
+
+@router.post("/jobs/{job_id}/acknowledged", status_code=status.HTTP_204_NO_CONTENT)
+def acknowledge_terminal_job(request: Request, job_id: UUID) -> Response:
+    if not _repository(request).acknowledge_terminal(job_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="terminal job not found")
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(

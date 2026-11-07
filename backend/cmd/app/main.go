@@ -17,11 +17,11 @@ import (
 	"app/internal/repositories/persona"
 	"app/internal/repositories/persona1m"
 	"app/internal/repositories/product"
+	"app/internal/repositories/productanalysis"
 	"app/internal/repositories/productfeedbacksurvey"
 	"app/internal/repositories/user"
 	"app/internal/repositories/yandexdirectconnection"
 	"app/internal/services"
-	servicepipelines "app/internal/services/pipelines"
 	"app/internal/storage"
 	"app/internal/temporal"
 
@@ -48,6 +48,7 @@ func main() {
 		fx.Provide(hypothesislaunch.NewRepository),
 		fx.Provide(persona.NewRepository),
 		fx.Provide(product.NewRepository),
+		fx.Provide(productanalysis.NewRepository),
 		fx.Provide(productfeedbacksurvey.NewRepository),
 		fx.Provide(audience.NewRepository),
 		fx.Provide(adcampaign.NewRepository),
@@ -56,15 +57,12 @@ func main() {
 		fx.Provide(yandexdirectconnection.NewRepository),
 		fx.Provide(services.NewHypothesisService),
 		fx.Provide(services.NewHypothesisLaunchWorker),
+		fx.Provide(services.NewProductAnalysisWorker),
+		fx.Provide(services.NewProductAnalysisStarter),
+		fx.Provide(services.NewProductAnalysisService),
 		fx.Provide(services.NewHypothesisLaunchStarter),
 		fx.Provide(services.NewHypothesisStopStarter),
 		fx.Provide(services.NewProductService),
-		fx.Provide(fx.Annotate(
-			servicepipelines.NewAudiencePipeline,
-			fx.As(new(services.GeneratorPipeline)),
-			fx.ResultTags(`group:"generator-pipelines"`),
-		)),
-		fx.Provide(services.NewGeneratorWorker),
 		fx.Provide(services.NewUserAuthService),
 		fx.Provide(services.NewYandexDirectConnectionService),
 		fx.Provide(services.NewProductFeedbackSurveyService),
@@ -72,7 +70,7 @@ func main() {
 		fx.Provide(handlers.NewServerInterface),
 		fx.Provide(apphttp.NewRouter),
 		fx.Provide(apphttp.NewServer),
-		fx.Invoke(func(*db.DB, *http.Server, *persona.Repository, *services.GeneratorWorker, *services.HypothesisLaunchWorker, *services.HypothesisLaunchStarter, *services.HypothesisStopStarter) {
+		fx.Invoke(func(*db.DB, *http.Server, *persona.Repository, *services.HypothesisLaunchWorker, *services.HypothesisLaunchStarter, *services.HypothesisStopStarter, *services.ProductAnalysisWorker, *services.ProductAnalysisStarter) {
 		}),
 	).Run()
 }

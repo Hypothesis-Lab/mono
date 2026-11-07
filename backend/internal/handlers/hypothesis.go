@@ -119,45 +119,9 @@ func (s *Server) GetHypothesisProduct(ctx context.Context, req api.GetHypothesis
 	return api.GetHypothesisProduct200JSONResponse(response), nil
 }
 
-func (s *Server) LaunchHypothesis(ctx context.Context, req api.LaunchHypothesisRequestObject) (api.LaunchHypothesisResponseObject, error) {
-	userID, ok := middlewares.UserIDFromContext(ctx)
-	if !ok {
-		s.logger.Error("missing user id in context")
-
-		return api.LaunchHypothesis500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
-	}
-
-	workflowID, err := s.hypothesisService.StartLaunch(ctx, userID, req.Id)
-	if err != nil {
-		switch {
-		case errors.Is(err, hypothesis.ErrNotFound):
-			s.logger.Error("launch hypothesis", zap.String("id", req.Id), zap.Error(err))
-
-			return api.LaunchHypothesis404JSONResponse(errBody(http.StatusNotFound, "hypothesis not found")), nil
-		case errors.Is(err, services.ErrAlreadyInProgress):
-			s.logger.Error("launch hypothesis", zap.String("id", req.Id), zap.Error(err))
-
-			return api.LaunchHypothesis400JSONResponse(errBody(http.StatusBadRequest, "hypothesis already in progress")), nil
-		case errors.Is(err, services.ErrHypothesisNoProduct):
-			s.logger.Error("launch hypothesis", zap.String("id", req.Id), zap.Error(err))
-
-			return api.LaunchHypothesis400JSONResponse(errBody(http.StatusBadRequest, "hypothesis has no product")), nil
-		case errors.Is(err, services.ErrHypothesisNoAudience):
-			s.logger.Error("launch hypothesis", zap.String("id", req.Id), zap.Error(err))
-
-			return api.LaunchHypothesis400JSONResponse(errBody(http.StatusBadRequest, "hypothesis product has no generated audiences")), nil
-		case errors.Is(err, services.ErrYandexDirectNotConnected):
-			s.logger.Error("launch hypothesis", zap.String("id", req.Id), zap.Error(err))
-
-			return api.LaunchHypothesis409JSONResponse(errBodyWithCode(http.StatusConflict, "Yandex Direct connection is not connected", "yandex_direct_not_connected")), nil
-		default:
-			s.logger.Error("launch hypothesis", zap.String("id", req.Id), zap.Error(err))
-
-			return api.LaunchHypothesis500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
-		}
-	}
-
-	return api.LaunchHypothesis202JSONResponse(api.HypothesisLaunchResponse{WorkflowId: workflowID, Status: api.HypothesisLaunchResponseStatusQueued}), nil
+func (s *Server) LaunchHypothesis(_ context.Context, req api.LaunchHypothesisRequestObject) (api.LaunchHypothesisResponseObject, error) {
+	s.logger.Warn("hypothesis launch is disabled", zap.String("id", req.Id))
+	return api.LaunchHypothesis400JSONResponse(errBody(http.StatusBadRequest, "hypothesis launch is not implemented")), nil
 }
 
 func (s *Server) GetHypothesisLaunchStatus(ctx context.Context, req api.GetHypothesisLaunchStatusRequestObject) (api.GetHypothesisLaunchStatusResponseObject, error) {

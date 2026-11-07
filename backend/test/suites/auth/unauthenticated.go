@@ -28,9 +28,8 @@ var protectedRoutes = []struct {
 	{"POST", "/api/v1/product"},
 	{"PATCH", "/api/v1/product/{id}"},
 	{"DELETE", "/api/v1/product/{id}"},
-	{"GET", "/api/v1/product/{id}/audience-generation"},
-	{"POST", "/api/v1/product/{id}/audience-generation"},
-	{"POST", "/api/v1/product/{id}/audience-generation/retry"},
+	{"GET", "/api/v1/product/{id}/analysis"},
+	{"POST", "/api/v1/product/{id}/analysis"},
 	{"GET", "/api/v1/hypothesis/{id}/files"},
 	{"POST", "/api/v1/hypothesis/{id}/files"},
 

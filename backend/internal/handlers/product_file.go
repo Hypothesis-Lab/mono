@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"app/internal/api"
+	"app/internal/fileextract"
 	"app/internal/http/middlewares"
 	"app/internal/repositories/file"
 	"app/internal/repositories/hypothesis"
@@ -45,6 +46,10 @@ var (
 		},
 		".txt": {
 			contentType:   "text/plain",
+			detectedTypes: []string{"text/plain"},
+		},
+		".md": {
+			contentType:   "text/markdown",
 			detectedTypes: []string{"text/plain"},
 		},
 	}
@@ -99,10 +104,26 @@ func (s *Server) UploadProductFile(ctx context.Context, req api.UploadProductFil
 		return api.UploadProductFile400JSONResponse(errBody(http.StatusBadRequest, err.Error())), nil
 	}
 
+	text, err := fileextract.Extract(ctx, filePart.filename, filePart.data)
+	if err != nil {
+		s.logger.Error("extract product file text", zap.String("hypothesis_id", req.Id), zap.String("filename", filePart.filename), zap.Error(err))
+		return api.UploadProductFile400JSONResponse(errBody(http.StatusBadRequest, "could not extract file text")), nil
+	}
+
 	s3Key := uuid.NewString() + "/" + filePart.filename
 
 	if err := s.storage.Upload(ctx, s3Key, filePart.contentType, filePart.size, bytes.NewReader(filePart.data)); err != nil {
 		s.logger.Error("upload file to s3", zap.Error(err))
+
+		return api.UploadProductFile500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	textKey := s3Key + ".extracted.txt"
+	if err := s.storage.Upload(ctx, textKey, "text/plain; charset=utf-8", int64(len(text)), strings.NewReader(text)); err != nil {
+		s.logger.Error("upload extracted file text", zap.String("hypothesis_id", req.Id), zap.Error(err))
+		if deleteErr := s.storage.Delete(ctx, s3Key); deleteErr != nil {
+			s.logger.Error("cleanup original file after extraction upload failure", zap.String("key", s3Key), zap.Error(deleteErr))
+		}
 
 		return api.UploadProductFile500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
 	}
@@ -116,6 +137,10 @@ func (s *Server) UploadProductFile(ctx context.Context, req api.UploadProductFil
 		S3Key:        s3Key,
 	})
 	if err != nil {
+		if deleteErr := s.storage.Delete(ctx, textKey); deleteErr != nil {
+			s.logger.Error("cleanup extracted text after db failure", zap.String("key", textKey), zap.Error(deleteErr))
+		}
+
 		if deleteErr := s.storage.Delete(ctx, s3Key); deleteErr != nil {
 			s.logger.Error("cleanup s3 object after db failure", zap.Error(deleteErr))
 		}
@@ -198,6 +223,10 @@ func (s *Server) DeleteProductFile(ctx context.Context, req api.DeleteProductFil
 
 	if err := s.storage.Delete(ctx, f.S3Key); err != nil {
 		s.logger.Error("delete file from s3", zap.Error(err))
+	}
+
+	if err := s.storage.Delete(ctx, f.S3Key+".extracted.txt"); err != nil {
+		s.logger.Error("delete extracted file text from s3", zap.String("id", req.Id), zap.Error(err))
 	}
 
 	return api.DeleteProductFile204Response{}, nil
@@ -327,7 +356,8 @@ func validateUploadedFile(filename, contentType string, data []byte) error {
 		return fmt.Errorf("parse declared content type: %w", err)
 	}
 
-	if declared != info.contentType {
+	isTextFallback := (ext == ".md" || ext == ".txt") && (declared == "text/plain" || declared == "application/octet-stream")
+	if declared != info.contentType && !isTextFallback {
 		return errors.New("declared content type does not match file extension")
 	}
 

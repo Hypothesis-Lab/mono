@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -10,6 +11,7 @@ class StrictModel(BaseModel):
 
 
 class CreateJobRequest(StrictModel):
+    id: UUID | None = None
     product_id: str = Field(min_length=1)
     kind: str = Field(min_length=1, max_length=64)
     input: dict[str, Any]
@@ -18,7 +20,7 @@ class CreateJobRequest(StrictModel):
 class CreateJobResponse(StrictModel):
     id: str
     kind: str
-    status: Literal["queued"]
+    status: Literal["queued", "running", "failed", "completed"]
 
 
 class JobResponse(StrictModel):

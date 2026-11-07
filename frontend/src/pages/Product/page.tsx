@@ -13,12 +13,10 @@ import {
   useCreateProductMutation,
   useDeleteProductFileMutation,
   useDeleteProductMutation,
-  useGetProductAudienceGenerationStatusQuery,
+  useGetProductAnalysisQuery,
   useGetHypothesisProductQuery,
-  useListProductAudiencesQuery,
   useListProductFilesQuery,
-  useQueueProductAudienceGenerationMutation,
-  useRetryProductAudienceGenerationMutation,
+  useStartProductAnalysisMutation,
   useUpdateProductMutation,
   useUploadProductFileMutation,
 } from '../../store/generatedApi'
@@ -88,6 +86,14 @@ function areListsEqual(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((item, index) => item === right[index])
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return isRecord(value) ? value : null
+}
+
 export function ProductPage() {
   const navigate = useNavigate()
   const { hid } = useParams<{ hid: string }>()
@@ -101,16 +107,9 @@ export function ProductPage() {
   } = useGetHypothesisProductQuery(productArg)
   const { data: files, isLoading: filesLoading } = useListProductFilesQuery(productArg)
   const {
-    data: audiences,
-    isLoading: audiencesLoading,
-  } = useListProductAudiencesQuery(
-    product ? { id: product.id } : skipToken,
-    { pollingInterval: product ? 10000 : 0 },
-  )
-  const {
-    data: audienceGeneration,
-    refetch: refetchAudienceGeneration,
-  } = useGetProductAudienceGenerationStatusQuery(
+    data: analysis,
+    error: analysisError,
+  } = useGetProductAnalysisQuery(
     product ? { id: product.id } : skipToken,
     { pollingInterval: product ? 10000 : 0 },
   )
@@ -120,8 +119,7 @@ export function ProductPage() {
   const [deleteProduct, { isLoading: deleting }] = useDeleteProductMutation()
   const [uploadProductFile, { isLoading: uploading }] = useUploadProductFileMutation()
   const [deleteProductFile] = useDeleteProductFileMutation()
-  const [queueAudienceGeneration, { isLoading: queueingAudienceGeneration }] = useQueueProductAudienceGenerationMutation()
-  const [retryAudienceGeneration, { isLoading: retryingAudienceGeneration }] = useRetryProductAudienceGenerationMutation()
+  const [startAnalysis, { isLoading: startingAnalysis }] = useStartProductAnalysisMutation()
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -164,7 +162,7 @@ export function ProductPage() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [fileDeleteError, setFileDeleteError] = useState<string | null>(null)
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null)
-  const [audienceGenerationError, setAudienceGenerationError] = useState<string | null>(null)
+  const [analysisStartError, setAnalysisStartError] = useState<string | null>(null)
 
 
   const hasBrandbook = (files ?? []).some((file) => file.type === 'brandbook')
@@ -492,38 +490,26 @@ export function ProductPage() {
     }
   }
 
-  async function handleQueueAudienceGeneration() {
+  async function handleStartAnalysis() {
     if (!product) {
       return
     }
 
-    setAudienceGenerationError(null)
+    setAnalysisStartError(null)
 
     try {
-      await queueAudienceGeneration({ id: product.id }).unwrap()
-      refetchAudienceGeneration()
+      await startAnalysis({ id: product.id }).unwrap()
     } catch (err) {
-      setAudienceGenerationError(rtkErrorMessage(err, 'Не удалось поставить генерацию в очередь'))
-    }
-  }
-
-  async function handleRetryAudienceGeneration() {
-    if (!product) {
-      return
-    }
-
-    setAudienceGenerationError(null)
-
-    try {
-      await retryAudienceGeneration({ id: product.id }).unwrap()
-      refetchAudienceGeneration()
-    } catch (err) {
-      setAudienceGenerationError(rtkErrorMessage(err, 'Не удалось повторить генерацию'))
+      setAnalysisStartError(rtkErrorMessage(err, 'Не удалось начать анализ'))
     }
   }
 
   const saving = creating || updating
   const filesList = files ?? []
+  const hypothesisResult = asRecord(analysis?.hypothesis_result)
+  const hypotheses = Array.isArray(hypothesisResult?.hypotheses)
+    ? hypothesisResult.hypotheses.filter(isRecord)
+    : []
 
   return (
     <S.Page>
@@ -825,32 +811,51 @@ export function ProductPage() {
       </S.Form>
 
       <S.AudiencesSection>
-        <S.SectionTitle>Аудитории</S.SectionTitle>
-        {audienceGeneration && (
+        <S.SectionTitle>Анализ и гипотезы</S.SectionTitle>
+        <S.Message>Используются сохранённые данные продукта и загруженные документы.</S.Message>
+        {analysis && (
           <S.AudienceGenerationStatus>
-            Генерация аудиторий: {getAudienceGenerationStatusLabel(audienceGeneration.status)}
+            {getAnalysisStatusLabel(analysis.status)} · {getAnalysisStageLabel(analysis.current_stage)}
           </S.AudienceGenerationStatus>
         )}
-        {audiencesLoading && <S.Message>Загрузка…</S.Message>}
-
-        {!audiencesLoading && (audiences ?? []).length === 0 && (
-          <S.Message>Пока нет аудиторий</S.Message>
+        {analysisError && !isApiNotFound(analysisError) && (
+          <S.ErrorMessage>{rtkErrorMessage(analysisError, 'Не удалось загрузить результаты анализа')}</S.ErrorMessage>
         )}
-
-        {!audiencesLoading && (audiences ?? []).length > 0 && (
+        {isRecord(analysis?.product_result) && (
+          <S.AudienceDetails>
+            <S.AudienceSummary>Паспорт продукта</S.AudienceSummary>
+            <JsonTree value={analysis.product_result} />
+          </S.AudienceDetails>
+        )}
+        {isRecord(analysis?.audience_result) && (
+          <S.AudienceDetails>
+            <S.AudienceSummary>Выбранная аудитория и ограничения</S.AudienceSummary>
+            <JsonTree value={analysis.audience_result} />
+          </S.AudienceDetails>
+        )}
+        {hypotheses.length > 0 && (
+          <S.Message>Это черновики для проверки человеком; данные аудиторий синтетические.</S.Message>
+        )}
+        {hypotheses.length > 0 && (
           <S.AudienceList>
-            {audiences!.map((audience) => (
-              <S.AudienceItem key={audience.id}>
+            {hypotheses.map((hypothesis, index) => (
+              <S.AudienceItem key={typeof hypothesis.candidate_id === 'string' ? hypothesis.candidate_id : index}>
                 <S.AudienceDetails>
                   <S.AudienceSummary>
                     <S.AudienceInfo>
-                      <S.AudienceDescription>{audience.persona.label}</S.AudienceDescription>
+                      <S.AudienceDescription>
+                        {typeof hypothesis.title === 'string' ? hypothesis.title : `Гипотеза ${index + 1}`}
+                      </S.AudienceDescription>
                       <S.AudienceMeta>
-                        Ранг {audience.rank} · Оценка {audience.score}
+                        {hypothesis.selection_status === 'selected'
+                          ? 'Выбрана для рассмотрения'
+                          : hypothesis.selection_status === 'rejected_validation'
+                            ? 'Не прошла проверку'
+                            : 'Запасной кандидат'}
                       </S.AudienceMeta>
                     </S.AudienceInfo>
                   </S.AudienceSummary>
-                  <JsonTree value={audience} />
+                  <JsonTree value={hypothesis} />
                 </S.AudienceDetails>
               </S.AudienceItem>
             ))}
@@ -860,18 +865,12 @@ export function ProductPage() {
         <S.Button
           type="button"
           $success
-          onClick={audienceGeneration?.status === 'failed' ? handleRetryAudienceGeneration : handleQueueAudienceGeneration}
-          disabled={queueingAudienceGeneration || retryingAudienceGeneration || audienceGeneration?.status === 'created' || audienceGeneration?.status === 'working'}
+          onClick={handleStartAnalysis}
+          disabled={!product || startingAnalysis || analysis?.status === 'queued' || analysis?.status === 'running'}
         >
-          {retryingAudienceGeneration
-            ? 'Повторяем генерацию…'
-            : queueingAudienceGeneration
-              ? 'Добавляем в очередь…'
-              : audienceGeneration?.status === 'failed'
-                ? 'Повторить генерацию'
-                : 'Сгенерировать аудитории'}
+          {startingAnalysis ? 'Запускаем…' : 'Проанализировать и создать гипотезы'}
         </S.Button>
-        {audienceGenerationError && <S.ErrorMessage>{audienceGenerationError}</S.ErrorMessage>}
+        {analysisStartError && <S.ErrorMessage>{analysisStartError}</S.ErrorMessage>}
 
       </S.AudiencesSection>
 
@@ -912,10 +911,10 @@ export function ProductPage() {
 
         <S.UploadForm onSubmit={handleUpload}>
           <S.Field>
-            Файл (.pdf, .docx, макс. 50 МБ)
+            Файл (.pdf, .doc, .docx, .txt, .md, макс. 50 МБ)
             <S.FileInput
               type="file"
-              accept=".pdf,.docx"
+              accept=".pdf,.doc,.docx,.txt,.md"
               ref={fileInputRef}
               onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
               disabled={uploading}
@@ -947,11 +946,11 @@ export function ProductPage() {
   )
 }
 
-function getAudienceGenerationStatusLabel(status: string): string {
-  if (status === 'created') {
+function getAnalysisStatusLabel(status: string): string {
+  if (status === 'queued') {
     return 'в очереди'
   }
-  if (status === 'working') {
+  if (status === 'running') {
     return 'в работе'
   }
   if (status === 'completed') {
@@ -960,5 +959,15 @@ function getAudienceGenerationStatusLabel(status: string): string {
   if (status === 'failed') {
     return 'не удалось завершить'
   }
+  if (status === 'blocked') {
+    return 'остановлен: недостаточно данных'
+  }
   return status
+}
+
+function getAnalysisStageLabel(stage: string): string {
+  if (stage === 'product') return 'анализ продукта'
+  if (stage === 'audience') return 'подбор аудитории'
+  if (stage === 'hypotheses') return 'подготовка гипотез'
+  return stage
 }

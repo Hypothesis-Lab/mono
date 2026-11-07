@@ -162,38 +162,19 @@ const injectedRtkApi = api.injectEndpoints({
         method: "DELETE",
       }),
     }),
-    getProductAudienceGenerationStatus: build.query<
-      GetProductAudienceGenerationStatusApiResponse,
-      GetProductAudienceGenerationStatusApiArg
+    getProductAnalysis: build.query<
+      GetProductAnalysisApiResponse,
+      GetProductAnalysisApiArg
     >({
-      query: (queryArg) => ({
-        url: `/api/v1/product/${queryArg.id}/audience-generation`,
-      }),
+      query: (queryArg) => ({ url: `/api/v1/product/${queryArg.id}/analysis` }),
     }),
-    queueProductAudienceGeneration: build.mutation<
-      QueueProductAudienceGenerationApiResponse,
-      QueueProductAudienceGenerationApiArg
+    startProductAnalysis: build.mutation<
+      StartProductAnalysisApiResponse,
+      StartProductAnalysisApiArg
     >({
       query: (queryArg) => ({
-        url: `/api/v1/product/${queryArg.id}/audience-generation`,
+        url: `/api/v1/product/${queryArg.id}/analysis`,
         method: "POST",
-      }),
-    }),
-    retryProductAudienceGeneration: build.mutation<
-      RetryProductAudienceGenerationApiResponse,
-      RetryProductAudienceGenerationApiArg
-    >({
-      query: (queryArg) => ({
-        url: `/api/v1/product/${queryArg.id}/audience-generation/retry`,
-        method: "POST",
-      }),
-    }),
-    listProductAudiences: build.query<
-      ListProductAudiencesApiResponse,
-      ListProductAudiencesApiArg
-    >({
-      query: (queryArg) => ({
-        url: `/api/v1/product/${queryArg.id}/audiences`,
       }),
     }),
     listProductFiles: build.query<
@@ -323,24 +304,14 @@ export type DeleteProductApiResponse = unknown;
 export type DeleteProductApiArg = {
   id: string;
 };
-export type GetProductAudienceGenerationStatusApiResponse =
-  /** status 200 audience generation status */ AudienceGenerationStatusResponse;
-export type GetProductAudienceGenerationStatusApiArg = {
+export type GetProductAnalysisApiResponse =
+  /** status 200 latest analysis */ ProductAnalysisResponse;
+export type GetProductAnalysisApiArg = {
   id: string;
 };
-export type QueueProductAudienceGenerationApiResponse =
-  /** status 201 audience generation queued */ AudienceGenerationStatusResponse;
-export type QueueProductAudienceGenerationApiArg = {
-  id: string;
-};
-export type RetryProductAudienceGenerationApiResponse =
-  /** status 200 audience generation requeued */ AudienceGenerationStatusResponse;
-export type RetryProductAudienceGenerationApiArg = {
-  id: string;
-};
-export type ListProductAudiencesApiResponse =
-  /** status 200 list of audiences */ AudienceResponse[];
-export type ListProductAudiencesApiArg = {
+export type StartProductAnalysisApiResponse =
+  /** status 201 analysis queued */ ProductAnalysisResponse;
+export type StartProductAnalysisApiArg = {
   id: string;
 };
 export type ListProductFilesApiResponse =
@@ -353,7 +324,7 @@ export type UploadProductFileApiResponse =
 export type UploadProductFileApiArg = {
   id: string;
   body: {
-    /** The file to upload. Only .docx, .doc, .pdf, and .txt files are accepted. */
+    /** The file to upload. Only .docx, .doc, .pdf, .txt, and .md files are accepted. */
     file: Blob;
     type: "product" | "brandbook" | "reference" | "other";
   };
@@ -388,9 +359,9 @@ export type LoginUserRequest = {
 };
 export type YandexDirectConnectionResponse = {
   status: "connected" | "disconnected" | "revoked";
-  connected_at?: string | null;
-  disconnected_at?: string | null;
-  token_expires_at?: string | null;
+  connected_at: string | null;
+  disconnected_at: string | null;
+  token_expires_at: string | null;
 };
 export type YandexDirectConnectRequest = {
   code: string;
@@ -587,21 +558,13 @@ export type UpdateProductRequest = {
   keywords?: string[] | null;
   link?: string | null;
 };
-export type AudienceGenerationStatusResponse = {
-  status: "created" | "working" | "completed" | "failed";
-};
-export type AudienceResponse = {
+export type ProductAnalysisResponse = {
   id: string;
-  product_id: string;
-  generator_job_id: string;
-  persona_id: string;
-  persona: any;
-  research: any;
-  metrics: any;
-  hypotheses: any;
-  rank: number;
-  score: number;
-  created_at: string;
+  status: "queued" | "running" | "blocked" | "failed" | "completed";
+  current_stage: "product" | "audience" | "hypotheses";
+  product_result: any | null;
+  audience_result: any | null;
+  hypothesis_result: any | null;
 };
 export type ProductFileResponse = {
   id: string;
@@ -653,10 +616,8 @@ export const {
   useCreateProductMutation,
   useUpdateProductMutation,
   useDeleteProductMutation,
-  useGetProductAudienceGenerationStatusQuery,
-  useQueueProductAudienceGenerationMutation,
-  useRetryProductAudienceGenerationMutation,
-  useListProductAudiencesQuery,
+  useGetProductAnalysisQuery,
+  useStartProductAnalysisMutation,
   useListProductFilesQuery,
   useUploadProductFileMutation,
   useDeleteProductFileMutation,

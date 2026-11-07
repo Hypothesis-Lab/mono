@@ -16,6 +16,13 @@ dependencies = [
 dev = [
     "ruff",
 ]
+notebooks = [
+    "numpy>=2.5.4",
+    "openpyxl>=3.1.5",
+    "pandas>=3.1.1",
+    "scikit-learn>=1.9.1",
+    "scipy>=1.18.1",
+]
 
 [tool.ruff]
 line-length = 120

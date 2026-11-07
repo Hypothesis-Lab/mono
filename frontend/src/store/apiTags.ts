@@ -33,14 +33,11 @@ api.enhanceEndpoints({
         ...(result ? [{ type: 'product' as const, id: result.id }] : []),
       ],
     },
-    getProductAudienceGenerationStatus: {
-      providesTags: (_result, _error, { id }) => [{ type: 'audience', id: `Generation-${id}` }],
+    getProductAnalysis: {
+      providesTags: (_result, _error, { id }) => [{ type: 'product', id: `Analysis-${id}` }],
     },
-    queueProductAudienceGeneration: {
-      invalidatesTags: (_result, _error, { id }) => [{ type: 'audience', id: `Generation-${id}` }],
-    },
-    retryProductAudienceGeneration: {
-      invalidatesTags: (_result, _error, { id }) => [{ type: 'audience', id: `Generation-${id}` }],
+    startProductAnalysis: {
+      invalidatesTags: (_result, _error, { id }) => [{ type: 'product', id: `Analysis-${id}` }],
     },
     createProduct: {
       invalidatesTags: (_result, _error, { createProductRequest }) => [
@@ -57,12 +54,6 @@ api.enhanceEndpoints({
       invalidatesTags: (_result, _error, { id }) => [
         { type: 'product', id },
         { type: 'product', id: 'HYPOTHESIS' },
-      ],
-    },
-    listProductAudiences: {
-      providesTags: (result, _error, { id }) => [
-        ...(result ?? []).map(({ id: audienceId }) => ({ type: 'audience' as const, id: audienceId })),
-        { type: 'audience', id: `Product-${id}` },
       ],
     },
     listProductFiles: {

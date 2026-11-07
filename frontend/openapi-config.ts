@@ -13,8 +13,7 @@ const config: ConfigFile = {
     { pattern: 'registerUser', type: 'mutation' },
     { pattern: 'launchHypothesis', type: 'mutation' },
     { pattern: 'stopHypothesis', type: 'mutation' },
-    { pattern: 'queueProductAudienceGeneration', type: 'mutation' },
-    { pattern: 'retryProductAudienceGeneration', type: 'mutation' },
+    { pattern: 'startProductAnalysis', type: 'mutation' },
     { pattern: 'uploadProductFile', type: 'mutation' },
     { pattern: 'runProductFeedbackSurvey', type: 'mutation' },
     {

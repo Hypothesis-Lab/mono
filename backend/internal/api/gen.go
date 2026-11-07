@@ -27,30 +27,6 @@ const (
 	BearerAuthScopes bearerAuthContextKey = "bearerAuth.Scopes"
 )
 
-// Defines values for AudienceGenerationStatusResponseStatus.
-const (
-	AudienceGenerationStatusResponseStatusCompleted AudienceGenerationStatusResponseStatus = "completed"
-	AudienceGenerationStatusResponseStatusCreated   AudienceGenerationStatusResponseStatus = "created"
-	AudienceGenerationStatusResponseStatusFailed    AudienceGenerationStatusResponseStatus = "failed"
-	AudienceGenerationStatusResponseStatusWorking   AudienceGenerationStatusResponseStatus = "working"
-)
-
-// Valid indicates whether the value is a known member of the AudienceGenerationStatusResponseStatus enum.
-func (e AudienceGenerationStatusResponseStatus) Valid() bool {
-	switch e {
-	case AudienceGenerationStatusResponseStatusCompleted:
-		return true
-	case AudienceGenerationStatusResponseStatusCreated:
-		return true
-	case AudienceGenerationStatusResponseStatusFailed:
-		return true
-	case AudienceGenerationStatusResponseStatusWorking:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for CreateProductRequestGoalOrigin.
 const (
 	CreateProductRequestGoalOriginDemoAssumption CreateProductRequestGoalOrigin = "demo_assumption"
@@ -174,6 +150,54 @@ const (
 func (e HypothesisStopResponseStatus) Valid() bool {
 	switch e {
 	case HypothesisStopResponseStatusQueued:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProductAnalysisResponseCurrentStage.
+const (
+	ProductAnalysisResponseCurrentStageAudience   ProductAnalysisResponseCurrentStage = "audience"
+	ProductAnalysisResponseCurrentStageHypotheses ProductAnalysisResponseCurrentStage = "hypotheses"
+	ProductAnalysisResponseCurrentStageProduct    ProductAnalysisResponseCurrentStage = "product"
+)
+
+// Valid indicates whether the value is a known member of the ProductAnalysisResponseCurrentStage enum.
+func (e ProductAnalysisResponseCurrentStage) Valid() bool {
+	switch e {
+	case ProductAnalysisResponseCurrentStageAudience:
+		return true
+	case ProductAnalysisResponseCurrentStageHypotheses:
+		return true
+	case ProductAnalysisResponseCurrentStageProduct:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProductAnalysisResponseStatus.
+const (
+	ProductAnalysisResponseStatusBlocked   ProductAnalysisResponseStatus = "blocked"
+	ProductAnalysisResponseStatusCompleted ProductAnalysisResponseStatus = "completed"
+	ProductAnalysisResponseStatusFailed    ProductAnalysisResponseStatus = "failed"
+	ProductAnalysisResponseStatusQueued    ProductAnalysisResponseStatus = "queued"
+	ProductAnalysisResponseStatusRunning   ProductAnalysisResponseStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the ProductAnalysisResponseStatus enum.
+func (e ProductAnalysisResponseStatus) Valid() bool {
+	switch e {
+	case ProductAnalysisResponseStatusBlocked:
+		return true
+	case ProductAnalysisResponseStatusCompleted:
+		return true
+	case ProductAnalysisResponseStatusFailed:
+		return true
+	case ProductAnalysisResponseStatusQueued:
+		return true
+	case ProductAnalysisResponseStatusRunning:
 		return true
 	default:
 		return false
@@ -380,49 +404,26 @@ func (e YandexDirectConnectionResponseStatus) Valid() bool {
 
 // Defines values for UploadProductFileMultipartBodyType.
 const (
-	Brandbook UploadProductFileMultipartBodyType = "brandbook"
-	Other     UploadProductFileMultipartBodyType = "other"
-	Product   UploadProductFileMultipartBodyType = "product"
-	Reference UploadProductFileMultipartBodyType = "reference"
+	UploadProductFileMultipartBodyTypeBrandbook UploadProductFileMultipartBodyType = "brandbook"
+	UploadProductFileMultipartBodyTypeOther     UploadProductFileMultipartBodyType = "other"
+	UploadProductFileMultipartBodyTypeProduct   UploadProductFileMultipartBodyType = "product"
+	UploadProductFileMultipartBodyTypeReference UploadProductFileMultipartBodyType = "reference"
 )
 
 // Valid indicates whether the value is a known member of the UploadProductFileMultipartBodyType enum.
 func (e UploadProductFileMultipartBodyType) Valid() bool {
 	switch e {
-	case Brandbook:
+	case UploadProductFileMultipartBodyTypeBrandbook:
 		return true
-	case Other:
+	case UploadProductFileMultipartBodyTypeOther:
 		return true
-	case Product:
+	case UploadProductFileMultipartBodyTypeProduct:
 		return true
-	case Reference:
+	case UploadProductFileMultipartBodyTypeReference:
 		return true
 	default:
 		return false
 	}
-}
-
-// AudienceGenerationStatusResponse defines model for AudienceGenerationStatusResponse.
-type AudienceGenerationStatusResponse struct {
-	Status AudienceGenerationStatusResponseStatus `json:"status"`
-}
-
-// AudienceGenerationStatusResponseStatus defines model for AudienceGenerationStatusResponse.Status.
-type AudienceGenerationStatusResponseStatus string
-
-// AudienceResponse defines model for AudienceResponse.
-type AudienceResponse struct {
-	CreatedAt      time.Time   `json:"created_at"`
-	GeneratorJobId string      `json:"generator_job_id"`
-	Hypotheses     interface{} `json:"hypotheses"`
-	Id             string      `json:"id"`
-	Metrics        interface{} `json:"metrics"`
-	Persona        interface{} `json:"persona"`
-	PersonaId      string      `json:"persona_id"`
-	ProductId      string      `json:"product_id"`
-	Rank           int         `json:"rank"`
-	Research       interface{} `json:"research"`
-	Score          float32     `json:"score"`
 }
 
 // AuthTokenResponse defines model for AuthTokenResponse.
@@ -560,6 +561,22 @@ type PersonaQueryResponse struct {
 	MatchedCount int                   `json:"matched_count"`
 	Personas     []PersonaQueryPersona `json:"personas"`
 }
+
+// ProductAnalysisResponse defines model for ProductAnalysisResponse.
+type ProductAnalysisResponse struct {
+	AudienceResult   interface{}                         `json:"audience_result"`
+	CurrentStage     ProductAnalysisResponseCurrentStage `json:"current_stage"`
+	HypothesisResult interface{}                         `json:"hypothesis_result"`
+	Id               string                              `json:"id"`
+	ProductResult    interface{}                         `json:"product_result"`
+	Status           ProductAnalysisResponseStatus       `json:"status"`
+}
+
+// ProductAnalysisResponseCurrentStage defines model for ProductAnalysisResponse.CurrentStage.
+type ProductAnalysisResponseCurrentStage string
+
+// ProductAnalysisResponseStatus defines model for ProductAnalysisResponse.Status.
+type ProductAnalysisResponseStatus string
 
 // ProductCategory defines model for ProductCategory.
 type ProductCategory string
@@ -748,7 +765,7 @@ type bearerAuthContextKey string
 
 // UploadProductFileMultipartBody defines parameters for UploadProductFile.
 type UploadProductFileMultipartBody struct {
-	// File The file to upload. Only .docx, .doc, .pdf, and .txt files are accepted.
+	// File The file to upload. Only .docx, .doc, .pdf, .txt, and .md files are accepted.
 	File openapi_types.File                 `json:"file"`
 	Type UploadProductFileMultipartBodyType `json:"type"`
 }
@@ -839,18 +856,12 @@ type ServerInterface interface {
 	// Update product
 	// (PATCH /api/v1/product/{id})
 	UpdateProduct(w http.ResponseWriter, r *http.Request, id string)
-	// Get audience generation status for a product
-	// (GET /api/v1/product/{id}/audience-generation)
-	GetProductAudienceGenerationStatus(w http.ResponseWriter, r *http.Request, id string)
-	// Queue audience generation for a product
-	// (POST /api/v1/product/{id}/audience-generation)
-	QueueProductAudienceGeneration(w http.ResponseWriter, r *http.Request, id string)
-	// Retry failed audience generation for a product
-	// (POST /api/v1/product/{id}/audience-generation/retry)
-	RetryProductAudienceGeneration(w http.ResponseWriter, r *http.Request, id string)
-	// List audiences for a product
-	// (GET /api/v1/product/{id}/audiences)
-	ListProductAudiences(w http.ResponseWriter, r *http.Request, id string)
+	// Get the latest product analysis and generated hypotheses
+	// (GET /api/v1/product/{id}/analysis)
+	GetProductAnalysis(w http.ResponseWriter, r *http.Request, id string)
+	// Analyze the saved product, select an audience, and generate hypotheses
+	// (POST /api/v1/product/{id}/analysis)
+	StartProductAnalysis(w http.ResponseWriter, r *http.Request, id string)
 	// Run the product feedback survey for every persona
 	// (POST /api/v1/testing/product-feedback-survey)
 	RunProductFeedbackSurvey(w http.ResponseWriter, r *http.Request)
@@ -986,27 +997,15 @@ func (_ Unimplemented) UpdateProduct(w http.ResponseWriter, r *http.Request, id 
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Get audience generation status for a product
-// (GET /api/v1/product/{id}/audience-generation)
-func (_ Unimplemented) GetProductAudienceGenerationStatus(w http.ResponseWriter, r *http.Request, id string) {
+// Get the latest product analysis and generated hypotheses
+// (GET /api/v1/product/{id}/analysis)
+func (_ Unimplemented) GetProductAnalysis(w http.ResponseWriter, r *http.Request, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Queue audience generation for a product
-// (POST /api/v1/product/{id}/audience-generation)
-func (_ Unimplemented) QueueProductAudienceGeneration(w http.ResponseWriter, r *http.Request, id string) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Retry failed audience generation for a product
-// (POST /api/v1/product/{id}/audience-generation/retry)
-func (_ Unimplemented) RetryProductAudienceGeneration(w http.ResponseWriter, r *http.Request, id string) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// List audiences for a product
-// (GET /api/v1/product/{id}/audiences)
-func (_ Unimplemented) ListProductAudiences(w http.ResponseWriter, r *http.Request, id string) {
+// Analyze the saved product, select an audience, and generate hypotheses
+// (POST /api/v1/product/{id}/analysis)
+func (_ Unimplemented) StartProductAnalysis(w http.ResponseWriter, r *http.Request, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1547,8 +1546,8 @@ func (siw *ServerInterfaceWrapper) UpdateProduct(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
-// GetProductAudienceGenerationStatus operation middleware
-func (siw *ServerInterfaceWrapper) GetProductAudienceGenerationStatus(w http.ResponseWriter, r *http.Request) {
+// GetProductAnalysis operation middleware
+func (siw *ServerInterfaceWrapper) GetProductAnalysis(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 	_ = err
@@ -1569,7 +1568,7 @@ func (siw *ServerInterfaceWrapper) GetProductAudienceGenerationStatus(w http.Res
 	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetProductAudienceGenerationStatus(w, r, id)
+		siw.Handler.GetProductAnalysis(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1579,8 +1578,8 @@ func (siw *ServerInterfaceWrapper) GetProductAudienceGenerationStatus(w http.Res
 	handler.ServeHTTP(w, r)
 }
 
-// QueueProductAudienceGeneration operation middleware
-func (siw *ServerInterfaceWrapper) QueueProductAudienceGeneration(w http.ResponseWriter, r *http.Request) {
+// StartProductAnalysis operation middleware
+func (siw *ServerInterfaceWrapper) StartProductAnalysis(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 	_ = err
@@ -1601,71 +1600,7 @@ func (siw *ServerInterfaceWrapper) QueueProductAudienceGeneration(w http.Respons
 	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.QueueProductAudienceGeneration(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// RetryProductAudienceGeneration operation middleware
-func (siw *ServerInterfaceWrapper) RetryProductAudienceGeneration(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.RetryProductAudienceGeneration(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ListProductAudiences operation middleware
-func (siw *ServerInterfaceWrapper) ListProductAudiences(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListProductAudiences(w, r, id)
+		siw.Handler.StartProductAnalysis(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1965,16 +1900,10 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Patch(options.BaseURL+"/api/v1/product/{id}", wrapper.UpdateProduct)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v1/product/{id}/audience-generation", wrapper.GetProductAudienceGenerationStatus)
+		r.Get(options.BaseURL+"/api/v1/product/{id}/analysis", wrapper.GetProductAnalysis)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/product/{id}/audience-generation", wrapper.QueueProductAudienceGeneration)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/product/{id}/audience-generation/retry", wrapper.RetryProductAudienceGeneration)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v1/product/{id}/audiences", wrapper.ListProductAudiences)
+		r.Post(options.BaseURL+"/api/v1/product/{id}/analysis", wrapper.StartProductAnalysis)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/testing/product-feedback-survey", wrapper.RunProductFeedbackSurvey)
@@ -3067,17 +2996,17 @@ func (response UpdateProduct500JSONResponse) VisitUpdateProductResponse(w http.R
 	return err
 }
 
-type GetProductAudienceGenerationStatusRequestObject struct {
+type GetProductAnalysisRequestObject struct {
 	Id string `json:"id"`
 }
 
-type GetProductAudienceGenerationStatusResponseObject interface {
-	VisitGetProductAudienceGenerationStatusResponse(w http.ResponseWriter) error
+type GetProductAnalysisResponseObject interface {
+	VisitGetProductAnalysisResponse(w http.ResponseWriter) error
 }
 
-type GetProductAudienceGenerationStatus200JSONResponse AudienceGenerationStatusResponse
+type GetProductAnalysis200JSONResponse ProductAnalysisResponse
 
-func (response GetProductAudienceGenerationStatus200JSONResponse) VisitGetProductAudienceGenerationStatusResponse(w http.ResponseWriter) error {
+func (response GetProductAnalysis200JSONResponse) VisitGetProductAnalysisResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -3089,9 +3018,9 @@ func (response GetProductAudienceGenerationStatus200JSONResponse) VisitGetProduc
 	return err
 }
 
-type GetProductAudienceGenerationStatus404JSONResponse ErrBody
+type GetProductAnalysis404JSONResponse ErrBody
 
-func (response GetProductAudienceGenerationStatus404JSONResponse) VisitGetProductAudienceGenerationStatusResponse(w http.ResponseWriter) error {
+func (response GetProductAnalysis404JSONResponse) VisitGetProductAnalysisResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -3103,9 +3032,9 @@ func (response GetProductAudienceGenerationStatus404JSONResponse) VisitGetProduc
 	return err
 }
 
-type GetProductAudienceGenerationStatus500JSONResponse ErrBody
+type GetProductAnalysis500JSONResponse ErrBody
 
-func (response GetProductAudienceGenerationStatus500JSONResponse) VisitGetProductAudienceGenerationStatusResponse(w http.ResponseWriter) error {
+func (response GetProductAnalysis500JSONResponse) VisitGetProductAnalysisResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -3117,17 +3046,17 @@ func (response GetProductAudienceGenerationStatus500JSONResponse) VisitGetProduc
 	return err
 }
 
-type QueueProductAudienceGenerationRequestObject struct {
+type StartProductAnalysisRequestObject struct {
 	Id string `json:"id"`
 }
 
-type QueueProductAudienceGenerationResponseObject interface {
-	VisitQueueProductAudienceGenerationResponse(w http.ResponseWriter) error
+type StartProductAnalysisResponseObject interface {
+	VisitStartProductAnalysisResponse(w http.ResponseWriter) error
 }
 
-type QueueProductAudienceGeneration201JSONResponse AudienceGenerationStatusResponse
+type StartProductAnalysis201JSONResponse ProductAnalysisResponse
 
-func (response QueueProductAudienceGeneration201JSONResponse) VisitQueueProductAudienceGenerationResponse(w http.ResponseWriter) error {
+func (response StartProductAnalysis201JSONResponse) VisitStartProductAnalysisResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -3139,23 +3068,9 @@ func (response QueueProductAudienceGeneration201JSONResponse) VisitQueueProductA
 	return err
 }
 
-type QueueProductAudienceGeneration400JSONResponse ErrBody
+type StartProductAnalysis404JSONResponse ErrBody
 
-func (response QueueProductAudienceGeneration400JSONResponse) VisitQueueProductAudienceGenerationResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type QueueProductAudienceGeneration404JSONResponse ErrBody
-
-func (response QueueProductAudienceGeneration404JSONResponse) VisitQueueProductAudienceGenerationResponse(w http.ResponseWriter) error {
+func (response StartProductAnalysis404JSONResponse) VisitStartProductAnalysisResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -3167,9 +3082,9 @@ func (response QueueProductAudienceGeneration404JSONResponse) VisitQueueProductA
 	return err
 }
 
-type QueueProductAudienceGeneration409JSONResponse ErrBody
+type StartProductAnalysis409JSONResponse ErrBody
 
-func (response QueueProductAudienceGeneration409JSONResponse) VisitQueueProductAudienceGenerationResponse(w http.ResponseWriter) error {
+func (response StartProductAnalysis409JSONResponse) VisitStartProductAnalysisResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -3181,123 +3096,9 @@ func (response QueueProductAudienceGeneration409JSONResponse) VisitQueueProductA
 	return err
 }
 
-type QueueProductAudienceGeneration500JSONResponse ErrBody
+type StartProductAnalysis500JSONResponse ErrBody
 
-func (response QueueProductAudienceGeneration500JSONResponse) VisitQueueProductAudienceGenerationResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RetryProductAudienceGenerationRequestObject struct {
-	Id string `json:"id"`
-}
-
-type RetryProductAudienceGenerationResponseObject interface {
-	VisitRetryProductAudienceGenerationResponse(w http.ResponseWriter) error
-}
-
-type RetryProductAudienceGeneration200JSONResponse AudienceGenerationStatusResponse
-
-func (response RetryProductAudienceGeneration200JSONResponse) VisitRetryProductAudienceGenerationResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RetryProductAudienceGeneration404JSONResponse ErrBody
-
-func (response RetryProductAudienceGeneration404JSONResponse) VisitRetryProductAudienceGenerationResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RetryProductAudienceGeneration409JSONResponse ErrBody
-
-func (response RetryProductAudienceGeneration409JSONResponse) VisitRetryProductAudienceGenerationResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(409)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RetryProductAudienceGeneration500JSONResponse ErrBody
-
-func (response RetryProductAudienceGeneration500JSONResponse) VisitRetryProductAudienceGenerationResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListProductAudiencesRequestObject struct {
-	Id string `json:"id"`
-}
-
-type ListProductAudiencesResponseObject interface {
-	VisitListProductAudiencesResponse(w http.ResponseWriter) error
-}
-
-type ListProductAudiences200JSONResponse []AudienceResponse
-
-func (response ListProductAudiences200JSONResponse) VisitListProductAudiencesResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListProductAudiences404JSONResponse ErrBody
-
-func (response ListProductAudiences404JSONResponse) VisitListProductAudiencesResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListProductAudiences500JSONResponse ErrBody
-
-func (response ListProductAudiences500JSONResponse) VisitListProductAudiencesResponse(w http.ResponseWriter) error {
+func (response StartProductAnalysis500JSONResponse) VisitStartProductAnalysisResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -3599,18 +3400,12 @@ type StrictServerInterface interface {
 	// Update product
 	// (PATCH /api/v1/product/{id})
 	UpdateProduct(ctx context.Context, request UpdateProductRequestObject) (UpdateProductResponseObject, error)
-	// Get audience generation status for a product
-	// (GET /api/v1/product/{id}/audience-generation)
-	GetProductAudienceGenerationStatus(ctx context.Context, request GetProductAudienceGenerationStatusRequestObject) (GetProductAudienceGenerationStatusResponseObject, error)
-	// Queue audience generation for a product
-	// (POST /api/v1/product/{id}/audience-generation)
-	QueueProductAudienceGeneration(ctx context.Context, request QueueProductAudienceGenerationRequestObject) (QueueProductAudienceGenerationResponseObject, error)
-	// Retry failed audience generation for a product
-	// (POST /api/v1/product/{id}/audience-generation/retry)
-	RetryProductAudienceGeneration(ctx context.Context, request RetryProductAudienceGenerationRequestObject) (RetryProductAudienceGenerationResponseObject, error)
-	// List audiences for a product
-	// (GET /api/v1/product/{id}/audiences)
-	ListProductAudiences(ctx context.Context, request ListProductAudiencesRequestObject) (ListProductAudiencesResponseObject, error)
+	// Get the latest product analysis and generated hypotheses
+	// (GET /api/v1/product/{id}/analysis)
+	GetProductAnalysis(ctx context.Context, request GetProductAnalysisRequestObject) (GetProductAnalysisResponseObject, error)
+	// Analyze the saved product, select an audience, and generate hypotheses
+	// (POST /api/v1/product/{id}/analysis)
+	StartProductAnalysis(ctx context.Context, request StartProductAnalysisRequestObject) (StartProductAnalysisResponseObject, error)
 	// Run the product feedback survey for every persona
 	// (POST /api/v1/testing/product-feedback-survey)
 	RunProductFeedbackSurvey(ctx context.Context, request RunProductFeedbackSurveyRequestObject) (RunProductFeedbackSurveyResponseObject, error)
@@ -4175,25 +3970,25 @@ func (sh *strictHandler) UpdateProduct(w http.ResponseWriter, r *http.Request, i
 	}
 }
 
-// GetProductAudienceGenerationStatus operation middleware
-func (sh *strictHandler) GetProductAudienceGenerationStatus(w http.ResponseWriter, r *http.Request, id string) {
-	var request GetProductAudienceGenerationStatusRequestObject
+// GetProductAnalysis operation middleware
+func (sh *strictHandler) GetProductAnalysis(w http.ResponseWriter, r *http.Request, id string) {
+	var request GetProductAnalysisRequestObject
 
 	request.Id = id
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.GetProductAudienceGenerationStatus(ctx, request.(GetProductAudienceGenerationStatusRequestObject))
+		return sh.ssi.GetProductAnalysis(ctx, request.(GetProductAnalysisRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetProductAudienceGenerationStatus")
+		handler = middleware(handler, "GetProductAnalysis")
 	}
 
 	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(GetProductAudienceGenerationStatusResponseObject); ok {
-		if err := validResponse.VisitGetProductAudienceGenerationStatusResponse(w); err != nil {
+	} else if validResponse, ok := response.(GetProductAnalysisResponseObject); ok {
+		if err := validResponse.VisitGetProductAnalysisResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -4201,77 +3996,25 @@ func (sh *strictHandler) GetProductAudienceGenerationStatus(w http.ResponseWrite
 	}
 }
 
-// QueueProductAudienceGeneration operation middleware
-func (sh *strictHandler) QueueProductAudienceGeneration(w http.ResponseWriter, r *http.Request, id string) {
-	var request QueueProductAudienceGenerationRequestObject
+// StartProductAnalysis operation middleware
+func (sh *strictHandler) StartProductAnalysis(w http.ResponseWriter, r *http.Request, id string) {
+	var request StartProductAnalysisRequestObject
 
 	request.Id = id
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.QueueProductAudienceGeneration(ctx, request.(QueueProductAudienceGenerationRequestObject))
+		return sh.ssi.StartProductAnalysis(ctx, request.(StartProductAnalysisRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "QueueProductAudienceGeneration")
+		handler = middleware(handler, "StartProductAnalysis")
 	}
 
 	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(QueueProductAudienceGenerationResponseObject); ok {
-		if err := validResponse.VisitQueueProductAudienceGenerationResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// RetryProductAudienceGeneration operation middleware
-func (sh *strictHandler) RetryProductAudienceGeneration(w http.ResponseWriter, r *http.Request, id string) {
-	var request RetryProductAudienceGenerationRequestObject
-
-	request.Id = id
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.RetryProductAudienceGeneration(ctx, request.(RetryProductAudienceGenerationRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "RetryProductAudienceGeneration")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(RetryProductAudienceGenerationResponseObject); ok {
-		if err := validResponse.VisitRetryProductAudienceGenerationResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ListProductAudiences operation middleware
-func (sh *strictHandler) ListProductAudiences(w http.ResponseWriter, r *http.Request, id string) {
-	var request ListProductAudiencesRequestObject
-
-	request.Id = id
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ListProductAudiences(ctx, request.(ListProductAudiencesRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ListProductAudiences")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ListProductAudiencesResponseObject); ok {
-		if err := validResponse.VisitListProductAudiencesResponse(w); err != nil {
+	} else if validResponse, ok := response.(StartProductAnalysisResponseObject); ok {
+		if err := validResponse.VisitStartProductAnalysisResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -4459,68 +4202,66 @@ func (sh *strictHandler) Healthz(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

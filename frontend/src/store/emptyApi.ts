@@ -15,7 +15,7 @@ export const emptySplitApi = createApi({
       return headers
     },
   }),
-  tagTypes: ['auth', 'hypothesis', 'product', 'audience', 'file'],
+  tagTypes: ['auth', 'hypothesis', 'product', 'file'],
   refetchOnMountOrArgChange: true,
   refetchOnReconnect: true,
   endpoints: () => ({}),

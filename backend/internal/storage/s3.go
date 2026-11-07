@@ -90,3 +90,21 @@ func (s *S3) Delete(ctx context.Context, key string) error {
 
 	return nil
 }
+
+func (s *S3) Download(ctx context.Context, key string) ([]byte, error) {
+	result, err := s.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get object %s: %w", key, err)
+	}
+	defer result.Body.Close()
+
+	body, err := io.ReadAll(result.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read object %s: %w", key, err)
+	}
+
+	return body, nil
+}

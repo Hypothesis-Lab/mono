@@ -16,7 +16,7 @@ RUN --mount=type=cache,id=go-mod,target=/go/pkg/mod \
 
 FROM alpine:3.24
 
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates poppler-utils antiword
 
 WORKDIR /app
 
