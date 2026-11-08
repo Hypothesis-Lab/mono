@@ -71,3 +71,40 @@ class Passport(StrictModel):
     conflicts: list[Conflict]
     gaps: list[Gap]
     warnings: list[str]
+
+
+class EvaluationCriterion(StrictModel):
+    id: str
+    name: str
+    weight: float
+    score: float | None = Field(ge=0, le=5, default=None)
+    status: Literal["assessed", "not_tested"]
+    weighted_score: float | None = Field(ge=0, le=100, default=None)
+    findings: list[str]
+    recommendations: list[str]
+
+
+class MandatoryCheck(StrictModel):
+    id: str
+    name: str
+    status: Literal["pass", "fail", "not_tested"]
+    finding: str
+
+
+class ScenarioResult(StrictModel):
+    number: int = Field(ge=1, le=12)
+    status: Literal["pass", "fail", "partial", "not_tested"]
+    finding: str
+
+
+class Evaluation(StrictModel):
+    evaluation_status: Literal["complete", "partial", "blocked"]
+    mode: Literal["single_run_source_audit", "benchmark"]
+    overall_score: float | None = Field(ge=0, le=100, default=None)
+    acceptance: Literal["accepted", "rejected", "not_tested"]
+    score_basis: str
+    criteria: list[EvaluationCriterion] = Field(min_length=9)
+    mandatory_checks: list[MandatoryCheck] = Field(min_length=6)
+    scenarios: list[ScenarioResult] = Field(min_length=12)
+    summary: str
+    limitations: list[str]
