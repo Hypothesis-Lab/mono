@@ -1,0 +1,69 @@
+{
+  "document": "docs_dump/audience_sources/30 источников для сегментации.docx",
+  "purpose": "Public raw datasets referenced by the document",
+  "datasets": [
+    {
+      "id": "uci_bank_marketing",
+      "references": [6],
+      "archive": "uci_bank_marketing/bank-marketing.zip",
+      "download_url": "https://archive.ics.uci.edu/static/public/222/bank%2Bmarketing.zip",
+      "dataset_url": "https://archive.ics.uci.edu/dataset/222/bank+marketing",
+      "license": "CC BY 4.0",
+      "archive_sha256": "e0bf5f5de5b846e2f18e9d90606637267d46dfa260e0f17bb12e605db5efbeb4",
+      "archive_bytes": 1023843,
+      "extracted": [
+        "uci_bank_marketing/raw/bank.zip",
+        "uci_bank_marketing/raw/bank-additional.zip",
+        "uci_bank_marketing/raw/bank/bank-full.csv",
+        "uci_bank_marketing/raw/bank/bank.csv",
+        "uci_bank_marketing/raw/bank-additional/bank-additional/bank-additional-full.csv",
+        "uci_bank_marketing/raw/bank-additional/bank-additional/bank-additional.csv"
+      ]
+    },
+    {
+      "id": "uci_online_retail",
+      "references": [22, 25, 30],
+      "archive": "uci_online_retail/online-retail.zip",
+      "download_url": "https://archive.ics.uci.edu/static/public/352/online%2Bretail.zip",
+      "dataset_url": "https://archive.ics.uci.edu/dataset/352/online+retail",
+      "license": "CC BY 4.0",
+      "archive_sha256": "f5385cbb54bbebf7196389109c6b0621faab0c304e3702548165e71c84aede8b",
+      "archive_bytes": 23715478,
+      "extracted": ["uci_online_retail/raw/Online Retail.xlsx"]
+    },
+    {
+      "id": "uci_online_retail_ii",
+      "references": [24, 27],
+      "archive": "uci_online_retail_ii/online-retail-ii.zip",
+      "download_url": "https://archive.ics.uci.edu/static/public/502/online%2Bretail%2Bii.zip",
+      "dataset_url": "https://archive.ics.uci.edu/dataset/502/online+retail+ii",
+      "license": "CC BY 4.0",
+      "archive_sha256": "572e36277c2390fbfde10664750731e0a86f55e33470d91919085f0408e67bfb",
+      "archive_bytes": 45622418,
+      "extracted": ["uci_online_retail_ii/raw/online_retail_II.xlsx"]
+    },
+    {
+      "id": "olist_brazilian_ecommerce",
+      "references": [26],
+      "archive": "olist_brazilian_ecommerce/olist.zip",
+      "download_url": "https://www.kaggle.com/api/v1/datasets/download/olistbr/brazilian-ecommerce",
+      "dataset_url": "https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce",
+      "license": "CC BY-NC-SA 4.0",
+      "archive_sha256": "967e41e04fc306fe604e2a693f488995a8b41e5047418f8a5c8e4abd6deca784",
+      "archive_bytes": 44717580,
+      "extracted": ["olist_brazilian_ecommerce/raw/*.csv"]
+    },
+    {
+      "id": "berka",
+      "references": [14],
+      "archive": "berka/berka.zip",
+      "download_url": "https://www.kaggle.com/api/v1/datasets/download/marceloventura/the-berka-dataset",
+      "dataset_url": "https://www.kaggle.com/datasets/marceloventura/the-berka-dataset",
+      "license": "CC0 as listed by the Kaggle publisher",
+      "archive_sha256": "dfd5e9490eb5a668e4465af8af3fcb8b607e9e4df75727d551f3e177ccfdd5af",
+      "archive_bytes": 18204614,
+      "extracted": ["berka/raw/*.csv"]
+    }
+  ],
+  "excluded_references": [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 20, 21, 23, 28, 29]
+}

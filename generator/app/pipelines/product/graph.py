@@ -8,10 +8,10 @@ from typing import Annotated, Any, Literal, TypedDict
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 
+from app.language_model_client.execution import ModelCallContext
 from app.language_model_client.structured_generation import complete_with_repair
-from app.pipelines.audiences.stages import AudienceStages
-from app.pipelines.audiences.stages.execution import ModelCallContext
 from app.pipelines.product.models import Evaluation, Passport, ProductInput, Source
+from app.pipelines.stages import PipelineStages
 
 
 class ProductState(TypedDict):
@@ -24,7 +24,7 @@ class ProductState(TypedDict):
     evaluation: dict[str, Any]
 
 
-def build_graph(stages: AudienceStages, *, checkpointer: Any = None, observer: Any = None):
+def build_graph(stages: PipelineStages, *, checkpointer: Any = None, observer: Any = None):
     builder = StateGraph(ProductState)
     extraction_prompt = Path(__file__).with_name("prompt.md").read_text(encoding="utf-8")
 

@@ -11,8 +11,8 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.postgres import PostgresSaver
 
 from app.observability import Measurement, Observer
-from app.pipelines.audiences.stages import AudienceStages
 from app.pipelines.registry import get_pipeline
+from app.pipelines.stages import PipelineStages
 from app.repositories.jobs import Job, JobRepository
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ class GeneratorWorker:
     def __init__(
         self,
         repository: JobRepository,
-        stages: AudienceStages,
+        stages: PipelineStages,
         observer: Observer,
         concurrency: int,
         graph_max_concurrency: int,

@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from app.language_model_client.execution import ModelCallContext
 from app.language_model_client.structured_generation import complete_with_repair
-from app.pipelines.audiences.stages import AudienceStages
-from app.pipelines.audiences.stages.execution import ModelCallContext
 from app.pipelines.hypotheses.models import (
     Card,
     Claim,
+    ContextSummary,
     Draft,
     DraftBatch,
     ExcludedCandidate,
@@ -24,28 +24,29 @@ from app.pipelines.hypotheses.models import (
     RankingItem,
     Validation,
 )
+from app.pipelines.stages import PipelineStages
 
 # Prompt text intentionally contains long natural-language instruction lines.
 # ruff: noqa: E501
 MODULE_PROMPT = Path(__file__).resolve().parents[4] / "input_prompts" / "Промпт_модуля_гипотез.md"
 
 
-class HypothesisState(TypedDict, total=False):
+class HypothesisState(TypedDict):
     input: dict[str, Any]
-    errors: list[str]
-    input_limitations: list[str]
-    candidates: list[dict[str, Any]]
-    ranking: dict[str, Any]
-    ordered_ids: list[str]
-    validations: list[dict[str, Any]]
-    accepted: list[str]
-    cursor: int
-    generation_missing_data: list[str]
-    generation_limitations: list[str]
-    result: dict[str, Any]
+    errors: NotRequired[list[str]]
+    input_limitations: NotRequired[list[str]]
+    candidates: NotRequired[list[dict[str, Any]]]
+    ranking: NotRequired[dict[str, Any]]
+    ordered_ids: NotRequired[list[str]]
+    validations: NotRequired[list[dict[str, Any]]]
+    accepted: NotRequired[list[str]]
+    cursor: NotRequired[int]
+    generation_missing_data: NotRequired[list[str]]
+    generation_limitations: NotRequired[list[str]]
+    result: NotRequired[dict[str, Any]]
 
 
-def build_graph(stages: AudienceStages, *, checkpointer: Any = None, observer: Any = None):
+def build_graph(stages: PipelineStages, *, checkpointer: Any = None, observer: Any = None):
     builder = StateGraph(HypothesisState)
 
     def validate_input(state: HypothesisState) -> dict[str, Any]:
@@ -55,12 +56,16 @@ def build_graph(stages: AudienceStages, *, checkpointer: Any = None, observer: A
         limitations: list[str] = []
         if not data.product_passport.get("records"):
             errors.append("В product result нет записей паспорта продукта.")
+
         if not audience.get("segments"):
             errors.append("В audience result нет переданного кандидата аудитории.")
+
         if data.product_passport.get("extraction_status") != "complete":
             limitations.append("Паспорт продукта имеет статус не complete.")
+
         if audience.get("status") != "complete":
             limitations.append("Результат аудитории имеет статус не complete.")
+
         return {"errors": errors, "input_limitations": limitations}
 
     def route_input(state: HypothesisState) -> Literal["generate", "finalize"]:
@@ -140,6 +145,7 @@ def build_graph(stages: AudienceStages, *, checkpointer: Any = None, observer: A
             if item.candidate_id in by_id and item.candidate_id not in ordered:
                 ordered.append(item.candidate_id)
                 ranking_items[item.candidate_id] = item
+
         for candidate in candidates:
             if candidate.candidate_id not in ordered:
                 ordered.append(candidate.candidate_id)
@@ -192,8 +198,10 @@ def build_graph(stages: AudienceStages, *, checkpointer: Any = None, observer: A
         data = HypothesisInput.model_validate(state["input"])
         if len(state.get("accepted", [])) >= data.validation_target:
             return "finalize"
+
         if state.get("cursor", 0) >= len(state.get("ordered_ids", [])):
             return "finalize"
+
         return "validate_next"
 
     def finalize(state: HypothesisState) -> dict[str, Any]:
@@ -218,6 +226,7 @@ def build_graph(stages: AudienceStages, *, checkpointer: Any = None, observer: A
                 validation_status = "not_attempted"
                 checks = []
                 issues: list[str] = []
+
             else:
                 validation_status = validation.overall_status
                 checks = validation.checks
@@ -231,6 +240,7 @@ def build_graph(stages: AudienceStages, *, checkpointer: Any = None, observer: A
                             source_refs=candidate.source_refs,
                         )
                     )
+
             cards.append(
                 Card(
                     **candidate.model_dump(mode="python"),
@@ -332,12 +342,11 @@ def _prompt_context(data: HypothesisInput) -> tuple[dict[str, Any], dict[str, An
         "warnings": passport.get("warnings", []),
     }
     audience_result = data.audience_result
-    audience_context = {
-        "audience": audience_result.get("audience", audience_result),
-        "calculation": audience_result.get("calculation"),
-        "review": audience_result.get("review"),
-        "query": audience_result.get("query"),
-    }
+    audience_context = {"audience": audience_result.get("audience", audience_result)}
+    for key in ("calculation", "review", "query"):
+        if key in audience_result:
+            audience_context[key] = audience_result[key]
+
     return product_context, audience_context
 
 
@@ -345,8 +354,12 @@ def _validate_segment_refs(batch: DraftBatch, data: HypothesisInput) -> None:
     audience = data.audience_result.get("audience", data.audience_result)
     allowed_ids = {segment.get("segment_id") for segment in audience.get("segments", [])}
     for candidate in batch.candidates:
-        if not candidate.segment_refs or any(ref.segment_id not in allowed_ids for ref in candidate.segment_refs):
-            raise ValueError("hypothesis references a segment outside the selected audience")
+        referenced_ids = [ref.segment_id for ref in candidate.segment_refs]
+        if not referenced_ids or any(segment_id not in allowed_ids for segment_id in referenced_ids):
+            raise ValueError(
+                f"candidate {candidate.candidate_id} references {referenced_ids}; "
+                f"use only the selected audience segment IDs: {sorted(allowed_ids)}"
+            )
 
 
 def _fallback_priority(candidate_id: str, rank: int) -> RankingItem:
@@ -367,7 +380,7 @@ def _fallback_priority(candidate_id: str, rank: int) -> RankingItem:
     )
 
 
-def _context_summary(data: HypothesisInput) -> dict[str, Any]:
+def _context_summary(data: HypothesisInput) -> ContextSummary:
     product = data.product_passport
     records = product.get("records", [])
     product_name = product.get("product_name")
@@ -384,8 +397,8 @@ def _context_summary(data: HypothesisInput) -> dict[str, Any]:
         for item in records
         if item.get("category") in {"limitations", "terms", "communication_rules"}
     ]
-    return {
-        "product": Claim(
+    return ContextSummary(
+        product=Claim(
             text=product_name,
             kind="fact" if product_name else "unknown",
             source_refs=[],
@@ -393,7 +406,7 @@ def _context_summary(data: HypothesisInput) -> dict[str, Any]:
             if product_name
             else "Название продукта отсутствует.",
         ),
-        "business_goal": Claim(
+        business_goal=Claim(
             text=purpose.get("statement") if purpose else None,
             kind="fact" if purpose else "unknown",
             source_refs=[evidence.get("source", "") for evidence in (purpose or {}).get("evidence", [])],
@@ -403,17 +416,19 @@ def _context_summary(data: HypothesisInput) -> dict[str, Any]:
                 else "Бизнес-цель не была передана."
             ),
         ),
-        "audience_ids": [str(segment.get("segment_id")) for segment in segments if segment.get("segment_id")],
-        "constraints": constraints,
-    }
+        audience_ids=[str(segment.get("segment_id")) for segment in segments if segment.get("segment_id")],
+        constraints=constraints,
+    )
 
 
 def _missing_data(data: HypothesisInput, state: HypothesisState, audience: dict[str, Any]) -> list[str]:
     missing = [item for item in [*state.get("errors", []), *state.get("generation_missing_data", [])] if item]
     if audience.get("status") != "complete":
         missing.append("Результат audience pipeline имеет статус не complete.")
+
     if not audience.get("segments"):
         missing.append("В audience result нет сохранённого сегмента.")
+
     return list(dict.fromkeys(missing))
 
 
@@ -427,13 +442,18 @@ def _result_status(
 ) -> Literal["complete", "partial", "blocked"]:
     if not selected_ids:
         return "blocked"
+
     if len(selected_ids) < data.validation_target:
         return "partial"
+
     if any(attempt.overall_status == "unknown" for attempt in attempts if attempt.candidate_id in selected_ids):
         return "partial"
+
     if data.product_passport.get("extraction_status") != "complete":
         return "partial"
+
     audience = data.audience_result.get("audience", data.audience_result)
     if audience.get("status") != "complete":
         return "partial"
+
     return "complete"

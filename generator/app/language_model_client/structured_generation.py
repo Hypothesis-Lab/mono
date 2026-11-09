@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ValidationError
 
-from app.pipelines.audiences.protocols import LanguageModelClient
+from app.language_model_client.protocols import LanguageModelClient
 
 if TYPE_CHECKING:
-    from app.pipelines.audiences.stages.execution import ModelCallContext
+    from app.language_model_client.execution import ModelCallContext
 
 
 def complete_structured[ModelT: BaseModel](
@@ -51,6 +51,7 @@ def complete_with_repair[ModelT: BaseModel](
             result = complete_structured(model_client, context, output_model, prompt, feedback, response_schema)
             if validator is not None:
                 validator(result)
+
             return result
         except ValueError as error:
             if context.raw_response is None or attempt == 2:

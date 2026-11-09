@@ -9,7 +9,7 @@ from app.config import ServerConfig, Settings
 from app.language_model_client.client import CodexClient
 from app.migrations import apply as apply_migrations
 from app.observability import PrometheusObserver
-from app.pipelines.audiences.stages import AudienceStages
+from app.pipelines.stages import PipelineStages
 from app.repositories.jobs import JobRepository
 from app.routes import router
 from app.worker import GeneratorWorker
@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
     llm = CodexClient(settings.codex_config, observer)
     worker = GeneratorWorker(
         repository,
-        AudienceStages(llm),
+        PipelineStages(llm),
         observer,
         settings.worker_concurrency,
         settings.graph_max_concurrency,

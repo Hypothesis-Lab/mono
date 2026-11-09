@@ -5,10 +5,10 @@ from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from app.language_model_client.execution import ModelCallContext
 from app.language_model_client.structured_generation import complete_with_repair
 from app.pipelines.audience_selection.models import AudienceSelectionInput, Selection, SelectionReview
-from app.pipelines.audiences.stages import AudienceStages
-from app.pipelines.audiences.stages.execution import ModelCallContext
+from app.pipelines.stages import PipelineStages
 
 
 class SelectionState(TypedDict):
@@ -45,7 +45,7 @@ def _safe_candidates(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return candidates
 
 
-def build_graph(stages: AudienceStages, *, checkpointer: Any = None, observer: Any = None):
+def build_graph(stages: PipelineStages, *, checkpointer: Any = None, observer: Any = None):
     builder = StateGraph(SelectionState)
 
     def select(state: SelectionState) -> dict[str, Any]:
