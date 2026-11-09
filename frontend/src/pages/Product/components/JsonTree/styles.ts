@@ -71,9 +71,11 @@ export const Primitive = styled.div`
 `
 
 export const Key = styled.span`
+  flex: 0 0 auto;
   color: #33408f;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 600;
+  white-space: nowrap;
 `
 
 export const Separator = styled.span`

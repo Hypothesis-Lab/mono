@@ -114,6 +114,10 @@ func (a *productAnalysisActivities) stage(ctx context.Context, runID, stage stri
 		return nil, fmt.Errorf("load product analysis run for stage %s: %w", stage, err)
 	}
 
+	if shouldSkipStage(run, stage) {
+		return &productAnalysisStageResult{}, nil
+	}
+
 	kind, input, err := a.stageInput(ctx, run, stage)
 	if err != nil {
 		return nil, fmt.Errorf("prepare product analysis stage %s: %w", stage, err)
@@ -302,6 +306,14 @@ func applyAudienceReview(result json.RawMessage, review *productanalysis.StageRe
 
 func (a *productAnalysisActivities) fail(ctx context.Context, runID string) error {
 	return a.repository.Fail(ctx, runID)
+}
+
+func shouldSkipStage(run *productanalysis.Run, stage string) bool {
+	if stage == "product" {
+		return len(run.ProductResult) > 0 && run.CurrentStage != "product"
+	}
+
+	return stage == "audience" && run.Status == "waiting_for_user_input" && run.CurrentStage == "audience" && len(run.AudienceResult) > 0
 }
 
 func analysisResultBlocked(stage string, result json.RawMessage) (bool, error) {

@@ -80,10 +80,86 @@ export const AudienceList = styled.ul`
   list-style: none;
 `
 
-export const AudienceGenerationStatus = styled.p`
-  margin: 0;
+type AnalysisPipelineState = 'completed' | 'active' | 'waiting' | 'pending' | 'error'
+
+const pipelineStateColor = (state: AnalysisPipelineState): string => {
+  if (state === 'completed') return '#2a8a2a'
+  if (state === 'active') return '#33408f'
+  if (state === 'waiting') return '#8a5a00'
+  if (state === 'error') return '#b42318'
+  return '#888'
+}
+
+export const AnalysisPipeline = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+
+  @media (max-width: 639px) {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+`
+
+export const AnalysisStatusTitle = styled.h3`
+  margin: 4px 0 0;
+  font-size: 18px;
+  color: #111;
+`
+
+export const AnalysisPipelineItem = styled.div<{ $state: AnalysisPipelineState }>`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid ${({ $state }) => pipelineStateColor($state)};
+  border-radius: 6px;
+  background: ${({ $state }) => ($state === 'pending' ? '#fff' : `${pipelineStateColor($state)}12`)};
+`
+
+export const AnalysisPipelineMarker = styled.span<{ $state: AnalysisPipelineState }>`
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: ${({ $state }) => pipelineStateColor($state)};
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+`
+
+export const AnalysisPipelineInfo = styled.div`
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+`
+
+export const AnalysisPipelineName = styled.strong`
+  color: #222;
   font-size: 14px;
-  color: #888;
+`
+
+export const AnalysisPipelineStatus = styled.span`
+  color: #666;
+  font-size: 12px;
+`
+
+export const AnalysisPipelineArrow = styled.span`
+  color: #aaa;
+  font-size: 20px;
+  line-height: 1;
+  text-align: center;
+
+  @media (max-width: 639px) {
+    transform: rotate(90deg);
+  }
 `
 
 export const AudienceItem = styled.li`
@@ -125,12 +201,38 @@ export const ReviewHeading = styled.h3`
 
 export const AudienceDetails = styled.details`
   width: 100%;
+
+  &[open] > summary::before {
+    transform: rotate(90deg);
+  }
 `
 
 export const AudienceSummary = styled.summary`
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 10px 12px;
+  border-radius: 6px;
   cursor: pointer;
+  font-weight: 600;
+  user-select: none;
+
+  &::before {
+    content: '›';
+    color: #666;
+    font-size: 22px;
+    line-height: 1;
+    transition: transform 120ms ease;
+  }
+
+  &:hover {
+    background: #f0f0f0;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #333;
+    outline-offset: 2px;
+  }
 
   &::-webkit-details-marker {
     display: none;
@@ -172,6 +274,12 @@ export const FilesSection = styled.section`
 export const SectionTitle = styled.h2`
   font-size: 18px;
   margin: 0;
+  color: #111;
+`
+
+export const ResultsTitle = styled.h3`
+  margin: 4px 0 0;
+  font-size: 18px;
   color: #111;
 `
 

@@ -1,0 +1,15 @@
+[Unit]
+Description=Startup frontend production preview server
+After=network-online.target startup-backend.service
+Wants=network-online.target startup-backend.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/clanker/projects/startup/code/frontend
+Environment=VITE_API_PROXY_TARGET=http://127.0.0.1:8000
+ExecStart=/usr/bin/npm run preview -- --host 0.0.0.0 --port 5175
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

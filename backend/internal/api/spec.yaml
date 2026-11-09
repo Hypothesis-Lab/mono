@@ -665,6 +665,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrBody"
+  /api/v1/product/{id}/analysis/status:
+    get:
+      operationId: getProductAnalysisStatus
+      tags: [product]
+      summary: Get the lightweight status of the latest product analysis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: latest analysis status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductAnalysisStatusResponse"
+        "404":
+          description: product or analysis not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
   /api/v1/product/{id}/analysis/review:
     put:
       operationId: saveProductAnalysisReview
@@ -1118,6 +1147,18 @@ components:
         hypothesis_result: { nullable: true }
         audience_review: { nullable: true }
         hypothesis_review: { nullable: true }
+    ProductAnalysisStatusResponse:
+      type: object
+      required: [id, status, current_stage, product_result_available, audience_result_available, hypothesis_result_available, audience_review_available, hypothesis_review_available]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [queued, running, waiting_for_user_input, blocked, failed, completed] }
+        current_stage: { type: string, enum: [product, audience, hypotheses] }
+        product_result_available: { type: boolean }
+        audience_result_available: { type: boolean }
+        hypothesis_result_available: { type: boolean }
+        audience_review_available: { type: boolean }
+        hypothesis_review_available: { type: boolean }
     ProductAnalysisReviewRequest:
       type: object
       required: [stage, selected_candidate_ids, custom_candidates]

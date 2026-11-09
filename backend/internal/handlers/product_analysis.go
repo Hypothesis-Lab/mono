@@ -73,6 +73,35 @@ func (s *Server) GetProductAnalysis(ctx context.Context, req api.GetProductAnaly
 	return api.GetProductAnalysis200JSONResponse(response), nil
 }
 
+func (s *Server) GetProductAnalysisStatus(ctx context.Context, req api.GetProductAnalysisStatusRequestObject) (api.GetProductAnalysisStatusResponseObject, error) {
+	userID, ok := middlewares.UserIDFromContext(ctx)
+	if !ok {
+		s.logger.Error("missing user id for product analysis status summary", zap.String("product_id", req.Id))
+		return api.GetProductAnalysisStatus500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	status, err := s.productAnalysis.LatestStatus(ctx, userID, req.Id)
+	if err != nil {
+		s.logger.Error("get product analysis status summary", zap.String("product_id", req.Id), zap.Error(err))
+		if errors.Is(err, product.ErrNotFound) || errors.Is(err, productanalysis.ErrNotFound) {
+			return api.GetProductAnalysisStatus404JSONResponse(errBody(http.StatusNotFound, "product or analysis not found")), nil
+		}
+
+		return api.GetProductAnalysisStatus500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	return api.GetProductAnalysisStatus200JSONResponse(api.ProductAnalysisStatusResponse{
+		Id:                        status.ID,
+		Status:                    api.ProductAnalysisStatusResponseStatus(status.Status),
+		CurrentStage:              api.ProductAnalysisStatusResponseCurrentStage(status.CurrentStage),
+		ProductResultAvailable:    status.ProductResultAvailable,
+		AudienceResultAvailable:   status.AudienceResultAvailable,
+		HypothesisResultAvailable: status.HypothesisResultAvailable,
+		AudienceReviewAvailable:   status.AudienceReviewAvailable,
+		HypothesisReviewAvailable: status.HypothesisReviewAvailable,
+	}), nil
+}
+
 func (s *Server) SaveProductAnalysisReview(ctx context.Context, req api.SaveProductAnalysisReviewRequestObject) (api.SaveProductAnalysisReviewResponseObject, error) {
 	userID, ok := middlewares.UserIDFromContext(ctx)
 	if !ok {

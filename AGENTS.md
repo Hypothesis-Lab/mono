@@ -11,17 +11,35 @@ docs_dump/ad_platforms/yandex.md
 - commit to main and push
 - ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ~/.ssh/phone_to_pi_clanker -p 22 clanker@192.168.0.13       ▐
 - in ~/projects/startup/code/mono switch to main pull
-- restart the docker compose (affected services) (compose.yaml)
+- start or update infrastructure with `podman compose up -d` and restart the
+  affected per-user systemd services with `systemctl --user restart ...`
 
-# Local Compose tips
+# Local service architecture
 
-`compose.yaml` runs this workspace locally. The stack is currently running with Podman Compose.
+`compose.yaml` runs only infrastructure locally with Podman Compose: Postgres,
+Temporal, SeaweedFS, and Temporal UI. The backend, generator, and frontend run
+as per-user systemd services defined in `systemd/`.
 
-Podman Compose 1.3.0 creates the stack in a shared pod and its `up` command may try to run containers that already exist, report name conflicts, and then start the old containers. Do not use `podman compose up -d --build <service>` to refresh a rebuilt image. Recreate the full stack instead:
+Install or refresh the application services with:
 
-```sh
-podman compose down
-podman compose up -d --build
+```bash
+mkdir -p ~/.config/systemd/user
+ln -sfn /home/clanker/projects/startup/code/systemd/startup-generator.service ~/.config/systemd/user/startup-generator.service
+ln -sfn /home/clanker/projects/startup/code/systemd/startup-backend.service ~/.config/systemd/user/startup-backend.service
+ln -sfn /home/clanker/projects/startup/code/systemd/startup-frontend.service ~/.config/systemd/user/startup-frontend.service
+systemctl --user daemon-reload
+systemctl --user enable --now startup-generator.service startup-backend.service startup-frontend.service
 ```
 
-Do not use service-scoped `--force-recreate`: containers in the shared pod can depend on services omitted from the command, causing removal and name conflicts to fail. The compose volumes are preserved by `down` unless `--volumes` is explicitly supplied.
+Start the infrastructure with `podman compose up -d`. Restart application code
+with `systemctl --user restart startup-backend.service`,
+`startup-generator.service`, or `startup-frontend.service`; do not rebuild or
+recreate containers for application-only changes.
+
+Podman Compose 1.3.0 still creates infrastructure in a shared pod. If the
+infrastructure stack must be recreated, use `podman compose down` followed by
+`podman compose up -d`. Do not use service-scoped `--force-recreate`; containers
+in the shared pod can depend on services omitted from the command. Compose
+volumes are preserved by `down` unless `--volumes` is explicitly supplied.
+
+See `systemd/README.md` for ports, logs, and service setup details.

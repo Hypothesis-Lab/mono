@@ -46,8 +46,28 @@ func NewProductAnalysisStarter(lc fx.Lifecycle, runs *productanalysis.Repository
 }
 
 func (s *ProductAnalysisStarter) Continue(ctx context.Context, runID, stage string) error {
-	if err := s.temporal.SignalWorkflow(ctx, "product-analysis-"+runID, "", productAnalysisContinueSignal, stage); err != nil {
+	workflowID := "product-analysis-" + runID
+	err := s.temporal.SignalWorkflow(ctx, workflowID, "", productAnalysisContinueSignal, stage)
+	if err == nil {
+		return nil
+	}
+
+	var notFound *serviceerror.NotFound
+	if !errors.As(err, &notFound) {
 		return fmt.Errorf("signal product analysis workflow %s to continue %s: %w", runID, stage, err)
+	}
+
+	_, err = s.temporal.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
+		ID:                    workflowID,
+		TaskQueue:             productAnalysisTaskQueue,
+		WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
+	}, productAnalysisWorkflow, runID)
+	if err != nil {
+		return fmt.Errorf("restart product analysis workflow %s to continue %s: %w", runID, stage, err)
+	}
+
+	if err := s.temporal.SignalWorkflow(ctx, workflowID, "", productAnalysisContinueSignal, stage); err != nil {
+		return fmt.Errorf("signal restarted product analysis workflow %s to continue %s: %w", runID, stage, err)
 	}
 
 	return nil

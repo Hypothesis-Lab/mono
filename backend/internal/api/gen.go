@@ -195,6 +195,57 @@ func (e ProductAnalysisReviewStage) Valid() bool {
 	}
 }
 
+// Defines values for ProductAnalysisStatusResponseCurrentStage.
+const (
+	ProductAnalysisStatusResponseCurrentStageAudience   ProductAnalysisStatusResponseCurrentStage = "audience"
+	ProductAnalysisStatusResponseCurrentStageHypotheses ProductAnalysisStatusResponseCurrentStage = "hypotheses"
+	ProductAnalysisStatusResponseCurrentStageProduct    ProductAnalysisStatusResponseCurrentStage = "product"
+)
+
+// Valid indicates whether the value is a known member of the ProductAnalysisStatusResponseCurrentStage enum.
+func (e ProductAnalysisStatusResponseCurrentStage) Valid() bool {
+	switch e {
+	case ProductAnalysisStatusResponseCurrentStageAudience:
+		return true
+	case ProductAnalysisStatusResponseCurrentStageHypotheses:
+		return true
+	case ProductAnalysisStatusResponseCurrentStageProduct:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProductAnalysisStatusResponseStatus.
+const (
+	Blocked             ProductAnalysisStatusResponseStatus = "blocked"
+	Completed           ProductAnalysisStatusResponseStatus = "completed"
+	Failed              ProductAnalysisStatusResponseStatus = "failed"
+	Queued              ProductAnalysisStatusResponseStatus = "queued"
+	Running             ProductAnalysisStatusResponseStatus = "running"
+	WaitingForUserInput ProductAnalysisStatusResponseStatus = "waiting_for_user_input"
+)
+
+// Valid indicates whether the value is a known member of the ProductAnalysisStatusResponseStatus enum.
+func (e ProductAnalysisStatusResponseStatus) Valid() bool {
+	switch e {
+	case Blocked:
+		return true
+	case Completed:
+		return true
+	case Failed:
+		return true
+	case Queued:
+		return true
+	case Running:
+		return true
+	case WaitingForUserInput:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProductCategory.
 const (
 	ProductCategoryAutomotive  ProductCategory = "automotive"
@@ -395,22 +446,22 @@ func (e YandexDirectConnectionResponseStatus) Valid() bool {
 
 // Defines values for UploadProductFileMultipartBodyType.
 const (
-	Brandbook UploadProductFileMultipartBodyType = "brandbook"
-	Other     UploadProductFileMultipartBodyType = "other"
-	Product   UploadProductFileMultipartBodyType = "product"
-	Reference UploadProductFileMultipartBodyType = "reference"
+	UploadProductFileMultipartBodyTypeBrandbook UploadProductFileMultipartBodyType = "brandbook"
+	UploadProductFileMultipartBodyTypeOther     UploadProductFileMultipartBodyType = "other"
+	UploadProductFileMultipartBodyTypeProduct   UploadProductFileMultipartBodyType = "product"
+	UploadProductFileMultipartBodyTypeReference UploadProductFileMultipartBodyType = "reference"
 )
 
 // Valid indicates whether the value is a known member of the UploadProductFileMultipartBodyType enum.
 func (e UploadProductFileMultipartBodyType) Valid() bool {
 	switch e {
-	case Brandbook:
+	case UploadProductFileMultipartBodyTypeBrandbook:
 		return true
-	case Other:
+	case UploadProductFileMultipartBodyTypeOther:
 		return true
-	case Product:
+	case UploadProductFileMultipartBodyTypeProduct:
 		return true
-	case Reference:
+	case UploadProductFileMultipartBodyTypeReference:
 		return true
 	default:
 		return false
@@ -570,6 +621,24 @@ type ProductAnalysisReviewResponse struct {
 
 // ProductAnalysisReviewStage defines model for ProductAnalysisReviewStage.
 type ProductAnalysisReviewStage string
+
+// ProductAnalysisStatusResponse defines model for ProductAnalysisStatusResponse.
+type ProductAnalysisStatusResponse struct {
+	AudienceResultAvailable   bool                                      `json:"audience_result_available"`
+	AudienceReviewAvailable   bool                                      `json:"audience_review_available"`
+	CurrentStage              ProductAnalysisStatusResponseCurrentStage `json:"current_stage"`
+	HypothesisResultAvailable bool                                      `json:"hypothesis_result_available"`
+	HypothesisReviewAvailable bool                                      `json:"hypothesis_review_available"`
+	Id                        string                                    `json:"id"`
+	ProductResultAvailable    bool                                      `json:"product_result_available"`
+	Status                    ProductAnalysisStatusResponseStatus       `json:"status"`
+}
+
+// ProductAnalysisStatusResponseCurrentStage defines model for ProductAnalysisStatusResponse.CurrentStage.
+type ProductAnalysisStatusResponseCurrentStage string
+
+// ProductAnalysisStatusResponseStatus defines model for ProductAnalysisStatusResponse.Status.
+type ProductAnalysisStatusResponseStatus string
 
 // ProductCategory defines model for ProductCategory.
 type ProductCategory string
@@ -845,6 +914,9 @@ type ServerInterface interface {
 	// Save user choices for a generated analysis stage
 	// (PUT /api/v1/product/{id}/analysis/review)
 	SaveProductAnalysisReview(w http.ResponseWriter, r *http.Request, id string)
+	// Get the lightweight status of the latest product analysis
+	// (GET /api/v1/product/{id}/analysis/status)
+	GetProductAnalysisStatus(w http.ResponseWriter, r *http.Request, id string)
 	// Run the product feedback survey for every persona
 	// (POST /api/v1/testing/product-feedback-survey)
 	RunProductFeedbackSurvey(w http.ResponseWriter, r *http.Request)
@@ -1001,6 +1073,12 @@ func (_ Unimplemented) ContinueProductAnalysis(w http.ResponseWriter, r *http.Re
 // Save user choices for a generated analysis stage
 // (PUT /api/v1/product/{id}/analysis/review)
 func (_ Unimplemented) SaveProductAnalysisReview(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get the lightweight status of the latest product analysis
+// (GET /api/v1/product/{id}/analysis/status)
+func (_ Unimplemented) GetProductAnalysisStatus(w http.ResponseWriter, r *http.Request, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1669,6 +1747,38 @@ func (siw *ServerInterfaceWrapper) SaveProductAnalysisReview(w http.ResponseWrit
 	handler.ServeHTTP(w, r)
 }
 
+// GetProductAnalysisStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetProductAnalysisStatus(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProductAnalysisStatus(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // RunProductFeedbackSurvey operation middleware
 func (siw *ServerInterfaceWrapper) RunProductFeedbackSurvey(w http.ResponseWriter, r *http.Request) {
 
@@ -1969,6 +2079,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/api/v1/product/{id}/analysis/review", wrapper.SaveProductAnalysisReview)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/product/{id}/analysis/status", wrapper.GetProductAnalysisStatus)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/testing/product-feedback-survey", wrapper.RunProductFeedbackSurvey)
@@ -3318,6 +3431,56 @@ func (response SaveProductAnalysisReview500JSONResponse) VisitSaveProductAnalysi
 	return err
 }
 
+type GetProductAnalysisStatusRequestObject struct {
+	Id string `json:"id"`
+}
+
+type GetProductAnalysisStatusResponseObject interface {
+	VisitGetProductAnalysisStatusResponse(w http.ResponseWriter) error
+}
+
+type GetProductAnalysisStatus200JSONResponse ProductAnalysisStatusResponse
+
+func (response GetProductAnalysisStatus200JSONResponse) VisitGetProductAnalysisStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProductAnalysisStatus404JSONResponse ErrBody
+
+func (response GetProductAnalysisStatus404JSONResponse) VisitGetProductAnalysisStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProductAnalysisStatus500JSONResponse ErrBody
+
+func (response GetProductAnalysisStatus500JSONResponse) VisitGetProductAnalysisStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RunProductFeedbackSurveyRequestObject struct {
 }
 
@@ -3620,6 +3783,9 @@ type StrictServerInterface interface {
 	// Save user choices for a generated analysis stage
 	// (PUT /api/v1/product/{id}/analysis/review)
 	SaveProductAnalysisReview(ctx context.Context, request SaveProductAnalysisReviewRequestObject) (SaveProductAnalysisReviewResponseObject, error)
+	// Get the lightweight status of the latest product analysis
+	// (GET /api/v1/product/{id}/analysis/status)
+	GetProductAnalysisStatus(ctx context.Context, request GetProductAnalysisStatusRequestObject) (GetProductAnalysisStatusResponseObject, error)
 	// Run the product feedback survey for every persona
 	// (POST /api/v1/testing/product-feedback-survey)
 	RunProductFeedbackSurvey(ctx context.Context, request RunProductFeedbackSurveyRequestObject) (RunProductFeedbackSurveyResponseObject, error)
@@ -4295,6 +4461,32 @@ func (sh *strictHandler) SaveProductAnalysisReview(w http.ResponseWriter, r *htt
 	}
 }
 
+// GetProductAnalysisStatus operation middleware
+func (sh *strictHandler) GetProductAnalysisStatus(w http.ResponseWriter, r *http.Request, id string) {
+	var request GetProductAnalysisStatusRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProductAnalysisStatus(ctx, request.(GetProductAnalysisStatusRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProductAnalysisStatus")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProductAnalysisStatusResponseObject); ok {
+		if err := validResponse.VisitGetProductAnalysisStatusResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // RunProductFeedbackSurvey operation middleware
 func (sh *strictHandler) RunProductFeedbackSurvey(w http.ResponseWriter, r *http.Request) {
 	var request RunProductFeedbackSurveyRequestObject
@@ -4475,67 +4667,68 @@ func (sh *strictHandler) Healthz(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"AeQ+7U64+3h7uD38awA=",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { skipToken } from '@reduxjs/toolkit/query'
 import type { ProductCategory, ProductFileType } from '../../api/structs'
@@ -14,6 +14,7 @@ import {
   useDeleteProductFileMutation,
   useDeleteProductMutation,
   useGetProductAnalysisQuery,
+  useGetProductAnalysisStatusQuery,
   useGetHypothesisProductQuery,
   useListProductFilesQuery,
   useContinueProductAnalysisMutation,
@@ -22,7 +23,12 @@ import {
   useUpdateProductMutation,
   useUploadProductFileMutation,
 } from '../../store/generatedApi'
-import type { ProductPrice, UpdateProductRequest } from '../../store/generatedApi'
+import type {
+  ProductAnalysisResponse,
+  ProductAnalysisStatusResponse,
+  ProductPrice,
+  UpdateProductRequest,
+} from '../../store/generatedApi'
 import { JsonTree } from './components/JsonTree/page'
 import * as S from './styles'
 
@@ -91,12 +97,18 @@ export function ProductPage() {
   } = useGetHypothesisProductQuery(productArg)
   const { data: files, isLoading: filesLoading } = useListProductFilesQuery(productArg)
   const {
-    data: analysis,
-    error: analysisError,
-  } = useGetProductAnalysisQuery(
+    data: analysisStatus,
+    error: analysisStatusError,
+    refetch: refetchAnalysisStatus,
+  } = useGetProductAnalysisStatusQuery(
     product ? { id: product.id } : skipToken,
     { pollingInterval: product ? 10000 : 0 },
   )
+  const {
+    data: analysis,
+    error: analysisError,
+    refetch: refetchAnalysis,
+  } = useGetProductAnalysisQuery(product && analysisStatus ? { id: product.id } : skipToken)
 
   const [createProduct, { isLoading: creating }] = useCreateProductMutation()
   const [updateProduct, { isLoading: updating }] = useUpdateProductMutation()
@@ -148,6 +160,11 @@ export function ProductPage() {
   const [customAudiences, setCustomAudiences] = useState<Record<string, unknown>[]>([])
   const [customAudienceName, setCustomAudienceName] = useState('')
   const [customAudienceDescription, setCustomAudienceDescription] = useState('')
+  const [showCustomAudienceForm, setShowCustomAudienceForm] = useState(false)
+  const analysisStatusSignature = analysisStatus
+    ? `${analysisStatus.id}:${analysisStatus.status}:${analysisStatus.current_stage}:${analysisStatus.product_result_available}:${analysisStatus.audience_result_available}:${analysisStatus.hypothesis_result_available}:${analysisStatus.audience_review_available}:${analysisStatus.hypothesis_review_available}`
+    : null
+  const previousAnalysisStatusSignature = useRef<string | null>(null)
 
 
   const hasBrandbook = (files ?? []).some((file) => file.type === 'brandbook')
@@ -227,6 +244,16 @@ export function ProductPage() {
     )
     setAudienceSelectionRunId(analysis.id)
   }, [analysis, audienceSelectionRunId])
+
+  useEffect(() => {
+    if (!analysisStatusSignature) return
+
+    if (previousAnalysisStatusSignature.current && previousAnalysisStatusSignature.current !== analysisStatusSignature) {
+      void refetchAnalysis()
+    }
+
+    previousAnalysisStatusSignature.current = analysisStatusSignature
+  }, [analysisStatusSignature, refetchAnalysis])
 
   if (!hid) {
     return (
@@ -458,6 +485,7 @@ export function ProductPage() {
 
     try {
       await startAnalysis({ id: product.id }).unwrap()
+      await refetchAnalysisStatus()
     } catch (err) {
       setAnalysisStartError(rtkErrorMessage(err, 'Не удалось начать анализ'))
     }
@@ -488,6 +516,7 @@ export function ProductPage() {
     setSelectedAudienceIds((current) => [...current, id])
     setCustomAudienceName('')
     setCustomAudienceDescription('')
+    setShowCustomAudienceForm(false)
     setAnalysisReviewError(null)
   }
 
@@ -510,6 +539,7 @@ export function ProductPage() {
         },
       }).unwrap()
       await continueAnalysis({ id: product.id }).unwrap()
+      await Promise.all([refetchAnalysisStatus(), refetchAnalysis()])
     } catch (err) {
       setAnalysisReviewError(rtkErrorMessage(err, 'Не удалось сохранить выбор аудитории'))
     }
@@ -775,15 +805,37 @@ export function ProductPage() {
       </S.Form>
 
       <S.AudiencesSection>
-        <S.SectionTitle>Анализ и гипотезы</S.SectionTitle>
+        <S.SectionTitle>Анализ и генерация</S.SectionTitle>
         <S.Message>Используются сохранённые данные продукта и загруженные документы.</S.Message>
-        {analysis && (
-          <S.AudienceGenerationStatus>
-            {getAnalysisStatusLabel(analysis.status)} · {getAnalysisStageLabel(analysis.current_stage)}
-          </S.AudienceGenerationStatus>
+        {analysisStatus && (
+          <>
+            <S.AnalysisStatusTitle>Статус</S.AnalysisStatusTitle>
+            <S.AnalysisPipeline aria-label="Этапы анализа">
+              {getAnalysisPipelineStages(analysisStatus, analysis).map((stage, index) => (
+                <Fragment key={stage.id}>
+                  <S.AnalysisPipelineItem
+                    $state={stage.state}
+                    aria-current={stage.state === 'active' || stage.state === 'waiting' ? 'step' : undefined}
+                  >
+                    <S.AnalysisPipelineMarker $state={stage.state}>
+                      {stage.state === 'completed' ? '✓' : stage.state === 'error' ? '!' : index + 1}
+                    </S.AnalysisPipelineMarker>
+                    <S.AnalysisPipelineInfo>
+                      <S.AnalysisPipelineName>{stage.name}</S.AnalysisPipelineName>
+                      <S.AnalysisPipelineStatus>{stage.label}</S.AnalysisPipelineStatus>
+                    </S.AnalysisPipelineInfo>
+                  </S.AnalysisPipelineItem>
+                  {index < 2 && <S.AnalysisPipelineArrow aria-hidden="true">→</S.AnalysisPipelineArrow>}
+                </Fragment>
+              ))}
+            </S.AnalysisPipeline>
+          </>
         )}
-        {analysisError && !isApiNotFound(analysisError) && (
-          <S.ErrorMessage>{rtkErrorMessage(analysisError, 'Не удалось загрузить результаты анализа')}</S.ErrorMessage>
+        {(analysisStatusError || analysisError) && !isApiNotFound(analysisStatusError ?? analysisError) && (
+          <S.ErrorMessage>{rtkErrorMessage(analysisStatusError ?? analysisError, 'Не удалось загрузить результаты анализа')}</S.ErrorMessage>
+        )}
+        {(isRecord(analysis?.product_result) || isRecord(analysis?.audience_result) || hypotheses.length > 0) && (
+          <S.ResultsTitle>Результаты</S.ResultsTitle>
         )}
         {isRecord(analysis?.product_result) && (
           <S.AudienceDetails>
@@ -793,11 +845,11 @@ export function ProductPage() {
         )}
         {isRecord(analysis?.audience_result) && (
           <S.AudienceDetails>
-            <S.AudienceSummary>Выбранная аудитория и ограничения</S.AudienceSummary>
+            <S.AudienceSummary>Аудитории</S.AudienceSummary>
             <JsonTree value={analysis.audience_result} />
           </S.AudienceDetails>
         )}
-        {analysis?.status === 'waiting_for_user_input' && analysis.current_stage === 'audience' && (
+        {analysisStatus?.status === 'waiting_for_user_input' && analysisStatus.current_stage === 'audience' && (
           <S.ReviewForm>
             <S.ReviewHeading>Проверьте предложенные аудитории</S.ReviewHeading>
             <S.Message>Оставьте подходящие варианты или добавьте собственную аудиторию.</S.Message>
@@ -853,66 +905,95 @@ export function ProductPage() {
                 })}
               </S.AudienceList>
             )}
-            <S.Field>
-              Название собственной аудитории
-              <S.Input
-                value={customAudienceName}
-                onChange={(event) => setCustomAudienceName(event.target.value)}
-                placeholder="Например, новые пользователи"
-              />
-            </S.Field>
-            <S.Field>
-              Описание аудитории
-              <S.TextArea
-                rows={2}
-                value={customAudienceDescription}
-                onChange={(event) => setCustomAudienceDescription(event.target.value)}
-                placeholder="Кого нужно включить в аудиторию"
-              />
-            </S.Field>
-            <S.ButtonGroup>
-              <S.Button type="button" onClick={handleAddCustomAudience} disabled={savingAnalysisReview || continuingAnalysis}>
-                Добавить аудиторию
-              </S.Button>
+            {!showCustomAudienceForm && (
               <S.Button
                 type="button"
-                $success
-                onClick={handleSaveAudienceReview}
+                onClick={() => {
+                  setShowCustomAudienceForm(true)
+                  setAnalysisReviewError(null)
+                }}
                 disabled={savingAnalysisReview || continuingAnalysis}
               >
-                {savingAnalysisReview || continuingAnalysis ? 'Сохраняем…' : 'Сохранить и продолжить'}
+                + Добавить свою аудиторию
               </S.Button>
-            </S.ButtonGroup>
+            )}
+            {showCustomAudienceForm && (
+              <>
+                <S.Field>
+                  Название собственной аудитории
+                  <S.Input
+                    value={customAudienceName}
+                    onChange={(event) => setCustomAudienceName(event.target.value)}
+                    placeholder="Например, новые пользователи"
+                  />
+                </S.Field>
+                <S.Field>
+                  Описание аудитории
+                  <S.TextArea
+                    rows={2}
+                    value={customAudienceDescription}
+                    onChange={(event) => setCustomAudienceDescription(event.target.value)}
+                    placeholder="Кого нужно включить в аудиторию"
+                  />
+                </S.Field>
+                <S.ButtonGroup>
+                  <S.Button type="button" onClick={handleAddCustomAudience} disabled={savingAnalysisReview || continuingAnalysis}>
+                    Добавить аудиторию
+                  </S.Button>
+                  <S.Button
+                    type="button"
+                    onClick={() => {
+                      setShowCustomAudienceForm(false)
+                      setCustomAudienceName('')
+                      setCustomAudienceDescription('')
+                      setAnalysisReviewError(null)
+                    }}
+                    disabled={savingAnalysisReview || continuingAnalysis}
+                  >
+                    Отмена
+                  </S.Button>
+                </S.ButtonGroup>
+              </>
+            )}
+            <S.Button
+              type="button"
+              $success
+              onClick={handleSaveAudienceReview}
+              disabled={savingAnalysisReview || continuingAnalysis}
+            >
+              {savingAnalysisReview || continuingAnalysis ? 'Сохраняем…' : 'Сохранить и продолжить'}
+            </S.Button>
             {analysisReviewError && <S.ErrorMessage>{analysisReviewError}</S.ErrorMessage>}
           </S.ReviewForm>
         )}
         {hypotheses.length > 0 && (
-          <S.Message>Это черновики для проверки человеком; данные аудиторий синтетические.</S.Message>
-        )}
-        {hypotheses.length > 0 && (
-          <S.AudienceList>
-            {hypotheses.map((hypothesis, index) => (
-              <S.AudienceItem key={typeof hypothesis.candidate_id === 'string' ? hypothesis.candidate_id : index}>
-                <S.AudienceDetails>
-                  <S.AudienceSummary>
-                    <S.AudienceInfo>
-                      <S.AudienceDescription>
-                        {typeof hypothesis.title === 'string' ? hypothesis.title : `Гипотеза ${index + 1}`}
-                      </S.AudienceDescription>
-                      <S.AudienceMeta>
-                        {hypothesis.selection_status === 'selected'
-                          ? 'Выбрана для рассмотрения'
-                          : hypothesis.selection_status === 'rejected_validation'
-                            ? 'Не прошла проверку'
-                            : 'Запасной кандидат'}
-                      </S.AudienceMeta>
-                    </S.AudienceInfo>
-                  </S.AudienceSummary>
-                  <JsonTree value={hypothesis} />
-                </S.AudienceDetails>
-              </S.AudienceItem>
-            ))}
-          </S.AudienceList>
+          <S.AudienceDetails>
+            <S.AudienceSummary>Гипотезы</S.AudienceSummary>
+            <S.Message>Это черновики для проверки человеком; данные аудиторий синтетические.</S.Message>
+            <S.AudienceList>
+              {hypotheses.map((hypothesis, index) => (
+                <S.AudienceItem key={typeof hypothesis.candidate_id === 'string' ? hypothesis.candidate_id : index}>
+                  <S.AudienceDetails>
+                    <S.AudienceSummary>
+                      <S.AudienceInfo>
+                        <S.AudienceDescription>
+                          {typeof hypothesis.title === 'string' ? hypothesis.title : `Гипотеза ${index + 1}`}
+                        </S.AudienceDescription>
+                        <S.AudienceMeta>
+                          {hypothesis.selection_status === 'selected'
+                            ? 'Выбрана для рассмотрения'
+                            : hypothesis.selection_status === 'rejected_validation'
+                              ? 'Не прошла проверку'
+                              : 'Запасной кандидат'}
+                        </S.AudienceMeta>
+                      </S.AudienceInfo>
+                    </S.AudienceSummary>
+                    <JsonTree value={hypothesis} />
+                  </S.AudienceDetails>
+                </S.AudienceItem>
+              ))}
+            </S.AudienceList>
+          </S.AudienceDetails>
         )}
 
         <S.Button
@@ -922,9 +1003,9 @@ export function ProductPage() {
           disabled={
             !product ||
             startingAnalysis ||
-            analysis?.status === 'queued' ||
-            analysis?.status === 'running' ||
-            analysis?.status === 'waiting_for_user_input'
+            analysisStatus?.status === 'queued' ||
+            analysisStatus?.status === 'running' ||
+            analysisStatus?.status === 'waiting_for_user_input'
           }
         >
           {startingAnalysis ? 'Запускаем…' : 'Проанализировать и создать гипотезы'}
@@ -1005,31 +1086,60 @@ export function ProductPage() {
   )
 }
 
-function getAnalysisStatusLabel(status: string): string {
-  if (status === 'queued') {
-    return 'в очереди'
-  }
-  if (status === 'running') {
-    return 'в работе'
-  }
-  if (status === 'waiting_for_user_input') {
-    return 'ждёт вашего выбора'
-  }
-  if (status === 'completed') {
-    return 'завершена'
-  }
-  if (status === 'failed') {
-    return 'не удалось завершить'
-  }
-  if (status === 'blocked') {
-    return 'остановлен: недостаточно данных'
-  }
-  return status
+type AnalysisPipelineState = 'completed' | 'active' | 'waiting' | 'pending' | 'error'
+
+type AnalysisPipelineStage = {
+  id: ProductAnalysisResponse['current_stage']
+  name: string
+  state: AnalysisPipelineState
+  label: string
 }
 
-function getAnalysisStageLabel(stage: string): string {
-  if (stage === 'product') return 'анализ продукта'
-  if (stage === 'audience') return 'подбор аудитории'
-  if (stage === 'hypotheses') return 'подготовка гипотез'
-  return stage
+function getAnalysisPipelineStages(
+  status: ProductAnalysisResponse | ProductAnalysisStatusResponse,
+  results?: ProductAnalysisResponse,
+): AnalysisPipelineStage[] {
+  const stageOrder: AnalysisPipelineStage['id'][] = ['product', 'audience', 'hypotheses']
+  const currentIndex = stageOrder.indexOf(status.current_stage)
+  const terminal = status.status === 'failed' || status.status === 'blocked'
+  const resultByStage = {
+    product: 'product_result_available' in status ? status.product_result_available : isRecord(results?.product_result),
+    audience: 'audience_result_available' in status ? status.audience_result_available : isRecord(results?.audience_result),
+    hypotheses: 'hypothesis_result_available' in status
+      ? status.hypothesis_result_available
+      : isRecord(results?.hypothesis_result),
+  }
+  const names = {
+    product: 'Продукт',
+    audience: 'Аудитория',
+    hypotheses: 'Гипотезы',
+  }
+
+  return stageOrder.map((id, index) => {
+    let state: AnalysisPipelineState = 'pending'
+    if (terminal && currentIndex === index) {
+      state = 'error'
+    } else if (id === 'audience' && status.status === 'waiting_for_user_input' && status.current_stage === id) {
+      state = 'waiting'
+    } else if (resultByStage[id]) {
+      state = 'completed'
+    } else if (currentIndex === index) {
+      state = 'active'
+    }
+
+    return {
+      id,
+      name: names[id],
+      state,
+      label: getAnalysisPipelineStateLabel(state, status.status),
+    }
+  })
+}
+
+function getAnalysisPipelineStateLabel(state: AnalysisPipelineState, analysisStatus: string): string {
+  if (state === 'completed') return 'Завершено'
+  if (state === 'active') return analysisStatus === 'queued' ? 'В очереди' : 'В работе'
+  if (state === 'waiting') return 'Ждёт выбора'
+  if (state === 'error') return analysisStatus === 'blocked' ? 'Остановлено' : 'Ошибка'
+  return 'Не запущено'
 }

@@ -1,0 +1,27 @@
+[Unit]
+Description=Startup backend service
+After=network-online.target startup-generator.service
+Wants=network-online.target startup-generator.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/clanker/projects/startup/code/backend
+EnvironmentFile=/home/clanker/projects/startup/code/.env
+Environment=PORT=8000
+Environment=DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5433/app?sslmode=disable
+Environment=JWT_SECRET=7744c2b280979ec898753a45769926de9408a3472ba566521ee7f798714fd0e5
+Environment=S3_ENDPOINT=http://127.0.0.1:8333
+Environment=S3_REGION=us-east-1
+Environment=S3_BUCKET=my-bucket
+Environment=S3_ACCESS_KEY_ID=admin
+Environment=S3_SECRET_ACCESS_KEY=secret
+Environment=GENERATOR_URL=http://127.0.0.1:8001
+Environment=TEMPORAL_ADDRESS=127.0.0.1:7233
+Environment=DEV_LOGGER=true
+Environment=WRITE_TIMEOUT=5m
+ExecStart=/home/clanker/.local/go/bin/go run ./cmd/app
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

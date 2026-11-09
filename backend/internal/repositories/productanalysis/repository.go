@@ -9,12 +9,14 @@ import (
 
 	"app/internal/db"
 
+	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var ErrNotFound = errors.New("product analysis run not found")
 var ErrAlreadyActive = errors.New("product analysis run is already active")
+var squirrelPSQL = squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 
 type Run struct {
 	ID               string
@@ -33,6 +35,17 @@ type Run struct {
 	HypothesisReview *StageReview
 	CreatedAt        time.Time
 	FinishedAt       *time.Time
+}
+
+type Status struct {
+	ID                        string
+	Status                    string
+	CurrentStage              string
+	ProductResultAvailable    bool
+	AudienceResultAvailable   bool
+	HypothesisResultAvailable bool
+	AudienceReviewAvailable   bool
+	HypothesisReviewAvailable bool
 }
 
 type StageReview struct {
@@ -85,6 +98,39 @@ func (r *Repository) LatestID(ctx context.Context, productID string) (string, er
 	}
 
 	return id, nil
+}
+
+func (r *Repository) LatestStatus(ctx context.Context, productID string) (*Status, error) {
+	status := &Status{}
+	err := r.db.Pool().QueryRow(ctx, `
+		SELECT r.id, r.status, r.current_stage,
+			r.product_result IS NOT NULL,
+			r.audience_result IS NOT NULL,
+			r.hypothesis_result IS NOT NULL,
+			EXISTS (SELECT 1 FROM product_analysis_review review WHERE review.run_id = r.id AND review.stage = 'audience'),
+			EXISTS (SELECT 1 FROM product_analysis_review review WHERE review.run_id = r.id AND review.stage = 'hypotheses')
+		FROM product_analysis_run r
+		WHERE r.product_id = $1
+		ORDER BY r.created_at DESC, r.id DESC
+		LIMIT 1`, productID).Scan(
+		&status.ID,
+		&status.Status,
+		&status.CurrentStage,
+		&status.ProductResultAvailable,
+		&status.AudienceResultAvailable,
+		&status.HypothesisResultAvailable,
+		&status.AudienceReviewAvailable,
+		&status.HypothesisReviewAvailable,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("get latest product analysis status for product %s: %w", productID, err)
+	}
+
+	return status, nil
 }
 
 func (r *Repository) QueuedIDs(ctx context.Context) ([]string, error) {
@@ -180,11 +226,31 @@ func (r *Repository) SetJob(ctx context.Context, runID, stage, jobID string) err
 		return fmt.Errorf("invalid product analysis stage %q", stage)
 	}
 
-	query := fmt.Sprintf(`UPDATE product_analysis_run SET %s = $2,
-		status = CASE WHEN status = 'queued' THEN 'running' ELSE status END, current_stage = $3
-		WHERE id = $1 AND (%s IS NULL OR %s = $2)
-		AND (status IN ('queued', 'running') OR current_stage = $3)`, column, column, column)
-	result, err := r.db.Pool().Exec(ctx, query, runID, jobID, stage)
+	query, args, err := squirrelPSQL.
+		Update("product_analysis_run").
+		Set(column, jobID).
+		Set("status", squirrel.Expr(
+			"CASE WHEN status = 'queued' OR (status = 'waiting_for_user_input' AND ? = 'hypotheses') THEN 'running' ELSE status END",
+			stage,
+		)).
+		Set("current_stage", stage).
+		Where(squirrel.Eq{"id": runID}).
+		Where(squirrel.Or{squirrel.Eq{column: nil}, squirrel.Eq{column: jobID}}).
+		Where(squirrel.Or{
+			squirrel.Eq{"status": []string{"queued", "running"}},
+			squirrel.Eq{"current_stage": stage},
+			squirrel.And{
+				squirrel.Eq{"status": "waiting_for_user_input"},
+				squirrel.Eq{"current_stage": "audience"},
+				squirrel.Expr("? = 'hypotheses'", stage),
+			},
+		}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build set %s job query for product analysis run %s: %w", stage, runID, err)
+	}
+
+	result, err := r.db.Pool().Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("set %s job for product analysis run %s: %w", stage, runID, err)
 	}

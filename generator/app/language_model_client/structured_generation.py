@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ValidationError
@@ -42,11 +43,15 @@ def complete_with_repair[ModelT: BaseModel](
     prompt: str,
     correction_feedback: str | None,
     response_schema: dict[str, Any] | None = None,
+    validator: Callable[[ModelT], None] | None = None,
 ) -> ModelT:
     feedback = correction_feedback
     for attempt in range(3):
         try:
-            return complete_structured(model_client, context, output_model, prompt, feedback, response_schema)
+            result = complete_structured(model_client, context, output_model, prompt, feedback, response_schema)
+            if validator is not None:
+                validator(result)
+            return result
         except ValueError as error:
             if context.raw_response is None or attempt == 2:
                 raise

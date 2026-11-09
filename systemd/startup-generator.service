@@ -1,0 +1,25 @@
+[Unit]
+Description=Startup generator service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/clanker/projects/startup/code/generator
+EnvironmentFile=/home/clanker/projects/startup/code/.env
+Environment=DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5433/app?sslmode=disable
+Environment=HOST=127.0.0.1
+Environment=PORT=8001
+Environment=WORKER_CONCURRENCY=2
+Environment=GRAPH_MAX_CONCURRENCY=2
+Environment=CODEX_PROXY_BASE_URL=http://127.0.0.1:18080/v1
+Environment=CODEX_MAX_RETRIES=2
+Environment=CODEX_MODEL=gpt-5.6-luna
+Environment=CODEX_REASONING_EFFORT=low
+Environment=CODEX_TIMEOUT_SECONDS=300
+ExecStart=/home/clanker/.local/bin/uv run --no-dev python -m app.cmd.server
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

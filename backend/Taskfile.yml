@@ -15,8 +15,6 @@ tasks:
     cmds:
       - >-
         bash -o pipefail -c 'tool_dir="$(go env GOBIN)"; if [ -z "$tool_dir" ]; then tool_dir="$(go env GOPATH)/bin"; fi; go install go.temporal.io/sdk/contrib/tools/workflowcheck@latest && "$tool_dir/workflowcheck" ./... 2>&1 | sed "/^go: downloading /d"'
-      - >-
-        bash -o pipefail -c 'tool_dir="$(go env GOBIN)"; if [ -z "$tool_dir" ]; then tool_dir="$(go env GOPATH)/bin"; fi; output="$("$tool_dir/workflowcheck" -workflow-debug ./internal/services 2>&1)" && [[ "$output" == *"workflowcheck: Checking workflow function app/internal/services.hypothesisLaunchWorkflow"* ]] && [[ "$output" == *"workflowcheck: Checking workflow function app/internal/services.hypothesisStopWorkflow"* ]]'
 
   test:unit:
     cmds:

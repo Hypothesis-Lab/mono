@@ -177,6 +177,14 @@ const injectedRtkApi = api.injectEndpoints({
         method: "POST",
       }),
     }),
+    getProductAnalysisStatus: build.query<
+      GetProductAnalysisStatusApiResponse,
+      GetProductAnalysisStatusApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/v1/product/${queryArg.id}/analysis/status`,
+      }),
+    }),
     saveProductAnalysisReview: build.mutation<
       SaveProductAnalysisReviewApiResponse,
       SaveProductAnalysisReviewApiArg
@@ -331,6 +339,11 @@ export type GetProductAnalysisApiArg = {
 export type StartProductAnalysisApiResponse =
   /** status 201 analysis queued */ ProductAnalysisResponse;
 export type StartProductAnalysisApiArg = {
+  id: string;
+};
+export type GetProductAnalysisStatusApiResponse =
+  /** status 200 latest analysis status */ ProductAnalysisStatusResponse;
+export type GetProductAnalysisStatusApiArg = {
   id: string;
 };
 export type SaveProductAnalysisReviewApiResponse =
@@ -574,6 +587,22 @@ export type ProductAnalysisResponse = {
   audience_review: any | null;
   hypothesis_review: any | null;
 };
+export type ProductAnalysisStatusResponse = {
+  id: string;
+  status:
+    | "queued"
+    | "running"
+    | "waiting_for_user_input"
+    | "blocked"
+    | "failed"
+    | "completed";
+  current_stage: "product" | "audience" | "hypotheses";
+  product_result_available: boolean;
+  audience_result_available: boolean;
+  hypothesis_result_available: boolean;
+  audience_review_available: boolean;
+  hypothesis_review_available: boolean;
+};
 export type ProductAnalysisReviewStage = "audience" | "hypotheses";
 export type ProductAnalysisReviewResponse = {
   stage: ProductAnalysisReviewStage;
@@ -642,6 +671,7 @@ export const {
   useDeleteProductMutation,
   useGetProductAnalysisQuery,
   useStartProductAnalysisMutation,
+  useGetProductAnalysisStatusQuery,
   useSaveProductAnalysisReviewMutation,
   useContinueProductAnalysisMutation,
   useListProductFilesQuery,

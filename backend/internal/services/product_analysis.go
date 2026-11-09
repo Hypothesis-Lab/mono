@@ -133,6 +133,19 @@ func (s *ProductAnalysisService) Latest(ctx context.Context, userID, productID s
 	return run, nil
 }
 
+func (s *ProductAnalysisService) LatestStatus(ctx context.Context, userID, productID string) (*productanalysis.Status, error) {
+	if _, err := s.products.Get(ctx, userID, productID); err != nil {
+		return nil, fmt.Errorf("get product for analysis status summary: %w", err)
+	}
+
+	status, err := s.runs.LatestStatus(ctx, productID)
+	if err != nil {
+		return nil, fmt.Errorf("get latest product analysis status summary: %w", err)
+	}
+
+	return status, nil
+}
+
 func (s *ProductAnalysisService) SaveReview(ctx context.Context, userID, productID, stage string, selectedIDs []string, customCandidates []map[string]any) (*productanalysis.StageReview, error) {
 	if err := validateReviewRequest(stage, selectedIDs); err != nil {
 		return nil, err

@@ -1,46 +1,4 @@
 services:
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "127.0.0.1:5175:80"
-      - "10.8.0.4:8080:80"
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    restart: on-failure
-    env_file: .env
-    ports:
-      - "127.0.0.1:8000:8000"
-    environment:
-      PORT: "8000"
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/app?sslmode=disable
-      JWT_SECRET: 7744c2b280979ec898753a45769926de9408a3472ba566521ee7f798714fd0e5
-      YANDEX_DIRECT_TOKEN_ENCRYPTION_KEY: ${YANDEX_DIRECT_TOKEN_ENCRYPTION_KEY}
-      S3_ENDPOINT: http://seaweedfs:8333
-      S3_REGION: us-east-1
-      S3_BUCKET: my-bucket
-      S3_ACCESS_KEY_ID: admin
-      S3_SECRET_ACCESS_KEY: secret
-      GENERATOR_URL: http://generator:8000
-      TEMPORAL_ADDRESS: temporal:7233
-      DEV_LOGGER: "true"
-      WRITE_TIMEOUT: 5m
-    volumes:
-      - ./backend/datasets/personas-1m:/app/datasets/personas-1m:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-      seaweedfs:
-        condition: service_healthy
-      generator:
-        condition: service_healthy
-      temporal:
-        condition: service_healthy
-
   temporal-admin-tools:
     image: docker.io/temporalio/admin-tools:1.32.0
     restart: on-failure:6
@@ -103,34 +61,6 @@ services:
     depends_on:
       temporal:
         condition: service_started
-  generator:
-    build:
-      context: ./generator
-    environment:
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/app?sslmode=disable
-      HOST: 0.0.0.0
-      PORT: "8000"
-      WORKER_CONCURRENCY: "2"
-      GRAPH_MAX_CONCURRENCY: "2"
-      CODEX_PROXY_BASE_URL: http://codex-proxy:8080/v1
-      CODEX_PROXY_KEY: ${CODEX_PROXY_KEY}
-      CODEX_MAX_RETRIES: "2"
-      CODEX_MODEL: gpt-5.6-luna
-      CODEX_REASONING_EFFORT: low
-      CODEX_TIMEOUT_SECONDS: "120"
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/healthz')\""]
-      interval: 2s
-      timeout: 5s
-      retries: 30
-      start_period: 5s
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - default
-      - codex-proxy
-
   postgres:
     image: docker.io/library/postgres:18
     environment:
@@ -168,9 +98,3 @@ volumes:
   postgres-data:
   seaweedfs-data:
   temporal-setup:
-
-networks:
-  default: {}
-  codex-proxy:
-    external: true
-    name: codex-proxy_default

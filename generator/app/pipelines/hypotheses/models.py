@@ -12,6 +12,8 @@ class StrictModel(BaseModel):
 class HypothesisInput(StrictModel):
     product_passport: dict[str, Any]
     audience_result: dict[str, Any]
+    candidate_count: int = Field(default=5, ge=1, le=12)
+    validation_target: int = Field(default=3, ge=1)
 
 
 class Claim(StrictModel):
@@ -183,3 +185,53 @@ class Validation(StrictModel):
     checks: list[Check] = Field(min_length=1)
     blocking_issues: list[str]
     limitations: list[str]
+
+
+class InputRef(StrictModel):
+    artifact_type: Literal["product_result", "audience_result"]
+    artifact_id: str
+    version: str | None
+    source_refs: list[str]
+
+
+class ContextSummary(StrictModel):
+    product: Claim
+    business_goal: Claim
+    audience_ids: list[str]
+    constraints: list[Claim]
+
+
+class ExcludedCandidate(StrictModel):
+    title: str
+    reason: str
+    source_refs: list[str]
+
+
+class Card(Draft):
+    hypothesis_id: str | None
+    hypothesis_version: str | None
+    checks: list[Check]
+    priority: Priority
+    selection_status: Literal["selected", "backup", "rejected_validation"]
+    validation_status: Literal["pass", "fail", "unknown", "not_attempted"]
+    validation_issues: list[str]
+
+
+class PipelineResult(StrictModel):
+    schema_version: Literal["0.1"]
+    request_id: str
+    workspace_id: str | None
+    product_id: str
+    status: Literal["complete", "partial", "blocked"]
+    input_refs: list[InputRef]
+    context_summary: ContextSummary
+    hypotheses: list[Card]
+    excluded_candidates: list[ExcludedCandidate]
+    conflicts: list[str]
+    missing_data: list[str]
+    questions: list[str] = Field(max_length=3)
+    limitations: list[str]
+    review_status: Literal["pending"]
+    human_decision: Literal["pending"]
+    validation_attempts: list[Validation]
+    selected_candidate_ids: list[str]
