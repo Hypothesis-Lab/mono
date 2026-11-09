@@ -6,7 +6,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from app.config import ServerConfig, Settings
-from app.language_model_client.client import ModelClient
+from app.language_model_client.client import CodexClient
 from app.migrations import apply as apply_migrations
 from app.observability import PrometheusObserver
 from app.pipelines.audiences.stages import AudienceStages
@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
     apply_migrations(settings.database_url)
     repository = JobRepository(settings.database_url)
     observer = PrometheusObserver()
-    llm = ModelClient(settings.model_config, observer)
+    llm = CodexClient(settings.model_config, observer)
     worker = GeneratorWorker(
         repository,
         AudienceStages(llm),

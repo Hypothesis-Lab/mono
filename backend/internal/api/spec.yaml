@@ -916,7 +916,7 @@ components:
         description: { type: string, maxLength: 1024, nullable: true }
     ProductResponse:
       type: object
-      required: [id, name, description, category, brand, country, experiment_goal, goal_origin, target_action, primary_metric, metric_direction, metric_numerator, metric_denominator, facts, key_fact_ids, price, eligibility_rules, allowed_channels, contactable_persona_ids, campaign_note, forbidden_claims, known_constraints, unknowns, hypothesis_id, keywords]
+      required: [id, name, description, category, brand, country, experiment_goal, goal_origin, target_action, primary_metric, metric_direction, metric_numerator, metric_denominator, price, allowed_channels, forbidden_claims, known_constraints, unknowns, hypothesis_id, keywords]
       properties:
         id:            { type: string }
         name:          { type: string }
@@ -934,26 +934,10 @@ components:
         metric_numerator: { type: string, minLength: 1 }
         metric_denominator: { type: string, minLength: 1 }
         success_criterion: { type: string, nullable: true }
-        facts:
-          type: array
-          minItems: 3
-          items: { $ref: "#/components/schemas/ProductFact" }
-        key_fact_ids:
-          type: array
-          minItems: 1
-          items: { type: string, minLength: 1 }
         price: { $ref: "#/components/schemas/ProductPrice" }
-        facts_checked_at: { type: string, nullable: true }
-        eligibility_rules:
-          type: array
-          items: { $ref: "#/components/schemas/EligibilityRule" }
         allowed_channels:
           type: array
           items: { type: string, minLength: 1 }
-        contactable_persona_ids:
-          type: array
-          items: { type: string, minLength: 1 }
-        campaign_note: { type: string }
         forbidden_claims:
           type: array
           items: { type: string }
@@ -968,7 +952,7 @@ components:
         hypothesis_id: { type: string }
     CreateProductRequest:
       type: object
-      required: [name, description, category, brand, country, experiment_goal, goal_origin, target_action, primary_metric, metric_direction, metric_numerator, metric_denominator, facts, key_fact_ids, price, eligibility_rules, allowed_channels, contactable_persona_ids, campaign_note, forbidden_claims, known_constraints, unknowns, hypothesis_id]
+      required: [name, description, category, brand, country, experiment_goal, goal_origin, target_action, primary_metric, metric_direction, metric_numerator, metric_denominator, price, allowed_channels, forbidden_claims, known_constraints, unknowns, hypothesis_id]
       properties:
         name:          { type: string }
         description:   { type: string, minLength: 1 }
@@ -985,26 +969,10 @@ components:
         metric_numerator: { type: string, minLength: 1 }
         metric_denominator: { type: string, minLength: 1 }
         success_criterion: { type: string, nullable: true }
-        facts:
-          type: array
-          minItems: 3
-          items: { $ref: "#/components/schemas/ProductFact" }
-        key_fact_ids:
-          type: array
-          minItems: 1
-          items: { type: string, minLength: 1 }
         price: { $ref: "#/components/schemas/ProductPrice" }
-        facts_checked_at: { type: string, nullable: true }
-        eligibility_rules:
-          type: array
-          items: { $ref: "#/components/schemas/EligibilityRule" }
         allowed_channels:
           type: array
           items: { type: string, minLength: 1 }
-        contactable_persona_ids:
-          type: array
-          items: { type: string, minLength: 1 }
-        campaign_note: { type: string }
         forbidden_claims:
           type: array
           items: { type: string }
@@ -1035,26 +1003,10 @@ components:
         metric_numerator: { type: string }
         metric_denominator: { type: string }
         success_criterion: { type: string, nullable: true }
-        facts:
-          type: array
-          minItems: 3
-          items: { $ref: "#/components/schemas/ProductFact" }
-        key_fact_ids:
-          type: array
-          minItems: 1
-          items: { type: string, minLength: 1 }
         price: { $ref: "#/components/schemas/ProductPrice" }
-        facts_checked_at: { type: string, nullable: true }
-        eligibility_rules:
-          type: array
-          items: { $ref: "#/components/schemas/EligibilityRule" }
         allowed_channels:
           type: array
           items: { type: string, minLength: 1 }
-        contactable_persona_ids:
-          type: array
-          items: { type: string, minLength: 1 }
-        campaign_note: { type: string }
         forbidden_claims:
           type: array
           items: { type: string }
@@ -1066,31 +1018,11 @@ components:
           items: { type: string }
         keywords:    { type: array, items: { type: string, maxLength: 64 }, nullable: true }
         link:        { type: string, maxLength: 128, nullable: true }
-    ProductFact:
-      type: object
-      required: [fact_id, text]
-      properties:
-        fact_id: { type: string, minLength: 1 }
-        text:    { type: string, minLength: 1 }
     ProductPrice:
       type: object
-      required: [status, description, source_fact_ids]
+      required: [status, description]
       properties:
         status: { type: string, enum: [unknown, known] }
-        description: { type: string, minLength: 1 }
-        source_fact_ids:
-          type: array
-          items: { type: string, minLength: 1 }
-    EligibilityRule:
-      type: object
-      required: [rule_id, field, operator, value, description]
-      properties:
-        rule_id:     { type: string, minLength: 1 }
-        field:       { type: string, minLength: 1 }
-        operator:
-          type: string
-          enum: [eq, in, gte, lte, between, truthy]
-        value: {}
         description: { type: string, minLength: 1 }
     ProductAnalysisResponse:
       type: object

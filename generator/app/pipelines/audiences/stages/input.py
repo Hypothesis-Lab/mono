@@ -14,12 +14,6 @@ def validate_input(bundle: InputBundle) -> None:
 def readiness(bundle: InputBundle) -> tuple[list[str], list[str]]:
     product, experiment = bundle.product, bundle.experiment
     questions = []
-    if len(product.facts) < 3:
-        questions.append("add at least three confirmed product facts")
-
-    if not product.key_fact_ids:
-        questions.append("identify key product fact IDs")
-
     if re.search(r"выбрать.*(?:три|3).*персон|сформировать.*гипотез", experiment.business_goal.lower()):
         questions.append("replace the technical generation task with a business goal")
 

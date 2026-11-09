@@ -11,7 +11,7 @@ from app.config import ModelConfig
 from app.observability import Measurement, Observer, current_operation_id
 
 
-class ModelClient:
+class CodexClient:
     def __init__(self, config: ModelConfig, observer: Observer | None = None) -> None:
         self.config = config
         self.observer = observer
@@ -75,6 +75,11 @@ class ModelClient:
 
 def _openai_base_url(value: str) -> str:
     parts = urlsplit(value.rstrip("/"))
+    if parts.path.endswith("/chat/completions"):
+        return urlunsplit(
+            (parts.scheme, parts.netloc, parts.path[: -len("/chat/completions")], parts.query, parts.fragment)
+        )
+
     if parts.path.endswith("/v1"):
         return value.rstrip("/")
 

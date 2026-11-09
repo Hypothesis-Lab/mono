@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 Text = Annotated[str, Field(min_length=1, max_length=1600)]
 
@@ -11,30 +11,9 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
-class ProductFact(StrictModel):
-    fact_id: Text
-    text: Text
-
-
 class ProductPrice(StrictModel):
     status: Literal["unknown", "known"] = "unknown"
-    description: Text = "Стоимость не указана; не считать продукт бесплатным."
-    source_fact_ids: list[str] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def known_price_has_sources(self) -> ProductPrice:
-        if self.status == "known" and not self.source_fact_ids:
-            raise ValueError("known price requires source_fact_ids")
-
-        return self
-
-
-class EligibilityRule(StrictModel):
-    rule_id: str
-    field: str
-    operator: Literal["eq", "in", "gte", "lte", "between", "truthy"]
-    value: str | int | bool | list[str] | list[int]
-    description: str
+    description: Text = "Цена не указана."
 
 
 class Product(StrictModel):
@@ -46,33 +25,11 @@ class Product(StrictModel):
     country: Text
     town: str | None = None
     source_url: str | None = None
-    facts: list[ProductFact] = Field(min_length=3)
-    key_fact_ids: list[str] = Field(min_length=1)
     price: ProductPrice = Field(default_factory=ProductPrice)
     keywords: list[str] = Field(default_factory=list)
-    facts_checked_at: str | None = None
-    eligibility_rules: list[EligibilityRule] = Field(default_factory=list)
     forbidden_claims: list[str] = Field(default_factory=list)
     known_constraints: list[str] = Field(default_factory=list)
     unknowns: list[str] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def references_existing_facts(self) -> Product:
-        fact_ids = [fact.fact_id for fact in self.facts]
-        if len(fact_ids) != len(set(fact_ids)):
-            raise ValueError("product contains duplicate fact_id")
-
-        for fact_id in self.key_fact_ids + self.price.source_fact_ids:
-            if fact_id not in fact_ids:
-                raise ValueError(f"unknown fact_id {fact_id}")
-
-        if self.category == "other" and self.custom_category is None:
-            raise ValueError("custom_category is required when category is other")
-
-        if self.category != "other" and self.custom_category is not None:
-            raise ValueError("custom_category is only allowed when category is other")
-
-        return self
 
 
 class ExperimentConfig(StrictModel):
@@ -88,8 +45,6 @@ class ExperimentConfig(StrictModel):
 
 class CampaignConfig(StrictModel):
     allowed_channels: list[str] = Field(default_factory=list)
-    contactable_persona_ids: list[str] = Field(default_factory=list)
-    note: str = "Channels are not used for research or ranking."
 
 
 class InputBundle(StrictModel):
@@ -167,7 +122,6 @@ class MetricVote(StrictModel):
     value: int = Field(ge=0, le=4, strict=True)
     reason: Text
     evidence_ids: list[str] = Field(min_length=1, max_length=5)
-    fact_ids: list[str] = Field(default_factory=list, max_length=3)
 
 
 class ScoreDraft(StrictModel):
@@ -191,7 +145,6 @@ class HypothesisDraft(StrictModel):
     pain_id: str
     need_id: str
     supporting_insight_ids: list[str] = Field(default_factory=list, max_length=2)
-    selected_fact_ids: list[str] = Field(min_length=1, max_length=3)
     headline: Text
     offer_value: Text
     change_to_test: Text

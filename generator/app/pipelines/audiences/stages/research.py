@@ -141,14 +141,12 @@ needs one or two short literal quotes from the cited answer. Write in Russian an
         evidence_catalog = self._evidence_catalog(persona, research)
         pain_ids = [key for key, value in evidence_catalog.items() if value["kind"] == "pains"]
         need_ids = [key for key, value in evidence_catalog.items() if value["kind"] == "needs"]
-        product_fact_ids = [fact.fact_id for fact in product.facts]
         response_schema = ScoreDraft.model_json_schema()
         metric_vote = response_schema["$defs"]["MetricVote"]["properties"]
         metric_vote["evidence_ids"]["items"]["enum"] = sorted(evidence_catalog)
-        metric_vote["fact_ids"]["items"]["enum"] = product_fact_ids
         rubric = {
             "need_strength": "0 no need; 2 concrete task with acceptable alternative; 4 repeated material consequences",
-            "product_value_fit": "0 facts do not help; 2 partial help; 4 direct resolution with no material unknowns",
+            "product_value_fit": "0 no product value; 2 partial value; 4 direct resolution with no material unknowns",
             "adoption_readiness": "0 refusal; 2 will consider conditions; 4 clear action and motive",
             "digital_access_fit": "0 no access; 2 needs clarification; 4 proven device and digital behavior",
             "hypothesis_testability": "0 no scenario; 2 concrete task; 4 task, trigger, and observable action",
@@ -157,16 +155,13 @@ needs one or two short literal quotes from the cited answer. Write in Russian an
             """
 Score one synthetic persona's product fit, not creditworthiness. Do not compare personas or assess
 approval likelihood. Use each metric as an integer from 0 to 4. Every metric must reference IDs from
-the evidence catalog. Copy IDs exactly: evidence_ids may contain only evidence catalog keys, and fact_ids
-may contain only product fact IDs. Never put an evidence ID in fact_ids or a product fact ID in
-evidence_ids. need_strength and product_value_fit must each cite at least one pain ID and one need ID;
-product_value_fit must also cite product fact IDs that address the task. Unknown price is not free and
-material unknowns prevent product_value_fit=4. Write in Russian and return only JSON.
+            the evidence catalog. Copy IDs exactly: evidence_ids may contain only evidence catalog keys.
+            need_strength and product_value_fit must each cite at least one pain ID and one need ID. Unknown
+            price is not free and material unknowns prevent product_value_fit=4. Write in Russian and return only JSON.
 """,
             rubric=rubric,
             product=self._product_for_research(product),
             evidence_catalog=evidence_catalog,
-            product_fact_ids=product_fact_ids,
             required_insight_ids={"pain_ids": pain_ids, "need_ids": need_ids},
         )
         scores = complete_structured(self.model_client, execution, ScoreDraft, prompt, previous_error, response_schema)
@@ -250,63 +245,13 @@ material unknowns prevent product_value_fit=4. Write in Russian and return only 
         return {"ranking": rows, "top_3": top, "warnings": warnings}
 
     def _eligibility(self, product: Product, persona: SyntheticPersona) -> dict[str, Any]:
-        checks = [
-            {
-                "rule_id": rule.rule_id,
-                "description": rule.description,
-                "passed": self._matches_rule(getattr(persona, rule.field, None), rule.operator, rule.value),
-            }
-            for rule in product.eligibility_rules
-        ]
-        status = (
-            "failed"
-            if any(check["passed"] is False for check in checks)
-            else "unknown"
-            if any(check["passed"] is None for check in checks)
-            else "preliminary_pass"
-        )
         return {
             "persona_id": persona.persona_id,
             "input_signature": self._fingerprint({"product": product, "persona": persona}),
-            "status": status,
-            "hard_eligible": status == "preliminary_pass",
-            "checks": checks,
-            "note": "Preliminary rules check only; this is not product approval.",
+            "status": "preliminary_pass",
+            "hard_eligible": True,
+            "checks": [],
         }
-
-    @staticmethod
-    def _matches_rule(actual: object, operator: str, expected: object) -> bool | None:
-        if actual is None:
-            return None
-
-        try:
-            if operator == "eq":
-                return actual == expected
-
-            if operator == "in":
-                return isinstance(expected, list) and actual in expected
-
-            if operator == "gte":
-                return isinstance(actual, int) and isinstance(expected, int) and actual >= expected
-
-            if operator == "lte":
-                return isinstance(actual, int) and isinstance(expected, int) and actual <= expected
-
-            if operator == "between":
-                return (
-                    isinstance(actual, int)
-                    and isinstance(expected, list)
-                    and len(expected) == 2
-                    and all(isinstance(item, int) for item in expected)
-                    and expected[0] <= actual <= expected[1]
-                )
-
-            if operator == "truthy":
-                return bool(actual) is bool(expected)
-        except TypeError as error:
-            raise ValueError(f"incompatible eligibility rule types for {operator}") from error
-
-        raise ValueError(f"unknown eligibility operator {operator}")
 
     def _research(self, product: Product, nodes: dict[str, Any], persona: SyntheticPersona) -> ResearchRecord:
         answers = self._answers(nodes, persona.persona_id)
@@ -392,22 +337,15 @@ material unknowns prevent product_value_fit=4. Write in Russian and return only 
         self, scores: ScoreDraft, product: Product, persona: SyntheticPersona, research: ResearchRecord
     ) -> None:
         catalog = self._evidence_catalog(persona, research)
-        allowed_facts = {fact.fact_id for fact in product.facts}
         for name in METRIC_WEIGHTS:
             vote = MetricVote.model_validate(getattr(scores, name).model_dump())
             if set(vote.evidence_ids) - set(catalog):
                 raise ValueError(f"{name} references unknown evidence")
 
-            if set(vote.fact_ids) - allowed_facts:
-                raise ValueError(f"{name} references unknown facts")
-
             if name in {"need_strength", "product_value_fit"}:
                 kinds = {catalog[evidence_id]["kind"] for evidence_id in vote.evidence_ids}
                 if not {"pains", "needs"}.issubset(kinds):
                     raise ValueError(f"{name} must cite both pain and need")
-
-            if name == "product_value_fit" and not vote.fact_ids:
-                raise ValueError("product_value_fit requires fact_ids")
 
         if (product.price.status == "unknown" or product.unknowns) and scores.product_value_fit.value == 4:
             raise ValueError("unknown conditions prevent product_value_fit=4")

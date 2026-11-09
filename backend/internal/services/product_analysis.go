@@ -60,8 +60,7 @@ func (s *ProductAnalysisService) Start(ctx context.Context, userID, productID st
 		"goal_origin": p.GoalOrigin, "target_action": p.TargetAction, "primary_metric": p.PrimaryMetric,
 		"metric_direction": p.MetricDirection, "metric_numerator": p.MetricNumerator,
 		"metric_denominator": p.MetricDenominator, "success_criterion": p.SuccessCriterion,
-		"facts": p.Facts, "key_fact_ids": p.KeyFactIDs, "price": p.Price, "facts_checked_at": p.FactsCheckedAt,
-		"eligibility_rules": p.EligibilityRules, "allowed_channels": p.AllowedChannels, "campaign_note": p.CampaignNote,
+		"price": p.Price, "allowed_channels": p.AllowedChannels,
 		"forbidden_claims": p.ForbiddenClaims, "known_constraints": p.KnownConstraints,
 		"keywords": p.Keywords, "unknowns": p.Unknowns, "link": p.Link,
 	})

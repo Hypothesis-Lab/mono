@@ -449,20 +449,8 @@ export type ProductCategory =
   | "music"
   | "banking_card"
   | "other";
-export type ProductFact = {
-  fact_id: string;
-  text: string;
-};
 export type ProductPrice = {
   status: "unknown" | "known";
-  description: string;
-  source_fact_ids: string[];
-};
-export type EligibilityRule = {
-  rule_id: string;
-  field: string;
-  operator: "eq" | "in" | "gte" | "lte" | "between" | "truthy";
-  value: any;
   description: string;
 };
 export type ProductResponse = {
@@ -482,14 +470,8 @@ export type ProductResponse = {
   metric_numerator: string;
   metric_denominator: string;
   success_criterion?: string | null;
-  facts: ProductFact[];
-  key_fact_ids: string[];
   price: ProductPrice;
-  facts_checked_at?: string | null;
-  eligibility_rules: EligibilityRule[];
   allowed_channels: string[];
-  contactable_persona_ids: string[];
-  campaign_note: string;
   forbidden_claims: string[];
   known_constraints: string[];
   unknowns: string[];
@@ -513,14 +495,8 @@ export type CreateProductRequest = {
   metric_numerator: string;
   metric_denominator: string;
   success_criterion?: string | null;
-  facts: ProductFact[];
-  key_fact_ids: string[];
   price: ProductPrice;
-  facts_checked_at?: string | null;
-  eligibility_rules: EligibilityRule[];
   allowed_channels: string[];
-  contactable_persona_ids: string[];
-  campaign_note: string;
   forbidden_claims: string[];
   known_constraints: string[];
   unknowns: string[];
@@ -544,14 +520,8 @@ export type UpdateProductRequest = {
   metric_numerator?: string;
   metric_denominator?: string;
   success_criterion?: string | null;
-  facts?: ProductFact[];
-  key_fact_ids?: string[];
   price?: ProductPrice;
-  facts_checked_at?: string | null;
-  eligibility_rules?: EligibilityRule[];
   allowed_channels?: string[];
-  contactable_persona_ids?: string[];
-  campaign_note?: string;
   forbidden_claims?: string[];
   known_constraints?: string[];
   unknowns?: string[];

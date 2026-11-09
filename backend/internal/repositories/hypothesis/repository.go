@@ -59,7 +59,7 @@ func (r *Repository) List(ctx context.Context, userID string) ([]*Hypothesis, er
 		Select("id", "user_id", "description", "status", "created_at").
 		From("hypothesis").
 		Where(squirrel.Eq{"user_id": userID}).
-		OrderBy("id").
+		OrderBy("created_at DESC", "id DESC").
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build list hypotheses query: %w", err)

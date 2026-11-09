@@ -80,13 +80,11 @@ class HypothesisStage(ResearchStage):
         properties["supporting_insight_ids"]["items"]["enum"] = [
             key for key, value in catalog.items() if value["kind"] in {"desires", "objections", "triggers", "use_cases"}
         ]
-        properties["selected_fact_ids"]["items"]["enum"] = [fact.fact_id for fact in bundle.product.facts]
         prompt = self._prompt(
             """
 Create one testable marketing hypothesis. Select one present pain and one present need from the evidence
-catalog, then choose confirmed product facts that may help. Do not replace the pain with a bank rule,
-invent audiences, rates, prices, approval, features, or numerical results. In headline and offer_value,
-do not use numbers: confirmed conditions are added separately. A channel may be null when none is
+catalog. Do not replace the pain with a bank rule, invent audiences, rates, prices, approval, features, or
+numerical results. In headline and offer_value, do not use numbers. A channel may be null when none is
 available. Keep fields short, write in Russian, and return only JSON.
 """,
             role=HYPOTHESIS_ROLES[list(HypothesisAngle)[slot_index]],
@@ -107,9 +105,6 @@ available. Keep fields short, write in Russian, and return only JSON.
         channels = []
         for channel in campaign.allowed_channels:
             if channel == "in_app_banner" and not persona.has_cifra_debit_or_salary_card:
-                continue
-
-            if channel in {"push", "email", "sms"} and persona.persona_id not in campaign.contactable_persona_ids:
                 continue
 
             channels.append(channel)
@@ -137,12 +132,6 @@ available. Keep fields short, write in Russian, and return only JSON.
                 "use_cases",
             }:
                 raise ValueError("supporting insight is invalid")
-
-        fact_ids = {fact.fact_id for fact in bundle.product.facts}
-        if not set(draft.selected_fact_ids).issubset(fact_ids) or len(draft.selected_fact_ids) != len(
-            set(draft.selected_fact_ids)
-        ):
-            raise ValueError("hypothesis references unknown or duplicate facts")
 
         if draft.channel is not None and draft.channel not in self._available_channels(
             bundle.product, persona, bundle.campaign
@@ -181,7 +170,6 @@ available. Keep fields short, write in Russian, and return only JSON.
         slot_index: int,
     ) -> dict[str, Any]:
         catalog = self._evidence_catalog(persona, research)
-        facts = {fact.fact_id: fact.text for fact in bundle.product.facts}
         result = draft.model_dump(mode="json")
         result.update(
             {
@@ -200,7 +188,6 @@ available. Keep fields short, write in Russian, and return only JSON.
                 "supporting_insights": [
                     {"insight_id": insight_id, **catalog[insight_id]} for insight_id in draft.supporting_insight_ids
                 ],
-                "proof_points": [{"fact_id": fact_id, "text": facts[fact_id]} for fact_id in draft.selected_fact_ids],
                 "primary_metric": bundle.experiment.primary_metric,
                 "metric_definition": {
                     "numerator": bundle.experiment.metric_numerator,
@@ -226,9 +213,6 @@ available. Keep fields short, write in Russian, and return only JSON.
                 "offer": {
                     "headline": draft.headline,
                     "value_proposition": draft.offer_value,
-                    "source_facts": [
-                        {"fact_id": fact_id, "text": facts[fact_id]} for fact_id in draft.selected_fact_ids
-                    ],
                     "conditions": bundle.product.known_constraints,
                     "cta": "Learn the conditions",
                     "not_ready_for_publication": True,

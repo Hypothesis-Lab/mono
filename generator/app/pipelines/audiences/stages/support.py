@@ -41,8 +41,6 @@ class AudienceStageSupport:
                 "country",
                 "town",
                 "price",
-                "facts",
-                "key_fact_ids",
                 "known_constraints",
                 "unknowns",
             },

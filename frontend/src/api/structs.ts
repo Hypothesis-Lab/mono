@@ -107,19 +107,6 @@ export const PRODUCT_CATEGORIES: ProductCategory[] = [
   'other',
 ]
 
-export type ProductFact = {
-  fact_id: string
-  text: string
-}
-
-export type EligibilityRule = {
-  rule_id: string
-  field: string
-  operator: 'eq' | 'in' | 'gte' | 'lte' | 'between' | 'truthy'
-  value: string | number | boolean | string[] | number[]
-  description: string
-}
-
 export type Product = {
   id: string
   name: string
@@ -130,8 +117,6 @@ export type Product = {
   town?: string | null
   experiment_goal: string
   target_action: string
-  facts: ProductFact[]
-  eligibility_rules: EligibilityRule[]
   allowed_channels: string[]
   forbidden_claims: string[]
   known_constraints: string[]
@@ -141,7 +126,7 @@ export type Product = {
   hypothesis_id: string
 }
 
-export type ProductFileType = 'other' | 'brandbook'
+export type ProductFileType = 'product' | 'brandbook' | 'reference' | 'other'
 
 export type ProductFile = {
   id: string
@@ -190,6 +175,8 @@ export function getCategoryLabel(category: string): string {
 }
 
 const fileTypeLabels: Record<ProductFileType, string> = {
+  product: 'продукт',
+  reference: 'справочный материал',
   other: 'другое',
   brandbook: 'брендбук',
 }

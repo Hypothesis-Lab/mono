@@ -20,7 +20,7 @@ import {
   useUpdateProductMutation,
   useUploadProductFileMutation,
 } from '../../store/generatedApi'
-import type { EligibilityRule, ProductFact, ProductPrice, UpdateProductRequest } from '../../store/generatedApi'
+import type { ProductPrice, UpdateProductRequest } from '../../store/generatedApi'
 import { JsonTree } from './components/JsonTree/page'
 import * as S from './styles'
 
@@ -49,37 +49,6 @@ function listFromText(value: string): string[] {
 
 function listToText(value: string[]): string {
   return value.join('\n')
-}
-
-function factsToText(facts: ProductFact[]): string {
-  return facts.map((fact) => `${fact.fact_id}: ${fact.text}`).join('\n')
-}
-
-function factsFromText(value: string): ProductFact[] {
-  return listFromText(value).map((line) => {
-    const separator = line.indexOf(':')
-    const factId = line.slice(0, separator).trim()
-    const text = line.slice(separator + 1).trim()
-    if (separator <= 0 || factId === '' || text === '') {
-      throw new Error('Укажите каждый факт в формате F1: текст факта')
-    }
-    return {
-      fact_id: factId,
-      text,
-    }
-  })
-}
-
-function rulesToText(rules: EligibilityRule[]): string {
-  return JSON.stringify(rules, null, 2)
-}
-
-function rulesFromText(value: string): EligibilityRule[] {
-  const parsed: unknown = JSON.parse(value)
-  if (!Array.isArray(parsed)) {
-    throw new Error('Правила соответствия должны быть JSON-массивом')
-  }
-  return parsed as EligibilityRule[]
 }
 
 function areListsEqual(left: string[], right: string[]): boolean {
@@ -136,20 +105,13 @@ export function ProductPage() {
   const [metricNumerator, setMetricNumerator] = useState('')
   const [metricDenominator, setMetricDenominator] = useState('')
   const [successCriterion, setSuccessCriterion] = useState('')
-  const [facts, setFacts] = useState('')
-  const [keyFactIds, setKeyFactIds] = useState('')
-  const [factsCheckedAt, setFactsCheckedAt] = useState('')
-  const [eligibilityRules, setEligibilityRules] = useState('[]')
   const [allowedChannels, setAllowedChannels] = useState('')
-  const [contactablePersonaIds, setContactablePersonaIds] = useState('')
-  const [campaignNote, setCampaignNote] = useState('Channels are not used for research or ranking.')
   const [forbiddenClaims, setForbiddenClaims] = useState('')
   const [knownConstraints, setKnownConstraints] = useState('')
   const [unknowns, setUnknowns] = useState('')
   const [keywords, setKeywords] = useState('')
   const [priceStatus, setPriceStatus] = useState<ProductPrice['status']>('unknown')
-  const [priceDescription, setPriceDescription] = useState('Стоимость не указана; не считать продукт бесплатным.')
-  const [priceSourceFactIds, setPriceSourceFactIds] = useState('')
+  const [priceDescription, setPriceDescription] = useState('Цена не указана.')
   const [link, setLink] = useState('')
 
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -182,23 +144,16 @@ export function ProductPage() {
       setTargetAction(product.target_action)
       setPrimaryMetric(product.primary_metric)
       setMetricDirection(product.metric_direction)
-      setMetricNumerator(product.metric_numerator)
-      setMetricDenominator(product.metric_denominator)
-      setSuccessCriterion(product.success_criterion ?? '')
-      setFacts(factsToText(product.facts))
-      setKeyFactIds(listToText(product.key_fact_ids))
-      setFactsCheckedAt(product.facts_checked_at ?? '')
-      setEligibilityRules(rulesToText(product.eligibility_rules))
-      setAllowedChannels(listToText(product.allowed_channels))
-      setContactablePersonaIds(listToText(product.contactable_persona_ids))
-      setCampaignNote(product.campaign_note)
-      setForbiddenClaims(listToText(product.forbidden_claims))
+       setMetricNumerator(product.metric_numerator)
+       setMetricDenominator(product.metric_denominator)
+       setSuccessCriterion(product.success_criterion ?? '')
+       setAllowedChannels(listToText(product.allowed_channels))
+       setForbiddenClaims(listToText(product.forbidden_claims))
       setKnownConstraints(listToText(product.known_constraints))
       setUnknowns(listToText(product.unknowns))
       setKeywords(product.keywords.join(', '))
       setPriceStatus(product.price.status)
       setPriceDescription(product.price.description)
-      setPriceSourceFactIds(listToText(product.price.source_fact_ids))
       setLink(product.link ?? '')
     } else if (noProduct) {
       setName('')
@@ -216,20 +171,13 @@ export function ProductPage() {
       setMetricNumerator('')
       setMetricDenominator('')
       setSuccessCriterion('')
-      setFacts('')
-      setKeyFactIds('')
-      setFactsCheckedAt('')
-      setEligibilityRules('[]')
-      setAllowedChannels('')
-      setContactablePersonaIds('')
-      setCampaignNote('Channels are not used for research or ranking.')
+       setAllowedChannels('')
       setForbiddenClaims('')
       setKnownConstraints('')
       setUnknowns('')
       setKeywords('')
       setPriceStatus('unknown')
-      setPriceDescription('Стоимость не указана; не считать продукт бесплатным.')
-      setPriceSourceFactIds('')
+      setPriceDescription('Цена не указана.')
       setLink('')
     }
   }, [product, noProduct])
@@ -283,26 +231,14 @@ export function ProductPage() {
     const trimmedMetricNumerator = metricNumerator.trim()
     const trimmedMetricDenominator = metricDenominator.trim()
     const trimmedSuccessCriterion = successCriterion.trim()
-    const trimmedFactsCheckedAt = factsCheckedAt.trim()
-    const trimmedCampaignNote = campaignNote.trim()
-    let parsedFacts: ProductFact[]
-    let parsedEligibilityRules: EligibilityRule[]
     let parsedAllowedChannels: string[]
     let parsedForbiddenClaims: string[]
     let parsedKnownConstraints: string[]
-    let parsedKeyFactIds: string[]
-    let parsedPriceSourceFactIds: string[]
-    let parsedContactablePersonaIds: string[]
     let parsedUnknowns: string[]
     try {
-      parsedFacts = factsFromText(facts)
-      parsedEligibilityRules = rulesFromText(eligibilityRules)
       parsedAllowedChannels = listFromText(allowedChannels)
       parsedForbiddenClaims = listFromText(forbiddenClaims)
       parsedKnownConstraints = listFromText(knownConstraints)
-      parsedKeyFactIds = listFromText(keyFactIds)
-      parsedPriceSourceFactIds = listFromText(priceSourceFactIds)
-      parsedContactablePersonaIds = listFromText(contactablePersonaIds)
       parsedUnknowns = listFromText(unknowns)
     } catch (err) {
       setSaveError(rtkErrorMessage(err, 'Проверьте данные продукта'))
@@ -315,7 +251,6 @@ export function ProductPage() {
     const parsedPrice: ProductPrice = {
       status: priceStatus,
       description: priceDescription.trim(),
-      source_fact_ids: parsedPriceSourceFactIds,
     }
     const trimmedLink = link.trim()
 
@@ -361,20 +296,10 @@ export function ProductPage() {
         if (trimmedMetricNumerator !== product.metric_numerator) body.metric_numerator = trimmedMetricNumerator
         if (trimmedMetricDenominator !== product.metric_denominator) body.metric_denominator = trimmedMetricDenominator
         if (trimmedSuccessCriterion !== (product.success_criterion ?? '')) body.success_criterion = trimmedSuccessCriterion || null
-        if (JSON.stringify(parsedFacts) !== JSON.stringify(product.facts)) {
-          body.facts = parsedFacts
-        }
-        if (!areListsEqual(parsedKeyFactIds, product.key_fact_ids)) body.key_fact_ids = parsedKeyFactIds
         if (JSON.stringify(parsedPrice) !== JSON.stringify(product.price)) body.price = parsedPrice
-        if (trimmedFactsCheckedAt !== (product.facts_checked_at ?? '')) body.facts_checked_at = trimmedFactsCheckedAt || null
-        if (JSON.stringify(parsedEligibilityRules) !== JSON.stringify(product.eligibility_rules)) {
-          body.eligibility_rules = parsedEligibilityRules
-        }
         if (!areListsEqual(parsedAllowedChannels, product.allowed_channels)) {
           body.allowed_channels = parsedAllowedChannels
         }
-        if (!areListsEqual(parsedContactablePersonaIds, product.contactable_persona_ids)) body.contactable_persona_ids = parsedContactablePersonaIds
-        if (trimmedCampaignNote !== product.campaign_note) body.campaign_note = trimmedCampaignNote
         if (!areListsEqual(parsedForbiddenClaims, product.forbidden_claims)) {
           body.forbidden_claims = parsedForbiddenClaims
         }
@@ -408,14 +333,8 @@ export function ProductPage() {
             metric_numerator: trimmedMetricNumerator,
             metric_denominator: trimmedMetricDenominator,
             success_criterion: trimmedSuccessCriterion || null,
-            facts: parsedFacts,
-            key_fact_ids: parsedKeyFactIds,
             price: parsedPrice,
-            facts_checked_at: trimmedFactsCheckedAt || null,
-            eligibility_rules: parsedEligibilityRules,
             allowed_channels: parsedAllowedChannels,
-            contactable_persona_ids: parsedContactablePersonaIds,
-            campaign_note: trimmedCampaignNote,
             forbidden_claims: parsedForbiddenClaims,
             known_constraints: parsedKnownConstraints,
             unknowns: parsedUnknowns,
@@ -640,55 +559,12 @@ export function ProductPage() {
         </S.Field>
 
         <S.Field>
-          Подтвержденные факты (каждый с новой строки: F1: текст)
-          <S.TextArea
-            rows={6}
-            value={facts}
-            onChange={(e) => setFacts(e.target.value)}
-            placeholder={'F1: Первый подтвержденный факт\nF2: Второй подтвержденный факт\nF3: Третий подтвержденный факт'}
-            disabled={saving}
-            required
-          />
-        </S.Field>
-
-        <S.Field>
-          Ключевые факты (ID, каждый с новой строки)
-          <S.TextArea rows={3} value={keyFactIds} onChange={(e) => setKeyFactIds(e.target.value)} placeholder={'F1\nF2'} disabled={saving} required />
-        </S.Field>
-
-        <S.Field>
-          Дата проверки фактов (необязательно)
-          <S.Input type="text" value={factsCheckedAt} onChange={(e) => setFactsCheckedAt(e.target.value)} placeholder="2026-09-18" disabled={saving} />
-        </S.Field>
-
-        <S.Field>
           Разрешенные каналы (каждый с новой строки)
           <S.TextArea
             rows={3}
             value={allowedChannels}
             onChange={(e) => setAllowedChannels(e.target.value)}
             placeholder={'in_app_banner\npush\nemail'}
-            disabled={saving}
-          />
-        </S.Field>
-
-        <S.Field>
-          Персоны с согласием на контакт (ID, каждый с новой строки)
-          <S.TextArea rows={3} value={contactablePersonaIds} onChange={(e) => setContactablePersonaIds(e.target.value)} placeholder={'persona_001\npersona_002'} disabled={saving} />
-        </S.Field>
-
-        <S.Field>
-          Примечание к кампании
-          <S.TextArea rows={2} value={campaignNote} onChange={(e) => setCampaignNote(e.target.value)} disabled={saving} />
-        </S.Field>
-
-        <S.Field>
-          Правила соответствия (JSON-массив, необязательно)
-          <S.TextArea
-            rows={7}
-            value={eligibilityRules}
-            onChange={(e) => setEligibilityRules(e.target.value)}
-            placeholder={'[\n  {\n    "rule_id": "E1",\n    "field": "age",\n    "operator": "between",\n    "value": [21, 70],\n    "description": "Возраст от 21 до 70 лет"\n  }\n]'}
             disabled={saving}
           />
         </S.Field>
@@ -776,11 +652,6 @@ export function ProductPage() {
         <S.Field>
           Описание стоимости
           <S.TextArea rows={2} value={priceDescription} onChange={(e) => setPriceDescription(e.target.value)} disabled={saving} required />
-        </S.Field>
-
-        <S.Field>
-          Факты, подтверждающие стоимость (ID, каждый с новой строки)
-          <S.TextArea rows={2} value={priceSourceFactIds} onChange={(e) => setPriceSourceFactIds(e.target.value)} placeholder="F3" disabled={saving} required={priceStatus === 'known'} />
         </S.Field>
 
         <S.Field>

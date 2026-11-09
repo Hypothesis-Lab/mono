@@ -17,7 +17,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from app.config import ModelConfig
-from app.language_model_client.client import ModelClient
+from app.language_model_client.client import CodexClient
 from app.observability import Measurement, RunCollector
 from app.pipelines.audience_questions.graph import build_graph
 from app.pipelines.audiences.models import Product
@@ -183,7 +183,7 @@ def _run_model(product: Product, model: str, sqlite_path: Path, store: Evaluatio
     result: dict[str, object] | None = None
     try:
         model_config = _model_config(model)
-        stages = AudienceStages(ModelClient(model_config, observer))
+        stages = AudienceStages(CodexClient(model_config, observer))
         with ExitStack() as stack:
             checkpointer = stack.enter_context(SqliteSaver.from_conn_string(str(sqlite_path)))
             checkpointer.conn.execute("PRAGMA busy_timeout=30000")

@@ -6,10 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from app.pipelines.audience_questions.graph import build_graph as build_questions_graph
 from app.pipelines.audience_selection.graph import build_graph as build_selection_graph
 from app.pipelines.audience_selection.models import AudienceSelectionInput
-from app.pipelines.audiences.models import Product
 from app.pipelines.hypotheses.graph import build_graph as build_hypothesis_graph
 from app.pipelines.hypotheses.models import HypothesisInput
 from app.pipelines.product.graph import build_graph as build_product_graph
@@ -45,11 +43,6 @@ PIPELINES = {
         kind="hypothesis_generation",
         input_model=HypothesisInput,
         graph_builder=build_hypothesis_graph,
-    ),
-    "audience_questions": PipelineDefinition(
-        kind="audience_questions",
-        input_model=Product,
-        graph_builder=build_questions_graph,
     ),
 }
 
