@@ -17,30 +17,30 @@ class ServerConfig:
 
 
 @dataclass(frozen=True)
-class ModelConfig:
-    base_url: str
-    api_key: str
+class CodexConfig:
+    proxy_base_url: str
+    proxy_key: str
     model: str
     reasoning_effort: str
     timeout_seconds: float
     max_retries: int
 
     @classmethod
-    def from_environment(cls) -> "ModelConfig":
+    def from_environment(cls) -> "CodexConfig":
         return cls(
-            base_url=_required_environment("OPENAI_BASE_URL"),
-            api_key=_required_environment("OPENAI_API_KEY"),
-            model=_required_environment("OPENAI_MODEL"),
-            reasoning_effort=_required_environment("OPENAI_REASONING_EFFORT"),
-            timeout_seconds=float(_required_environment("OPENAI_TIMEOUT_SECONDS")),
-            max_retries=int(_required_environment("OPENAI_MAX_RETRIES")),
+            proxy_base_url=_required_environment("CODEX_PROXY_BASE_URL"),
+            proxy_key=_required_environment("CODEX_PROXY_KEY"),
+            model=_required_environment("CODEX_MODEL"),
+            reasoning_effort=_required_environment("CODEX_REASONING_EFFORT"),
+            timeout_seconds=float(_required_environment("CODEX_TIMEOUT_SECONDS")),
+            max_retries=int(_required_environment("CODEX_MAX_RETRIES")),
         )
 
 
 @dataclass(frozen=True)
 class Settings:
     database_url: str
-    model_config: ModelConfig
+    codex_config: CodexConfig
     worker_concurrency: int
     graph_max_concurrency: int
 
@@ -58,7 +58,7 @@ class Settings:
 
         return cls(
             database_url=database_url,
-            model_config=ModelConfig.from_environment(),
+            codex_config=CodexConfig.from_environment(),
             worker_concurrency=worker_concurrency,
             graph_max_concurrency=graph_max_concurrency,
         )

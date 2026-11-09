@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
     apply_migrations(settings.database_url)
     repository = JobRepository(settings.database_url)
     observer = PrometheusObserver()
-    llm = CodexClient(settings.model_config, observer)
+    llm = CodexClient(settings.codex_config, observer)
     worker = GeneratorWorker(
         repository,
         AudienceStages(llm),

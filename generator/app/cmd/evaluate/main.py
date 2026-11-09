@@ -16,7 +16,7 @@ from uuid import uuid4
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-from app.config import ModelConfig
+from app.config import CodexConfig
 from app.language_model_client.client import CodexClient
 from app.observability import Measurement, RunCollector
 from app.pipelines.audience_questions.graph import build_graph
@@ -182,8 +182,8 @@ def _run_model(product: Product, model: str, sqlite_path: Path, store: Evaluatio
     outcome = "success"
     result: dict[str, object] | None = None
     try:
-        model_config = _model_config(model)
-        stages = AudienceStages(CodexClient(model_config, observer))
+        codex_config = _codex_config(model)
+        stages = AudienceStages(CodexClient(codex_config, observer))
         with ExitStack() as stack:
             checkpointer = stack.enter_context(SqliteSaver.from_conn_string(str(sqlite_path)))
             checkpointer.conn.execute("PRAGMA busy_timeout=30000")
@@ -352,15 +352,15 @@ def _display(value: object) -> str:
     return "unknown" if value is None else str(value)
 
 
-def _model_config(model: str) -> ModelConfig:
-    return ModelConfig(
-        base_url=os.environ["OPENAI_BASE_URL"],
-        api_key=os.environ["OPENAI_API_KEY"],
+def _codex_config(model: str) -> CodexConfig:
+    return CodexConfig(
+        proxy_base_url=os.environ["CODEX_PROXY_BASE_URL"],
+        proxy_key=os.environ["CODEX_PROXY_KEY"],
         model=model,
         # None omits reasoning_effort from the request and uses the provider default.
         reasoning_effort=cast(str, None),
-        timeout_seconds=float(os.environ["OPENAI_TIMEOUT_SECONDS"]),
-        max_retries=int(os.environ["OPENAI_MAX_RETRIES"]),
+        timeout_seconds=float(os.environ["CODEX_TIMEOUT_SECONDS"]),
+        max_retries=int(os.environ["CODEX_MAX_RETRIES"]),
     )
 
 

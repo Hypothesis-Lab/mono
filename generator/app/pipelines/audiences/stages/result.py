@@ -63,7 +63,7 @@ class ResultStage(HypothesisStage):
                 "Scores are not conversion or approval probabilities."
             ),
             "generation_policy": {
-                "provider": "openai_compatible",
+                "provider": "codex_proxy",
                 "model": self.model_client.model,
                 "reasoning_effort": self.model_client.reasoning_effort,
                 "reproducibility": (

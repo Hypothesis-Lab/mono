@@ -7,18 +7,18 @@ from urllib.parse import urlsplit, urlunsplit
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
-from app.config import ModelConfig
+from app.config import CodexConfig
 from app.observability import Measurement, Observer, current_operation_id
 
 
 class CodexClient:
-    def __init__(self, config: ModelConfig, observer: Observer | None = None) -> None:
+    def __init__(self, config: CodexConfig, observer: Observer | None = None) -> None:
         self.config = config
         self.observer = observer
         self.reasoning_effort = config.reasoning_effort
         self._model = ChatOpenAI(
-            base_url=_openai_base_url(config.base_url),
-            api_key=cast(Any, config.api_key),
+            base_url=_codex_base_url(config.proxy_base_url),
+            api_key=cast(Any, config.proxy_key),
             model=config.model,
             reasoning_effort=config.reasoning_effort,
             timeout=config.timeout_seconds,
@@ -73,7 +73,7 @@ class CodexClient:
                 )
 
 
-def _openai_base_url(value: str) -> str:
+def _codex_base_url(value: str) -> str:
     parts = urlsplit(value.rstrip("/"))
     if parts.path.endswith("/chat/completions"):
         return urlunsplit(
