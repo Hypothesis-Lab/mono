@@ -177,6 +177,25 @@ const injectedRtkApi = api.injectEndpoints({
         method: "POST",
       }),
     }),
+    saveProductAnalysisReview: build.mutation<
+      SaveProductAnalysisReviewApiResponse,
+      SaveProductAnalysisReviewApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/v1/product/${queryArg.id}/analysis/review`,
+        method: "PUT",
+        body: queryArg.productAnalysisReviewRequest,
+      }),
+    }),
+    continueProductAnalysis: build.mutation<
+      ContinueProductAnalysisApiResponse,
+      ContinueProductAnalysisApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/v1/product/${queryArg.id}/analysis/continue`,
+        method: "POST",
+      }),
+    }),
     listProductFiles: build.query<
       ListProductFilesApiResponse,
       ListProductFilesApiArg
@@ -312,6 +331,17 @@ export type GetProductAnalysisApiArg = {
 export type StartProductAnalysisApiResponse =
   /** status 201 analysis queued */ ProductAnalysisResponse;
 export type StartProductAnalysisApiArg = {
+  id: string;
+};
+export type SaveProductAnalysisReviewApiResponse =
+  /** status 200 saved stage review */ ProductAnalysisReviewResponse;
+export type SaveProductAnalysisReviewApiArg = {
+  id: string;
+  productAnalysisReviewRequest: ProductAnalysisReviewRequest;
+};
+export type ContinueProductAnalysisApiResponse =
+  /** status 200 analysis resumed */ ProductAnalysisResponse;
+export type ContinueProductAnalysisApiArg = {
   id: string;
 };
 export type ListProductFilesApiResponse =
@@ -530,11 +560,35 @@ export type UpdateProductRequest = {
 };
 export type ProductAnalysisResponse = {
   id: string;
-  status: "queued" | "running" | "blocked" | "failed" | "completed";
+  status:
+    | "queued"
+    | "running"
+    | "waiting_for_user_input"
+    | "blocked"
+    | "failed"
+    | "completed";
   current_stage: "product" | "audience" | "hypotheses";
   product_result: any | null;
   audience_result: any | null;
   hypothesis_result: any | null;
+  audience_review: any | null;
+  hypothesis_review: any | null;
+};
+export type ProductAnalysisReviewStage = "audience" | "hypotheses";
+export type ProductAnalysisReviewResponse = {
+  stage: ProductAnalysisReviewStage;
+  selected_candidate_ids: string[];
+  custom_candidates: {
+    [key: string]: any;
+  }[];
+  updated_at: string;
+};
+export type ProductAnalysisReviewRequest = {
+  stage: ProductAnalysisReviewStage;
+  selected_candidate_ids: string[];
+  custom_candidates: {
+    [key: string]: any;
+  }[];
 };
 export type ProductFileResponse = {
   id: string;
@@ -588,6 +642,8 @@ export const {
   useDeleteProductMutation,
   useGetProductAnalysisQuery,
   useStartProductAnalysisMutation,
+  useSaveProductAnalysisReviewMutation,
+  useContinueProductAnalysisMutation,
   useListProductFilesQuery,
   useUploadProductFileMutation,
   useDeleteProductFileMutation,

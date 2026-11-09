@@ -11,6 +11,7 @@ import (
 	"app/internal/http/middlewares"
 	"app/internal/repositories/product"
 	"app/internal/repositories/productanalysis"
+	"app/internal/services"
 
 	"go.uber.org/zap"
 )
@@ -72,11 +73,105 @@ func (s *Server) GetProductAnalysis(ctx context.Context, req api.GetProductAnaly
 	return api.GetProductAnalysis200JSONResponse(response), nil
 }
 
+func (s *Server) SaveProductAnalysisReview(ctx context.Context, req api.SaveProductAnalysisReviewRequestObject) (api.SaveProductAnalysisReviewResponseObject, error) {
+	userID, ok := middlewares.UserIDFromContext(ctx)
+	if !ok {
+		s.logger.Error("missing user id for product analysis review", zap.String("product_id", req.Id))
+		return api.SaveProductAnalysisReview500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	if req.Body == nil {
+		s.logger.Error("missing product analysis review body", zap.String("product_id", req.Id))
+		return api.SaveProductAnalysisReview400JSONResponse(errBody(http.StatusBadRequest, "review body is required")), nil
+	}
+
+	review, err := s.productAnalysis.SaveReview(ctx, userID, req.Id, string(req.Body.Stage), req.Body.SelectedCandidateIds, req.Body.CustomCandidates)
+	if err != nil {
+		s.logger.Error("save product analysis review", zap.String("product_id", req.Id), zap.String("stage", string(req.Body.Stage)), zap.Error(err))
+		switch {
+		case errors.Is(err, product.ErrNotFound), errors.Is(err, productanalysis.ErrNotFound):
+			return api.SaveProductAnalysisReview404JSONResponse(errBody(http.StatusNotFound, "product or analysis not found")), nil
+		case errors.Is(err, services.ErrInvalidAnalysisReview):
+			return api.SaveProductAnalysisReview400JSONResponse(errBody(http.StatusBadRequest, "invalid analysis review")), nil
+		case errors.Is(err, services.ErrAnalysisReviewNotReady):
+			return api.SaveProductAnalysisReview409JSONResponse(errBody(http.StatusConflict, "analysis is not waiting for this review")), nil
+		default:
+			return api.SaveProductAnalysisReview500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+		}
+	}
+
+	response, err := newProductAnalysisReviewResponse(review)
+	if err != nil {
+		s.logger.Error("build saved product analysis review response", zap.String("product_id", req.Id), zap.Error(err))
+		return api.SaveProductAnalysisReview500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	return api.SaveProductAnalysisReview200JSONResponse(response), nil
+}
+
+func (s *Server) ContinueProductAnalysis(ctx context.Context, req api.ContinueProductAnalysisRequestObject) (api.ContinueProductAnalysisResponseObject, error) {
+	userID, ok := middlewares.UserIDFromContext(ctx)
+	if !ok {
+		s.logger.Error("missing user id to continue product analysis", zap.String("product_id", req.Id))
+		return api.ContinueProductAnalysis500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	run, err := s.productAnalysis.Latest(ctx, userID, req.Id)
+	if err != nil {
+		s.logger.Error("get product analysis to continue", zap.String("product_id", req.Id), zap.Error(err))
+		if errors.Is(err, product.ErrNotFound) || errors.Is(err, productanalysis.ErrNotFound) {
+			return api.ContinueProductAnalysis404JSONResponse(errBody(http.StatusNotFound, "product or analysis not found")), nil
+		}
+
+		return api.ContinueProductAnalysis500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	if run.Status != "waiting_for_user_input" || run.CurrentStage != "audience" || run.AudienceReview == nil {
+		s.logger.Warn("product analysis is not ready to continue", zap.String("product_id", req.Id), zap.String("run_id", run.ID), zap.String("status", run.Status), zap.String("stage", run.CurrentStage))
+		return api.ContinueProductAnalysis409JSONResponse(errBody(http.StatusConflict, "analysis is not ready to continue")), nil
+	}
+
+	if err := s.productAnalysisStarter.Continue(ctx, run.ID, "hypotheses"); err != nil {
+		s.logger.Error("continue product analysis workflow", zap.String("product_id", req.Id), zap.String("run_id", run.ID), zap.Error(err))
+		return api.ContinueProductAnalysis500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	response, err := productAnalysisResponse(run)
+	if err != nil {
+		s.logger.Error("build continued product analysis response", zap.String("product_id", req.Id), zap.Error(err))
+		return api.ContinueProductAnalysis500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	return api.ContinueProductAnalysis200JSONResponse(response), nil
+}
+
 func productAnalysisResponse(run *productanalysis.Run) (api.ProductAnalysisResponse, error) {
+	var audienceReview interface{}
+	if run.AudienceReview != nil {
+		mappedReview, err := newProductAnalysisReviewResponse(run.AudienceReview)
+		if err != nil {
+			return api.ProductAnalysisResponse{}, fmt.Errorf("map audience analysis review: %w", err)
+		}
+
+		audienceReview = mappedReview
+	}
+
+	var hypothesisReview interface{}
+	if run.HypothesisReview != nil {
+		mappedReview, err := newProductAnalysisReviewResponse(run.HypothesisReview)
+		if err != nil {
+			return api.ProductAnalysisResponse{}, fmt.Errorf("map hypothesis analysis review: %w", err)
+		}
+
+		hypothesisReview = mappedReview
+	}
+
 	response := api.ProductAnalysisResponse{
-		Id:           run.ID,
-		Status:       api.ProductAnalysisResponseStatus(run.Status),
-		CurrentStage: api.ProductAnalysisResponseCurrentStage(run.CurrentStage),
+		Id:               run.ID,
+		Status:           api.ProductAnalysisResponseStatus(run.Status),
+		CurrentStage:     api.ProductAnalysisResponseCurrentStage(run.CurrentStage),
+		AudienceReview:   audienceReview,
+		HypothesisReview: hypothesisReview,
 	}
 	for _, item := range []struct {
 		name   string
@@ -97,4 +192,20 @@ func productAnalysisResponse(run *productanalysis.Run) (api.ProductAnalysisRespo
 	}
 
 	return response, nil
+}
+
+func newProductAnalysisReviewResponse(review *productanalysis.StageReview) (api.ProductAnalysisReviewResponse, error) {
+	customCandidates := []map[string]interface{}{}
+	if len(review.CustomCandidates) > 0 {
+		if err := json.Unmarshal(review.CustomCandidates, &customCandidates); err != nil {
+			return api.ProductAnalysisReviewResponse{}, fmt.Errorf("decode custom analysis review candidates: %w", err)
+		}
+	}
+
+	return api.ProductAnalysisReviewResponse{
+		Stage:                api.ProductAnalysisReviewStage(review.Stage),
+		SelectedCandidateIds: review.SelectedCandidateIDs,
+		CustomCandidates:     customCandidates,
+		UpdatedAt:            review.UpdatedAt,
+	}, nil
 }

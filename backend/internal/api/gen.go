@@ -149,11 +149,12 @@ func (e ProductAnalysisResponseCurrentStage) Valid() bool {
 
 // Defines values for ProductAnalysisResponseStatus.
 const (
-	ProductAnalysisResponseStatusBlocked   ProductAnalysisResponseStatus = "blocked"
-	ProductAnalysisResponseStatusCompleted ProductAnalysisResponseStatus = "completed"
-	ProductAnalysisResponseStatusFailed    ProductAnalysisResponseStatus = "failed"
-	ProductAnalysisResponseStatusQueued    ProductAnalysisResponseStatus = "queued"
-	ProductAnalysisResponseStatusRunning   ProductAnalysisResponseStatus = "running"
+	ProductAnalysisResponseStatusBlocked             ProductAnalysisResponseStatus = "blocked"
+	ProductAnalysisResponseStatusCompleted           ProductAnalysisResponseStatus = "completed"
+	ProductAnalysisResponseStatusFailed              ProductAnalysisResponseStatus = "failed"
+	ProductAnalysisResponseStatusQueued              ProductAnalysisResponseStatus = "queued"
+	ProductAnalysisResponseStatusRunning             ProductAnalysisResponseStatus = "running"
+	ProductAnalysisResponseStatusWaitingForUserInput ProductAnalysisResponseStatus = "waiting_for_user_input"
 )
 
 // Valid indicates whether the value is a known member of the ProductAnalysisResponseStatus enum.
@@ -168,6 +169,26 @@ func (e ProductAnalysisResponseStatus) Valid() bool {
 	case ProductAnalysisResponseStatusQueued:
 		return true
 	case ProductAnalysisResponseStatusRunning:
+		return true
+	case ProductAnalysisResponseStatusWaitingForUserInput:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProductAnalysisReviewStage.
+const (
+	ProductAnalysisReviewStageAudience   ProductAnalysisReviewStage = "audience"
+	ProductAnalysisReviewStageHypotheses ProductAnalysisReviewStage = "hypotheses"
+)
+
+// Valid indicates whether the value is a known member of the ProductAnalysisReviewStage enum.
+func (e ProductAnalysisReviewStage) Valid() bool {
+	switch e {
+	case ProductAnalysisReviewStageAudience:
+		return true
+	case ProductAnalysisReviewStageHypotheses:
 		return true
 	default:
 		return false
@@ -374,22 +395,22 @@ func (e YandexDirectConnectionResponseStatus) Valid() bool {
 
 // Defines values for UploadProductFileMultipartBodyType.
 const (
-	UploadProductFileMultipartBodyTypeBrandbook UploadProductFileMultipartBodyType = "brandbook"
-	UploadProductFileMultipartBodyTypeOther     UploadProductFileMultipartBodyType = "other"
-	UploadProductFileMultipartBodyTypeProduct   UploadProductFileMultipartBodyType = "product"
-	UploadProductFileMultipartBodyTypeReference UploadProductFileMultipartBodyType = "reference"
+	Brandbook UploadProductFileMultipartBodyType = "brandbook"
+	Other     UploadProductFileMultipartBodyType = "other"
+	Product   UploadProductFileMultipartBodyType = "product"
+	Reference UploadProductFileMultipartBodyType = "reference"
 )
 
 // Valid indicates whether the value is a known member of the UploadProductFileMultipartBodyType enum.
 func (e UploadProductFileMultipartBodyType) Valid() bool {
 	switch e {
-	case UploadProductFileMultipartBodyTypeBrandbook:
+	case Brandbook:
 		return true
-	case UploadProductFileMultipartBodyTypeOther:
+	case Other:
 		return true
-	case UploadProductFileMultipartBodyTypeProduct:
+	case Product:
 		return true
-	case UploadProductFileMultipartBodyTypeReference:
+	case Reference:
 		return true
 	default:
 		return false
@@ -517,8 +538,10 @@ type PersonaQueryResponse struct {
 // ProductAnalysisResponse defines model for ProductAnalysisResponse.
 type ProductAnalysisResponse struct {
 	AudienceResult   interface{}                         `json:"audience_result"`
+	AudienceReview   interface{}                         `json:"audience_review"`
 	CurrentStage     ProductAnalysisResponseCurrentStage `json:"current_stage"`
 	HypothesisResult interface{}                         `json:"hypothesis_result"`
+	HypothesisReview interface{}                         `json:"hypothesis_review"`
 	Id               string                              `json:"id"`
 	ProductResult    interface{}                         `json:"product_result"`
 	Status           ProductAnalysisResponseStatus       `json:"status"`
@@ -529,6 +552,24 @@ type ProductAnalysisResponseCurrentStage string
 
 // ProductAnalysisResponseStatus defines model for ProductAnalysisResponse.Status.
 type ProductAnalysisResponseStatus string
+
+// ProductAnalysisReviewRequest defines model for ProductAnalysisReviewRequest.
+type ProductAnalysisReviewRequest struct {
+	CustomCandidates     []map[string]interface{}   `json:"custom_candidates"`
+	SelectedCandidateIds []string                   `json:"selected_candidate_ids"`
+	Stage                ProductAnalysisReviewStage `json:"stage"`
+}
+
+// ProductAnalysisReviewResponse defines model for ProductAnalysisReviewResponse.
+type ProductAnalysisReviewResponse struct {
+	CustomCandidates     []map[string]interface{}   `json:"custom_candidates"`
+	SelectedCandidateIds []string                   `json:"selected_candidate_ids"`
+	Stage                ProductAnalysisReviewStage `json:"stage"`
+	UpdatedAt            time.Time                  `json:"updated_at"`
+}
+
+// ProductAnalysisReviewStage defines model for ProductAnalysisReviewStage.
+type ProductAnalysisReviewStage string
 
 // ProductCategory defines model for ProductCategory.
 type ProductCategory string
@@ -730,6 +771,9 @@ type CreateProductJSONRequestBody = CreateProductRequest
 // UpdateProductJSONRequestBody defines body for UpdateProduct for application/json ContentType.
 type UpdateProductJSONRequestBody = UpdateProductRequest
 
+// SaveProductAnalysisReviewJSONRequestBody defines body for SaveProductAnalysisReview for application/json ContentType.
+type SaveProductAnalysisReviewJSONRequestBody = ProductAnalysisReviewRequest
+
 // ConnectYandexDirectJSONRequestBody defines body for ConnectYandexDirect for application/json ContentType.
 type ConnectYandexDirectJSONRequestBody = YandexDirectConnectRequest
 
@@ -795,6 +839,12 @@ type ServerInterface interface {
 	// Analyze the saved product, select an audience, and generate hypotheses
 	// (POST /api/v1/product/{id}/analysis)
 	StartProductAnalysis(w http.ResponseWriter, r *http.Request, id string)
+	// Continue an analysis after user review
+	// (POST /api/v1/product/{id}/analysis/continue)
+	ContinueProductAnalysis(w http.ResponseWriter, r *http.Request, id string)
+	// Save user choices for a generated analysis stage
+	// (PUT /api/v1/product/{id}/analysis/review)
+	SaveProductAnalysisReview(w http.ResponseWriter, r *http.Request, id string)
 	// Run the product feedback survey for every persona
 	// (POST /api/v1/testing/product-feedback-survey)
 	RunProductFeedbackSurvey(w http.ResponseWriter, r *http.Request)
@@ -939,6 +989,18 @@ func (_ Unimplemented) GetProductAnalysis(w http.ResponseWriter, r *http.Request
 // Analyze the saved product, select an audience, and generate hypotheses
 // (POST /api/v1/product/{id}/analysis)
 func (_ Unimplemented) StartProductAnalysis(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Continue an analysis after user review
+// (POST /api/v1/product/{id}/analysis/continue)
+func (_ Unimplemented) ContinueProductAnalysis(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Save user choices for a generated analysis stage
+// (PUT /api/v1/product/{id}/analysis/review)
+func (_ Unimplemented) SaveProductAnalysisReview(w http.ResponseWriter, r *http.Request, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1543,6 +1605,70 @@ func (siw *ServerInterfaceWrapper) StartProductAnalysis(w http.ResponseWriter, r
 	handler.ServeHTTP(w, r)
 }
 
+// ContinueProductAnalysis operation middleware
+func (siw *ServerInterfaceWrapper) ContinueProductAnalysis(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ContinueProductAnalysis(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SaveProductAnalysisReview operation middleware
+func (siw *ServerInterfaceWrapper) SaveProductAnalysisReview(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SaveProductAnalysisReview(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // RunProductFeedbackSurvey operation middleware
 func (siw *ServerInterfaceWrapper) RunProductFeedbackSurvey(w http.ResponseWriter, r *http.Request) {
 
@@ -1837,6 +1963,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/product/{id}/analysis", wrapper.StartProductAnalysis)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/product/{id}/analysis/continue", wrapper.ContinueProductAnalysis)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/product/{id}/analysis/review", wrapper.SaveProductAnalysisReview)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/testing/product-feedback-survey", wrapper.RunProductFeedbackSurvey)
@@ -3043,6 +3175,149 @@ func (response StartProductAnalysis500JSONResponse) VisitStartProductAnalysisRes
 	return err
 }
 
+type ContinueProductAnalysisRequestObject struct {
+	Id string `json:"id"`
+}
+
+type ContinueProductAnalysisResponseObject interface {
+	VisitContinueProductAnalysisResponse(w http.ResponseWriter) error
+}
+
+type ContinueProductAnalysis200JSONResponse ProductAnalysisResponse
+
+func (response ContinueProductAnalysis200JSONResponse) VisitContinueProductAnalysisResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ContinueProductAnalysis404JSONResponse ErrBody
+
+func (response ContinueProductAnalysis404JSONResponse) VisitContinueProductAnalysisResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ContinueProductAnalysis409JSONResponse ErrBody
+
+func (response ContinueProductAnalysis409JSONResponse) VisitContinueProductAnalysisResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ContinueProductAnalysis500JSONResponse ErrBody
+
+func (response ContinueProductAnalysis500JSONResponse) VisitContinueProductAnalysisResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveProductAnalysisReviewRequestObject struct {
+	Id   string `json:"id"`
+	Body *SaveProductAnalysisReviewJSONRequestBody
+}
+
+type SaveProductAnalysisReviewResponseObject interface {
+	VisitSaveProductAnalysisReviewResponse(w http.ResponseWriter) error
+}
+
+type SaveProductAnalysisReview200JSONResponse ProductAnalysisReviewResponse
+
+func (response SaveProductAnalysisReview200JSONResponse) VisitSaveProductAnalysisReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveProductAnalysisReview400JSONResponse ErrBody
+
+func (response SaveProductAnalysisReview400JSONResponse) VisitSaveProductAnalysisReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveProductAnalysisReview404JSONResponse ErrBody
+
+func (response SaveProductAnalysisReview404JSONResponse) VisitSaveProductAnalysisReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveProductAnalysisReview409JSONResponse ErrBody
+
+func (response SaveProductAnalysisReview409JSONResponse) VisitSaveProductAnalysisReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveProductAnalysisReview500JSONResponse ErrBody
+
+func (response SaveProductAnalysisReview500JSONResponse) VisitSaveProductAnalysisReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RunProductFeedbackSurveyRequestObject struct {
 }
 
@@ -3339,6 +3614,12 @@ type StrictServerInterface interface {
 	// Analyze the saved product, select an audience, and generate hypotheses
 	// (POST /api/v1/product/{id}/analysis)
 	StartProductAnalysis(ctx context.Context, request StartProductAnalysisRequestObject) (StartProductAnalysisResponseObject, error)
+	// Continue an analysis after user review
+	// (POST /api/v1/product/{id}/analysis/continue)
+	ContinueProductAnalysis(ctx context.Context, request ContinueProductAnalysisRequestObject) (ContinueProductAnalysisResponseObject, error)
+	// Save user choices for a generated analysis stage
+	// (PUT /api/v1/product/{id}/analysis/review)
+	SaveProductAnalysisReview(ctx context.Context, request SaveProductAnalysisReviewRequestObject) (SaveProductAnalysisReviewResponseObject, error)
 	// Run the product feedback survey for every persona
 	// (POST /api/v1/testing/product-feedback-survey)
 	RunProductFeedbackSurvey(ctx context.Context, request RunProductFeedbackSurveyRequestObject) (RunProductFeedbackSurveyResponseObject, error)
@@ -3955,6 +4236,65 @@ func (sh *strictHandler) StartProductAnalysis(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// ContinueProductAnalysis operation middleware
+func (sh *strictHandler) ContinueProductAnalysis(w http.ResponseWriter, r *http.Request, id string) {
+	var request ContinueProductAnalysisRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ContinueProductAnalysis(ctx, request.(ContinueProductAnalysisRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ContinueProductAnalysis")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ContinueProductAnalysisResponseObject); ok {
+		if err := validResponse.VisitContinueProductAnalysisResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SaveProductAnalysisReview operation middleware
+func (sh *strictHandler) SaveProductAnalysisReview(w http.ResponseWriter, r *http.Request, id string) {
+	var request SaveProductAnalysisReviewRequestObject
+
+	request.Id = id
+
+	var body SaveProductAnalysisReviewJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SaveProductAnalysisReview(ctx, request.(SaveProductAnalysisReviewRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SaveProductAnalysisReview")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SaveProductAnalysisReviewResponseObject); ok {
+		if err := validResponse.VisitSaveProductAnalysisReviewResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // RunProductFeedbackSurvey operation middleware
 func (sh *strictHandler) RunProductFeedbackSurvey(w http.ResponseWriter, r *http.Request) {
 	var request RunProductFeedbackSurveyRequestObject
@@ -4135,63 +4475,67 @@ func (sh *strictHandler) Healthz(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"PfxvAA==",
+	"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",
+	"AeQ+7U64+3h7uD38awA=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

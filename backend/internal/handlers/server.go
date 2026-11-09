@@ -23,6 +23,7 @@ type Server struct {
 	hypothesisService      *services.HypothesisService
 	productService         *services.ProductService
 	productAnalysis        *services.ProductAnalysisService
+	productAnalysisStarter *services.ProductAnalysisStarter
 	productFeedbackSurvey  *services.ProductFeedbackSurveyService
 	userAuth               *services.UserAuthService
 	yandexDirectConnection *services.YandexDirectConnectionService
@@ -38,6 +39,7 @@ func NewServer(
 	hypothesisService *services.HypothesisService,
 	productService *services.ProductService,
 	productAnalysis *services.ProductAnalysisService,
+	productAnalysisStarter *services.ProductAnalysisStarter,
 	productFeedbackSurvey *services.ProductFeedbackSurveyService,
 	userAuth *services.UserAuthService,
 	yandexDirectConnection *services.YandexDirectConnectionService,
@@ -52,6 +54,7 @@ func NewServer(
 		hypothesisService:      hypothesisService,
 		productService:         productService,
 		productAnalysis:        productAnalysis,
+		productAnalysisStarter: productAnalysisStarter,
 		productFeedbackSurvey:  productFeedbackSurvey,
 		userAuth:               userAuth,
 		yandexDirectConnection: yandexDirectConnection,

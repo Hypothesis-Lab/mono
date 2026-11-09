@@ -39,6 +39,12 @@ api.enhanceEndpoints({
     startProductAnalysis: {
       invalidatesTags: (_result, _error, { id }) => [{ type: 'product', id: `Analysis-${id}` }],
     },
+    saveProductAnalysisReview: {
+      invalidatesTags: (_result, _error, { id }) => [{ type: 'product', id: `Analysis-${id}` }],
+    },
+    continueProductAnalysis: {
+      invalidatesTags: (_result, _error, { id }) => [{ type: 'product', id: `Analysis-${id}` }],
+    },
     createProduct: {
       invalidatesTags: (_result, _error, { createProductRequest }) => [
         { type: 'product', id: `Hypothesis-${createProductRequest.hypothesis_id}` },

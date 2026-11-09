@@ -1,6 +1,8 @@
 import styled from 'styled-components'
 
 export const Page = styled.main`
+  display: flex;
+  flex-direction: column;
   max-width: 100%;
   margin: 40px auto;
   padding: 0 16px;
@@ -66,6 +68,7 @@ export const AudiencesSection = styled.section`
   border-radius: 8px;
   background: #fafafa;
   margin-top: 16px;
+  order: 3;
 `
 
 export const AudienceList = styled.ul`
@@ -87,6 +90,37 @@ export const AudienceItem = styled.li`
   border: 1px solid #e2e2e2;
   border-radius: 6px;
   background: #fff;
+`
+
+export const ReviewItem = styled.label`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e2e2e2;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+`
+
+export const ReviewCheckbox = styled.input`
+  margin-top: 3px;
+`
+
+export const ReviewForm = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #d8d8d8;
+  border-radius: 6px;
+  background: #fff;
+`
+
+export const ReviewHeading = styled.h3`
+  margin: 0;
+  font-size: 16px;
+  color: #222;
 `
 
 export const AudienceDetails = styled.details`
@@ -132,6 +166,7 @@ export const FilesSection = styled.section`
   border-radius: 8px;
   background: #fafafa;
   margin-top: 16px;
+  order: 2;
 `
 
 export const SectionTitle = styled.h2`

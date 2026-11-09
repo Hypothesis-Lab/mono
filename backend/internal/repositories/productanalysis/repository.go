@@ -29,8 +29,17 @@ type Run struct {
 	ProductResult    json.RawMessage
 	AudienceResult   json.RawMessage
 	HypothesisResult json.RawMessage
+	AudienceReview   *StageReview
+	HypothesisReview *StageReview
 	CreatedAt        time.Time
 	FinishedAt       *time.Time
+}
+
+type StageReview struct {
+	Stage                string
+	SelectedCandidateIDs []string
+	CustomCandidates     json.RawMessage
+	UpdatedAt            time.Time
 }
 
 type Repository struct {
@@ -120,6 +129,10 @@ func (r *Repository) Get(ctx context.Context, id string) (*Run, error) {
 		return nil, fmt.Errorf("get product analysis run %s: %w", id, err)
 	}
 
+	if err := r.loadReviews(ctx, run); err != nil {
+		return nil, fmt.Errorf("load product analysis reviews for run %s: %w", id, err)
+	}
+
 	return run, nil
 }
 
@@ -196,7 +209,7 @@ func (r *Repository) SaveResult(ctx context.Context, runID, stage string, result
 		return fmt.Errorf("invalid result stage %q", stage)
 	}
 
-	if status != "running" && status != "blocked" && status != "completed" {
+	if status != "running" && status != "waiting_for_user_input" && status != "blocked" && status != "completed" {
 		return fmt.Errorf("invalid product analysis result status %q", status)
 	}
 
@@ -215,6 +228,37 @@ func (r *Repository) SaveResult(ctx context.Context, runID, stage string, result
 	return nil
 }
 
+func (r *Repository) SaveReview(ctx context.Context, runID, stage string, selectedCandidateIDs []string, customCandidates json.RawMessage) (*StageReview, error) {
+	if stage != "audience" && stage != "hypotheses" {
+		return nil, fmt.Errorf("invalid product analysis review stage %q", stage)
+	}
+
+	review := &StageReview{}
+	err := r.db.Pool().QueryRow(ctx, `
+		INSERT INTO product_analysis_review (run_id, stage, selected_candidate_ids, custom_candidates)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (run_id, stage) DO UPDATE SET
+			selected_candidate_ids = EXCLUDED.selected_candidate_ids,
+			custom_candidates = EXCLUDED.custom_candidates,
+			updated_at = NOW()
+		RETURNING stage, selected_candidate_ids, custom_candidates, updated_at`,
+		runID,
+		stage,
+		selectedCandidateIDs,
+		customCandidates,
+	).Scan(
+		&review.Stage,
+		&review.SelectedCandidateIDs,
+		&review.CustomCandidates,
+		&review.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("save product analysis %s review for run %s: %w", stage, runID, err)
+	}
+
+	return review, nil
+}
+
 func (r *Repository) Fail(ctx context.Context, runID string) error {
 	result, err := r.db.Pool().Exec(ctx, `UPDATE product_analysis_run SET status = 'failed', finished_at = NOW()
 		WHERE id = $1 AND status IN ('queued', 'running', 'failed')`, runID)
@@ -224,6 +268,42 @@ func (r *Repository) Fail(ctx context.Context, runID string) error {
 
 	if result.RowsAffected() != 1 {
 		return fmt.Errorf("fail product analysis run %s: run missing or already finished", runID)
+	}
+
+	return nil
+}
+
+func (r *Repository) loadReviews(ctx context.Context, run *Run) error {
+	rows, err := r.db.Pool().Query(ctx, `
+		SELECT stage, selected_candidate_ids, custom_candidates, updated_at
+		FROM product_analysis_review
+		WHERE run_id = $1`, run.ID)
+	if err != nil {
+		return fmt.Errorf("query reviews: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		review := &StageReview{}
+		if err := rows.Scan(
+			&review.Stage,
+			&review.SelectedCandidateIDs,
+			&review.CustomCandidates,
+			&review.UpdatedAt,
+		); err != nil {
+			return fmt.Errorf("scan review: %w", err)
+		}
+
+		switch review.Stage {
+		case "audience":
+			run.AudienceReview = review
+		case "hypotheses":
+			run.HypothesisReview = review
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate reviews: %w", err)
 	}
 
 	return nil

@@ -45,6 +45,14 @@ func NewProductAnalysisStarter(lc fx.Lifecycle, runs *productanalysis.Repository
 	return s
 }
 
+func (s *ProductAnalysisStarter) Continue(ctx context.Context, runID, stage string) error {
+	if err := s.temporal.SignalWorkflow(ctx, "product-analysis-"+runID, "", productAnalysisContinueSignal, stage); err != nil {
+		return fmt.Errorf("signal product analysis workflow %s to continue %s: %w", runID, stage, err)
+	}
+
+	return nil
+}
+
 func (s *ProductAnalysisStarter) run(ctx context.Context) {
 	defer close(s.done)
 	ticker := time.NewTicker(5 * time.Second)

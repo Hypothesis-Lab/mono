@@ -96,9 +96,24 @@ def build_graph(stages: AudienceStages, *, checkpointer: Any = None, observer: A
         if assessment.status == "fail":
             segments = []
 
+        candidates = []
+        for index, segment in enumerate(_safe_candidates(segments), 1):
+            candidates.append(
+                {
+                    "candidate_id": f"aud_{index:03d}",
+                    **segment,
+                    "rationale": choice.rationale,
+                    "supporting_signals": choice.supporting_signals,
+                    "unknowns": choice.unknowns,
+                    "review": assessment.model_dump(mode="json"),
+                }
+            )
+
         audience = {
             "status": "partial" if segments else "blocked",
-            "segments": _safe_candidates(segments),
+            "candidates": candidates,
+            "selected_candidate_ids": [candidate["candidate_id"] for candidate in candidates],
+            "segments": candidates,
             "selection": choice.model_dump(mode="json"),
             "review": assessment.model_dump(mode="json"),
             "data_profile": {"snapshot_refs": [data.segment_set_id]},

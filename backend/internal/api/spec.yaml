@@ -665,6 +665,88 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrBody"
+  /api/v1/product/{id}/analysis/review:
+    put:
+      operationId: saveProductAnalysisReview
+      tags: [product]
+      summary: Save user choices for a generated analysis stage
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductAnalysisReviewRequest"
+      responses:
+        "200":
+          description: saved stage review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductAnalysisReviewResponse"
+        "400":
+          description: invalid stage review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "404":
+          description: product or analysis not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "409":
+          description: stage is not awaiting user input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+  /api/v1/product/{id}/analysis/continue:
+    post:
+      operationId: continueProductAnalysis
+      tags: [product]
+      summary: Continue an analysis after user review
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: analysis resumed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductAnalysisResponse"
+        "404":
+          description: product or analysis not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "409":
+          description: analysis is not waiting for user input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
+        "500":
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
   /api/v1/hypothesis/{id}/files:
     get:
       operationId: listProductFiles
@@ -1026,14 +1108,48 @@ components:
         description: { type: string, minLength: 1 }
     ProductAnalysisResponse:
       type: object
-      required: [id, status, current_stage, product_result, audience_result, hypothesis_result]
+      required: [id, status, current_stage, product_result, audience_result, hypothesis_result, audience_review, hypothesis_review]
       properties:
         id: { type: string }
-        status: { type: string, enum: [queued, running, blocked, failed, completed] }
+        status: { type: string, enum: [queued, running, waiting_for_user_input, blocked, failed, completed] }
         current_stage: { type: string, enum: [product, audience, hypotheses] }
         product_result: { nullable: true }
         audience_result: { nullable: true }
         hypothesis_result: { nullable: true }
+        audience_review: { nullable: true }
+        hypothesis_review: { nullable: true }
+    ProductAnalysisReviewRequest:
+      type: object
+      required: [stage, selected_candidate_ids, custom_candidates]
+      properties:
+        stage:
+          $ref: "#/components/schemas/ProductAnalysisReviewStage"
+        selected_candidate_ids:
+          type: array
+          items: { type: string, minLength: 1 }
+        custom_candidates:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    ProductAnalysisReviewStage:
+      type: string
+      enum: [audience, hypotheses]
+    ProductAnalysisReviewResponse:
+      type: object
+      required: [stage, selected_candidate_ids, custom_candidates, updated_at]
+      properties:
+        stage:
+          $ref: "#/components/schemas/ProductAnalysisReviewStage"
+        selected_candidate_ids:
+          type: array
+          items: { type: string }
+        custom_candidates:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        updated_at: { type: string, format: date-time }
     ProductCategory:
       type: string
       enum:

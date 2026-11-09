@@ -19,9 +19,10 @@ import (
 )
 
 const (
-	productAnalysisTaskQueue     = "product-analysis"
-	productAnalysisStageActivity = "product-analysis.stage"
-	productAnalysisFailActivity  = "product-analysis.fail"
+	productAnalysisTaskQueue      = "product-analysis"
+	productAnalysisStageActivity  = "product-analysis.stage"
+	productAnalysisFailActivity   = "product-analysis.fail"
+	productAnalysisContinueSignal = "product-analysis.continue"
 )
 
 type productAnalysisStageResult struct {
@@ -56,7 +57,7 @@ func productAnalysisWorkflow(ctx workflow.Context, runID string) error {
 		StartToCloseTimeout: time.Minute,
 		RetryPolicy:         &temporal.RetryPolicy{InitialInterval: time.Second, MaximumInterval: 30 * time.Second, MaximumAttempts: 5},
 	})
-	for _, stage := range []string{"product", "audience", "hypotheses"} {
+	for _, stage := range []string{"product", "audience"} {
 		for {
 			var state productAnalysisStageResult
 			if err := workflow.ExecuteActivity(activityCtx, productAnalysisStageActivity, runID, stage).Get(ctx, &state); err != nil {
@@ -81,7 +82,30 @@ func productAnalysisWorkflow(ctx workflow.Context, runID string) error {
 		}
 	}
 
-	return nil
+	var requestedStage string
+	workflow.GetSignalChannel(ctx, productAnalysisContinueSignal).Receive(ctx, &requestedStage)
+	if requestedStage != "hypotheses" {
+		return fmt.Errorf("run %s received unsupported continuation stage %q", runID, requestedStage)
+	}
+
+	for {
+		var state productAnalysisStageResult
+		if err := workflow.ExecuteActivity(activityCtx, productAnalysisStageActivity, runID, "hypotheses").Get(ctx, &state); err != nil {
+			if failErr := workflow.ExecuteActivity(activityCtx, productAnalysisFailActivity, runID).Get(ctx, nil); failErr != nil {
+				return fmt.Errorf("run %s stage hypotheses: %w; mark failed: %w", runID, err, failErr)
+			}
+
+			return fmt.Errorf("run %s stage hypotheses: %w", runID, err)
+		}
+
+		if state.Blocked || !state.Pending {
+			return nil
+		}
+
+		if err := workflow.Sleep(ctx, 5*time.Second); err != nil {
+			return fmt.Errorf("wait for run %s stage hypotheses: %w", runID, err)
+		}
+	}
 }
 
 func (a *productAnalysisActivities) stage(ctx context.Context, runID, stage string) (*productAnalysisStageResult, error) {
@@ -138,6 +162,8 @@ func (a *productAnalysisActivities) completeStage(ctx context.Context, runID, st
 	status := "running"
 	if blocked {
 		status = "blocked"
+	} else if stage == "audience" {
+		status = "waiting_for_user_input"
 	} else if stage == "hypotheses" {
 		status = "completed"
 	}
@@ -198,11 +224,80 @@ func (a *productAnalysisActivities) stageInput(ctx context.Context, run *product
 	}
 
 	if stage == "hypotheses" {
-		input, err := json.Marshal(map[string]any{"product_passport": product.Passport, "audience_result": run.AudienceResult})
+		audienceResult, err := applyAudienceReview(run.AudienceResult, run.AudienceReview)
+		if err != nil {
+			return "", nil, fmt.Errorf("apply audience review: %w", err)
+		}
+
+		input, err := json.Marshal(map[string]any{"product_passport": product.Passport, "audience_result": audienceResult})
 		return "hypothesis_generation", input, err
 	}
 
 	return "", nil, fmt.Errorf("unknown product analysis stage %q", stage)
+}
+
+func applyAudienceReview(result json.RawMessage, review *productanalysis.StageReview) (json.RawMessage, error) {
+	if review == nil {
+		return result, nil
+	}
+
+	var envelope map[string]any
+	if err := json.Unmarshal(result, &envelope); err != nil {
+		return nil, fmt.Errorf("decode audience result: %w", err)
+	}
+
+	audience, ok := envelope["audience"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("audience result is missing audience object")
+	}
+
+	candidates, _ := audience["candidates"].([]any)
+	byID := make(map[string]map[string]any, len(candidates))
+	for _, item := range candidates {
+		candidate, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		id, _ := candidate["candidate_id"].(string)
+		if id != "" {
+			byID[id] = candidate
+		}
+	}
+
+	custom := []map[string]any{}
+	if err := json.Unmarshal(review.CustomCandidates, &custom); err != nil {
+		return nil, fmt.Errorf("decode audience custom candidates: %w", err)
+	}
+
+	for _, candidate := range custom {
+		id, _ := candidate["candidate_id"].(string)
+		if id != "" {
+			byID[id] = candidate
+		}
+	}
+
+	selected := make([]any, 0, len(review.SelectedCandidateIDs))
+	for _, id := range review.SelectedCandidateIDs {
+		candidate, ok := byID[id]
+		if !ok {
+			return nil, fmt.Errorf("selected audience candidate %q is missing", id)
+		}
+
+		selected = append(selected, candidate)
+	}
+
+	audience["segments"] = selected
+	audience["selected_candidate_ids"] = review.SelectedCandidateIDs
+	audience["custom_candidates"] = custom
+	envelope["audience"] = audience
+
+	updated, err := json.Marshal(envelope)
+	if err != nil {
+		return nil, fmt.Errorf("encode reviewed audience result: %w", err)
+	}
+
+	return updated, nil
 }
 
 func (a *productAnalysisActivities) fail(ctx context.Context, runID string) error {

@@ -16,6 +16,8 @@ import {
   useGetProductAnalysisQuery,
   useGetHypothesisProductQuery,
   useListProductFilesQuery,
+  useContinueProductAnalysisMutation,
+  useSaveProductAnalysisReviewMutation,
   useStartProductAnalysisMutation,
   useUpdateProductMutation,
   useUploadProductFileMutation,
@@ -63,6 +65,19 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return isRecord(value) ? value : null
 }
 
+function audienceCandidates(value: unknown): Record<string, unknown>[] {
+  const result = asRecord(value)
+  const audience = asRecord(result?.audience) ?? result
+  const candidates = Array.isArray(audience?.candidates) ? audience.candidates : audience?.segments
+  return Array.isArray(candidates) ? candidates.filter(isRecord) : []
+}
+
+function candidateId(candidate: Record<string, unknown>, index: number): string {
+  if (typeof candidate.candidate_id === 'string' && candidate.candidate_id !== '') return candidate.candidate_id
+  if (typeof candidate.segment_id === 'string' && candidate.segment_id !== '') return candidate.segment_id
+  return `audience_${index + 1}`
+}
+
 export function ProductPage() {
   const navigate = useNavigate()
   const { hid } = useParams<{ hid: string }>()
@@ -89,6 +104,8 @@ export function ProductPage() {
   const [uploadProductFile, { isLoading: uploading }] = useUploadProductFileMutation()
   const [deleteProductFile] = useDeleteProductFileMutation()
   const [startAnalysis, { isLoading: startingAnalysis }] = useStartProductAnalysisMutation()
+  const [saveAnalysisReview, { isLoading: savingAnalysisReview }] = useSaveProductAnalysisReviewMutation()
+  const [continueAnalysis, { isLoading: continuingAnalysis }] = useContinueProductAnalysisMutation()
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -125,6 +142,12 @@ export function ProductPage() {
   const [fileDeleteError, setFileDeleteError] = useState<string | null>(null)
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null)
   const [analysisStartError, setAnalysisStartError] = useState<string | null>(null)
+  const [analysisReviewError, setAnalysisReviewError] = useState<string | null>(null)
+  const [audienceSelectionRunId, setAudienceSelectionRunId] = useState<string | null>(null)
+  const [selectedAudienceIds, setSelectedAudienceIds] = useState<string[]>([])
+  const [customAudiences, setCustomAudiences] = useState<Record<string, unknown>[]>([])
+  const [customAudienceName, setCustomAudienceName] = useState('')
+  const [customAudienceDescription, setCustomAudienceDescription] = useState('')
 
 
   const hasBrandbook = (files ?? []).some((file) => file.type === 'brandbook')
@@ -187,6 +210,23 @@ export function ProductPage() {
       setFileType('other')
     }
   }, [hasBrandbook, fileType])
+
+  useEffect(() => {
+    if (!analysis || analysis.id === audienceSelectionRunId) return
+
+    const candidates = audienceCandidates(analysis.audience_result)
+    const review = asRecord(analysis.audience_review)
+    const reviewedIds = Array.isArray(review?.selected_candidate_ids)
+      ? review.selected_candidate_ids.filter((id): id is string => typeof id === 'string')
+      : []
+    setSelectedAudienceIds(
+      reviewedIds.length > 0 ? reviewedIds : candidates.map((item, index) => candidateId(item, index)),
+    )
+    setCustomAudiences(
+      Array.isArray(review?.custom_candidates) ? review.custom_candidates.filter(isRecord) : [],
+    )
+    setAudienceSelectionRunId(analysis.id)
+  }, [analysis, audienceSelectionRunId])
 
   if (!hid) {
     return (
@@ -423,8 +463,61 @@ export function ProductPage() {
     }
   }
 
+  function toggleAudienceCandidate(id: string) {
+    setSelectedAudienceIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    )
+  }
+
+  function handleAddCustomAudience() {
+    const nameValue = customAudienceName.trim()
+    const descriptionValue = customAudienceDescription.trim()
+    if (!nameValue) {
+      setAnalysisReviewError('Укажите название собственной аудитории')
+      return
+    }
+
+    const id = `custom_audience_${String(customAudiences.length + 1).padStart(3, '0')}`
+    const customCandidate = {
+      candidate_id: id,
+      segment_id: id,
+      name: nameValue,
+      description: descriptionValue,
+    }
+    setCustomAudiences((current) => [...current, customCandidate])
+    setSelectedAudienceIds((current) => [...current, id])
+    setCustomAudienceName('')
+    setCustomAudienceDescription('')
+    setAnalysisReviewError(null)
+  }
+
+  async function handleSaveAudienceReview() {
+    if (!product || !analysis) return
+
+    if (selectedAudienceIds.length === 0) {
+      setAnalysisReviewError('Выберите хотя бы одну аудиторию или добавьте собственную')
+      return
+    }
+
+    setAnalysisReviewError(null)
+    try {
+      await saveAnalysisReview({
+        id: product.id,
+        productAnalysisReviewRequest: {
+          stage: 'audience',
+          selected_candidate_ids: selectedAudienceIds,
+          custom_candidates: customAudiences,
+        },
+      }).unwrap()
+      await continueAnalysis({ id: product.id }).unwrap()
+    } catch (err) {
+      setAnalysisReviewError(rtkErrorMessage(err, 'Не удалось сохранить выбор аудитории'))
+    }
+  }
+
   const saving = creating || updating
   const filesList = files ?? []
+  const audienceCandidateList = audienceCandidates(analysis?.audience_result)
   const hypothesisResult = asRecord(analysis?.hypothesis_result)
   const hypotheses = Array.isArray(hypothesisResult?.hypotheses)
     ? hypothesisResult.hypotheses.filter(isRecord)
@@ -704,6 +797,95 @@ export function ProductPage() {
             <JsonTree value={analysis.audience_result} />
           </S.AudienceDetails>
         )}
+        {analysis?.status === 'waiting_for_user_input' && analysis.current_stage === 'audience' && (
+          <S.ReviewForm>
+            <S.ReviewHeading>Проверьте предложенные аудитории</S.ReviewHeading>
+            <S.Message>Оставьте подходящие варианты или добавьте собственную аудиторию.</S.Message>
+            {audienceCandidateList.length > 0 && (
+              <S.AudienceList>
+                {audienceCandidateList.map((candidate, index) => {
+                  const id = candidateId(candidate, index)
+                  const title = typeof candidate.name === 'string'
+                    ? candidate.name
+                    : typeof candidate.segment_id === 'string'
+                      ? candidate.segment_id
+                      : `Аудитория ${index + 1}`
+                  const description = typeof candidate.description === 'string'
+                    ? candidate.description
+                    : typeof candidate.rationale === 'string'
+                      ? candidate.rationale
+                      : 'Описание не указано'
+                  return (
+                    <S.ReviewItem key={id}>
+                      <S.ReviewCheckbox
+                        type="checkbox"
+                        checked={selectedAudienceIds.includes(id)}
+                        onChange={() => toggleAudienceCandidate(id)}
+                      />
+                      <S.AudienceInfo>
+                        <S.AudienceDescription>{title}</S.AudienceDescription>
+                        <S.AudienceMeta>{description}</S.AudienceMeta>
+                      </S.AudienceInfo>
+                    </S.ReviewItem>
+                  )
+                })}
+              </S.AudienceList>
+            )}
+            {customAudiences.length > 0 && (
+              <S.AudienceList>
+                {customAudiences.map((candidate) => {
+                  const id = candidateId(candidate, 0)
+                  return (
+                    <S.ReviewItem key={id}>
+                      <S.ReviewCheckbox
+                        type="checkbox"
+                        checked={selectedAudienceIds.includes(id)}
+                        onChange={() => toggleAudienceCandidate(id)}
+                      />
+                      <S.AudienceInfo>
+                        <S.AudienceDescription>
+                          {typeof candidate.name === 'string' ? candidate.name : id}
+                        </S.AudienceDescription>
+                        <S.AudienceMeta>Собственная аудитория</S.AudienceMeta>
+                      </S.AudienceInfo>
+                    </S.ReviewItem>
+                  )
+                })}
+              </S.AudienceList>
+            )}
+            <S.Field>
+              Название собственной аудитории
+              <S.Input
+                value={customAudienceName}
+                onChange={(event) => setCustomAudienceName(event.target.value)}
+                placeholder="Например, новые пользователи"
+              />
+            </S.Field>
+            <S.Field>
+              Описание аудитории
+              <S.TextArea
+                rows={2}
+                value={customAudienceDescription}
+                onChange={(event) => setCustomAudienceDescription(event.target.value)}
+                placeholder="Кого нужно включить в аудиторию"
+              />
+            </S.Field>
+            <S.ButtonGroup>
+              <S.Button type="button" onClick={handleAddCustomAudience} disabled={savingAnalysisReview || continuingAnalysis}>
+                Добавить аудиторию
+              </S.Button>
+              <S.Button
+                type="button"
+                $success
+                onClick={handleSaveAudienceReview}
+                disabled={savingAnalysisReview || continuingAnalysis}
+              >
+                {savingAnalysisReview || continuingAnalysis ? 'Сохраняем…' : 'Сохранить и продолжить'}
+              </S.Button>
+            </S.ButtonGroup>
+            {analysisReviewError && <S.ErrorMessage>{analysisReviewError}</S.ErrorMessage>}
+          </S.ReviewForm>
+        )}
         {hypotheses.length > 0 && (
           <S.Message>Это черновики для проверки человеком; данные аудиторий синтетические.</S.Message>
         )}
@@ -737,7 +919,13 @@ export function ProductPage() {
           type="button"
           $success
           onClick={handleStartAnalysis}
-          disabled={!product || startingAnalysis || analysis?.status === 'queued' || analysis?.status === 'running'}
+          disabled={
+            !product ||
+            startingAnalysis ||
+            analysis?.status === 'queued' ||
+            analysis?.status === 'running' ||
+            analysis?.status === 'waiting_for_user_input'
+          }
         >
           {startingAnalysis ? 'Запускаем…' : 'Проанализировать и создать гипотезы'}
         </S.Button>
@@ -823,6 +1011,9 @@ function getAnalysisStatusLabel(status: string): string {
   }
   if (status === 'running') {
     return 'в работе'
+  }
+  if (status === 'waiting_for_user_input') {
+    return 'ждёт вашего выбора'
   }
   if (status === 'completed') {
     return 'завершена'
