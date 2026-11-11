@@ -1,19 +1,8 @@
 import styled from 'styled-components'
+import { pageLayout } from '../../styles/layout'
 
 export const Page = styled.main`
-  max-width: 1120px;
-  margin: 40px auto;
-  padding: 0 16px;
-
-  @media (min-width: 640px) {
-    margin: 60px auto;
-    padding: 0 24px;
-  }
-
-  @media (min-width: 1024px) {
-    margin: 80px auto;
-    padding: 0 32px;
-  }
+  ${pageLayout({ tabletMaxWidth: '1120px', desktopMaxWidth: '1120px' })}
 `
 
 export const Header = styled.header`

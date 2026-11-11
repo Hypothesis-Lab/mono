@@ -18,16 +18,18 @@ describe('DashboardMainPage', () => {
 
     renderWithProviders(<DashboardMainPage />)
 
-    expect(
-      await screen.findByRole('heading', { level: 2, name: 'First hypothesis' }),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('heading', { level: 2, name: 'Second hypothesis' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'First hypothesis' })).toHaveAttribute(
+      'href',
+      '/hypothesis/1',
+    )
+    expect(screen.getByRole('link', { name: 'Second hypothesis' })).toHaveAttribute(
+      'href',
+      '/hypothesis/2',
+    )
 
     expect(screen.getByText('Статус: В ожидании')).toBeInTheDocument()
     expect(screen.getByText('Статус: В процессе')).toBeInTheDocument()
 
-    expect(screen.getAllByRole('button', { name: 'Открыть' })).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: 'Открыть' })).not.toBeInTheDocument()
   })
 })

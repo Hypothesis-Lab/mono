@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { getStatusLabel, rtkErrorMessage } from '../../api/structs'
 import { useListHypothesesQuery } from '../../store/generatedApi'
 import * as S from './styles'
@@ -36,15 +36,11 @@ export function DashboardMainPage() {
             {hypotheses.map((hypothesis) => (
               <S.Item key={hypothesis.id}>
                 <S.ItemContent>
-                  <S.ItemName>{hypothesis.description}</S.ItemName>
+                  <S.ItemName as={Link} to={`/hypothesis/${hypothesis.id}`}>
+                    {hypothesis.description}
+                  </S.ItemName>
                   <S.ItemMeta>Статус: {getStatusLabel(hypothesis.status)}</S.ItemMeta>
                 </S.ItemContent>
-                <S.ItemButton
-                  type="button"
-                  onClick={() => navigate(`/hypothesis/${hypothesis.id}`)}
-                >
-                  Открыть
-                </S.ItemButton>
               </S.Item>
             ))}
           </S.List>

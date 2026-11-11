@@ -11,6 +11,7 @@ import {
   useGetHypothesisQuery,
   useStopHypothesisMutation,
 } from '../../store/generatedApi'
+import { ProductAnalysis } from './components/ProductAnalysis/page'
 import * as S from './styles'
 
 export function HypothesisPage() {
@@ -88,9 +89,11 @@ export function HypothesisPage() {
                 <S.Message>Нет продукта</S.Message>
               </>
             )}
-          </S.ProductSection>
+           </S.ProductSection>
 
-          <S.ButtonGroup>
+           {product && <ProductAnalysis productId={product.id} />}
+
+           <S.ButtonGroup>
             <S.EditButton
               type="button"
               disabled={hypothesis.status !== 'idle'}

@@ -1,6 +1,6 @@
 .env
 opencode.json
 backend/datasets/personas-1m/
-datasets/audience_sources/*/
+datasets/audience_sources/*/datasets/
 evaluation.html
 evaluation.sqlite3

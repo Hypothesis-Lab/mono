@@ -1,25 +1,8 @@
 import styled from 'styled-components'
+import { pageLayout } from '../../styles/layout'
 
 export const Page = styled.main`
-  max-width: 100%;
-  margin: 40px auto;
-  padding: 0 16px;
-
-  @media (min-width: 640px) {
-    max-width: 420px;
-    margin: 60px auto;
-    padding: 0 24px;
-  }
-
-  @media (min-width: 1024px) {
-    max-width: 480px;
-    margin: 80px auto;
-    padding: 0 32px;
-  }
-
-  @media (min-width: 1280px) {
-    padding: 0 40px;
-  }
+  ${pageLayout({ tabletMaxWidth: '420px', desktopMaxWidth: '480px' })}
 `
 
 export const Title = styled.h1`

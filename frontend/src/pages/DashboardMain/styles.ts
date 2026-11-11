@@ -1,25 +1,8 @@
 import styled from 'styled-components'
+import { pageLayout } from '../../styles/layout'
 
 export const Page = styled.main`
-  max-width: 100%;
-  margin: 40px auto;
-  padding: 0 16px;
-
-  @media (min-width: 640px) {
-    max-width: 960px;
-    margin: 60px auto;
-    padding: 0 24px;
-  }
-
-  @media (min-width: 1024px) {
-    max-width: 1120px;
-    margin: 80px auto;
-    padding: 0 32px;
-  }
-
-  @media (min-width: 1280px) {
-    padding: 0 40px;
-  }
+  ${pageLayout({ tabletMaxWidth: '960px', desktopMaxWidth: '1120px' })}
 `
 
 export const Title = styled.h1`
@@ -86,12 +69,6 @@ export const Item = styled.li`
   display: flex;
   flex-direction: column;
   gap: 12px;
-
-  @media (min-width: 768px) {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
 `
 
 export const ItemContent = styled.div`
@@ -101,10 +78,21 @@ export const ItemContent = styled.div`
 `
 
 export const ItemName = styled.h2`
+  display: block;
   font-size: 18px;
   font-weight: 600;
   margin: 0;
   color: #111;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #111;
+    outline-offset: 3px;
+  }
 `
 
 export const ItemDescription = styled.p`
@@ -116,24 +104,4 @@ export const ItemDescription = styled.p`
 export const ItemMeta = styled.span`
   font-size: 12px;
   color: #888;
-`
-
-export const ItemButton = styled.button`
-  align-self: flex-start;
-  padding: 8px 12px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  background: #fff;
-  color: #111;
-  font-size: 14px;
-  cursor: pointer;
-  flex-shrink: 0;
-
-  &:hover {
-    background: #f5f5f5;
-  }
-
-  @media (min-width: 768px) {
-    align-self: center;
-  }
 `
