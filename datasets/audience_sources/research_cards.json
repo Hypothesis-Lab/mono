@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "purpose": "Methodological evidence cards for audience selection; not evidence of product demand.",
+  "cards": [
+    {
+      "source_id": "SRC-01",
+      "title": "Methods of bank-client segmentation for transfers",
+      "artifact": "01_bank_transfers/papers/01.html",
+      "evidence_level": "summary_page",
+      "keywords": ["bank", "transaction", "behavior", "segmentation", "k-means", "dbscan", "dtw", "stability", "ensemble"],
+      "methodological_claim": "The source summary describes comparing K-Means, DBSCAN, Mean Shift and hierarchical clustering with Dynamic Time Warping, and evaluating an ensemble by runtime, memory and silhouette score.",
+      "use_for": ["algorithm comparison", "stability checks", "interpretable evaluation criteria"],
+      "limitations": "This is a university thesis summary; the underlying bank data and full analysis are not part of the local corpus.",
+      "transferability": "low",
+      "transferability_note": "Useful for evaluation design only; it does not establish demand for a current product or segment."
+    },
+    {
+      "source_id": "SRC-04",
+      "title": "Customer segmentation with Open Banking data",
+      "artifact": "04_open_banking/papers/abstract.txt",
+      "evidence_level": "abstract_only",
+      "keywords": ["open banking", "bank", "transaction", "rfm", "k-means", "dbscan", "silhouette", "value", "clustering"],
+      "methodological_claim": "The abstract reports comparing RFM-based K-Means and DBSCAN on three months of anonymized UK Open Banking transactions; it frames cluster labels as behavioral/value groups and compares silhouette coefficients.",
+      "use_for": ["RFM feature interpretation", "algorithm comparison", "cluster quality checks"],
+      "limitations": "Only the abstract is available; the study population, feature construction and validation details are incomplete.",
+      "transferability": "low",
+      "transferability_note": "The UK banking sample and study-specific clusters cannot be treated as evidence about this dataset or Tempo demand."
+    },
+    {
+      "source_id": "SRC-05",
+      "title": "Interpretable customer segmentation in financial services",
+      "artifact": "05_financial_services/papers/05.pdf",
+      "evidence_level": "full_text",
+      "keywords": ["financial services", "bank", "interpretability", "explainability", "customer", "segmentation", "features", "governance"],
+      "methodological_claim": "The source is focused on interpretable segmentation in financial services; it is relevant for requiring segment explanations that map to observable features rather than opaque persona narratives.",
+      "use_for": ["interpretability", "feature governance", "review of unsupported narratives"],
+      "limitations": "The source context is financial services and its empirical setting does not match this synthetic exploratory segment set or a café scheduling product.",
+      "transferability": "low",
+      "transferability_note": "Transfer the interpretability principle, not the source population, thresholds or commercial conclusions."
+    },
+    {
+      "source_id": "SRC-10",
+      "title": "Sequences of purchases in credit card data reveal lifestyles in urban populations",
+      "artifact": "10_credit_card_lifestyles/papers/10.xml",
+      "evidence_level": "full_text",
+      "keywords": ["credit card", "transaction", "purchase sequence", "lifestyle", "behavior", "temporal", "urban", "privacy"],
+      "methodological_claim": "The paper studies purchase sequences as a way to characterize behavioral patterns. Observable transaction sequences can support behavioral profiling, but they do not directly observe motivations, needs or purchase intent.",
+      "use_for": ["boundary between behavior and motivation", "sequence features", "privacy limitations"],
+      "limitations": "The data is a separate urban credit-card population and the paper explicitly describes data-access constraints.",
+      "transferability": "low",
+      "transferability_note": "Use only the distinction between observed behavior and unobserved lifestyle or motivation; do not transfer lifestyle labels."
+    },
+    {
+      "source_id": "SRC-16",
+      "title": "Temporal fluidity in credit-card personas",
+      "artifact": "16_credit_card_personas/papers/16.pdf",
+      "evidence_level": "full_text",
+      "keywords": ["credit card", "persona", "temporal", "time", "stability", "behavior", "segment", "dynamics"],
+      "methodological_claim": "The source concerns temporal fluidity of behavioral personas, supporting a check that segment assignments and feature profiles are not assumed to be stable merely because one snapshot clusters cleanly.",
+      "use_for": ["temporal stability", "re-segmentation", "monitoring drift"],
+      "limitations": "The source population, observation window and persona construction differ from the current segment set.",
+      "transferability": "low",
+      "transferability_note": "It supports asking for a temporal stability test; it does not show that the current segments are stable."
+    },
+    {
+      "source_id": "SRC-21",
+      "title": "Dynamic LRFMS and time-series clustering",
+      "artifact": "21_dynamic_auto_parts/papers/21.xml",
+      "evidence_level": "full_text",
+      "keywords": ["dynamic", "lrfms", "rfm", "time series", "clustering", "behavior", "recency", "frequency", "monetary"],
+      "methodological_claim": "The source uses dynamic LRFMS and time-series clustering, making it relevant to testing whether recency, frequency, monetary or related behavioral profiles change over time.",
+      "use_for": ["dynamic segmentation", "feature windows", "drift checks"],
+      "limitations": "The application domain is auto parts and its data-generating process is not the current synthetic banking dataset.",
+      "transferability": "low",
+      "transferability_note": "Transfer the need to define observation windows and monitor change, not the segment meanings or outcomes."
+    },
+    {
+      "source_id": "SRC-23",
+      "title": "Longitudinal supermarket segmentation validation",
+      "artifact": "23_supermarket_longitudinal/papers/23.html",
+      "evidence_level": "full_text",
+      "keywords": ["supermarket", "retail", "longitudinal", "validation", "stability", "customer", "segment", "time"],
+      "methodological_claim": "The source is directly relevant to longitudinal validation of supermarket customer segments; it supports evaluating whether a segment persists across periods instead of treating a single clustering run as validation.",
+      "use_for": ["longitudinal validation", "segment persistence", "repeatability"],
+      "limitations": "The supermarket setting and private data are not equivalent to the current banking events or Tempo users.",
+      "transferability": "low",
+      "transferability_note": "Use as a methodological prompt for repeated-period validation only."
+    },
+    {
+      "source_id": "SRC-24",
+      "title": "Monitoring customer-segment dynamics",
+      "artifact": "24_segment_dynamics/papers/24.pdf",
+      "evidence_level": "full_text",
+      "keywords": ["segment", "dynamics", "monitoring", "retail", "online retail", "time", "stability", "drift"],
+      "methodological_claim": "The source addresses monitoring how customer segments change, supporting explicit monitoring of drift and reassignment when new behavioral observations arrive.",
+      "use_for": ["segment monitoring", "drift detection", "retraining cadence"],
+      "limitations": "The study uses online retail data and cannot validate the current segment sizes, product fit or audience demand.",
+      "transferability": "low",
+      "transferability_note": "It supports a monitoring plan, not a claim that the current segments will remain stable."
+    },
+    {
+      "source_id": "SRC-25",
+      "title": "UK retail clustering algorithm comparison",
+      "artifact": "25_uk_retail_clustering/papers/25.pdf",
+      "evidence_level": "full_text",
+      "keywords": ["uk retail", "retail", "clustering", "algorithm comparison", "k-means", "rfm", "silhouette", "customer"],
+      "methodological_claim": "The source compares clustering approaches in retail, supporting selection of algorithms by measurable structure, interpretability and business use rather than by algorithm popularity.",
+      "use_for": ["algorithm selection", "cluster validity", "interpretability"],
+      "limitations": "The benchmark is a different retail population and does not contain the current banking event semantics.",
+      "transferability": "low",
+      "transferability_note": "Transfer the comparison procedure, not any reported cluster labels, scores or customer value conclusions."
+    },
+    {
+      "source_id": "SRC-29",
+      "title": "Empirical comparison of RFM clustering approaches",
+      "artifact": "29_rfm_clustering_comparison/papers/29.pdf",
+      "evidence_level": "full_text",
+      "keywords": ["rfm", "recency", "frequency", "monetary", "clustering", "comparison", "retail", "customer value"],
+      "methodological_claim": "The source is an empirical comparison of RFM clustering approaches; it supports treating RFM choices and algorithm comparison as methodological decisions that require validation.",
+      "use_for": ["RFM design", "feature choice", "algorithm comparison"],
+      "limitations": "The empirical company data and commercial context are not available for the current audience decision.",
+      "transferability": "low",
+      "transferability_note": "Do not use reported scores or customer-value labels as forecasts for this product or segment set."
+    }
+  ]
+}

@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -22,7 +25,6 @@ import (
 const (
 	defaultDatabaseURL = "postgres://postgres:postgres@localhost:5433/app?sslmode=disable" //nolint:gosec // Credentials are the local Compose defaults.
 	userEmail          = "a@a"
-	s3KeyPrefix        = "tempo-test-pair"
 	s3Bucket           = "my-bucket"
 	s3Endpoint         = "http://localhost:8333"
 	s3AccessKeyID      = "admin"
@@ -30,21 +32,75 @@ const (
 	s3Region           = "us-east-1"
 )
 
-var attachments = []attachment{
-	{filename: "api-reference.md", path: "api-reference.md", fileType: "reference"},
-	{filename: "brand-book.md", path: "brand-book.md", fileType: "brandbook"},
-	{filename: "features-and-pricing.md", path: "features-and-pricing.md", fileType: "product"},
-	{filename: "glossary.md", path: "glossary.md", fileType: "reference"},
-	{filename: "product-brief.md", path: "product-brief.md", fileType: "product"},
-	{filename: "policies.md", path: "policies.md", fileType: "reference"},
-	{filename: "support-cases.md", path: "support-cases.md", fileType: "reference"},
-	{filename: "website-copy.md", path: "website-copy.md", fileType: "reference"},
-}
-
 type attachment struct {
 	filename string
 	path     string
 	fileType string
+}
+
+type productSeed struct {
+	slug              string
+	s3KeyPrefix       string
+	hypothesis        string
+	name              string
+	description       string
+	category          string
+	keywords          []string
+	price             string
+	experimentGoal    string
+	targetAction      string
+	allowedChannels   []string
+	forbiddenClaims   []string
+	knownConstraints  []string
+	primaryMetric     string
+	metricNumerator   string
+	metricDenominator string
+	unknowns          []string
+}
+
+func productSeedFor(slug string) (productSeed, bool) {
+	seeds := map[string]productSeed{
+		"cafe": {
+			slug:              "cafe",
+			s3KeyPrefix:       "tempo-test-pair",
+			hypothesis:        "Владельцы и управляющие небольших кафе в России, которые сейчас составляют графики смен вручную, захотят попробовать Tempo для создания и публикации расписания команды.",
+			name:              "Tempo",
+			description:       "Сервис для создания и распространения рабочих расписаний небольших кафе.",
+			category:          "food",
+			keywords:          []string{"кафе", "расписание смен"},
+			price:             `{"status":"unknown","description":"Цена не указана."}`,
+			experimentGoal:    "Проверить интерес владельцев и управляющих небольших кафе к пробному использованию Tempo для планирования смен.",
+			targetAction:      "Запросить демонстрацию или начать пробное использование Tempo.",
+			allowedChannels:   []string{},
+			forbiddenClaims:   []string{"Не утверждать, что Tempo автоматически планирует смены.", "Не утверждать, что Tempo прогнозирует спрос."},
+			knownConstraints:  []string{"Спрос и готовность платить не подтверждены."},
+			primaryMetric:     "tempo_trial_interest",
+			metricNumerator:   "Уникальные владельцы или управляющие, запросившие демонстрацию или начавшие пробное использование",
+			metricDenominator: "Уникальные подходящие участники, которым было предложено попробовать Tempo",
+			unknowns:          []string{"Фактическая цена и условия пробного периода не указаны.", "Наличие интереса и готовность платить не подтверждены."},
+		},
+		"bank": {
+			slug:              "bank",
+			s3KeyPrefix:       "lumen-test-pair",
+			hypothesis:        "Действующие держатели дебетовой или зарплатной карты Lumen банка с неравномерными расходами захотят подать заявление на подключение кредитного лимита через мобильное приложение.",
+			name:              "Lumen",
+			description:       "Банковская карта, объединяющая собственные средства и подключаемый кредитный лимит.",
+			category:          "banking_card",
+			keywords:          []string{"Lumen", "банк", "кредитный лимит"},
+			price:             `{"status":"unknown","description":"Итоговые условия и решение по лимиту зависят от банка."}`,
+			experimentGoal:    "Проверить долю действующих держателей карты Lumen банка, подающих заявление на подключение кредитного лимита после знакомства с предложением.",
+			targetAction:      "Подать заявление на подключение кредитного лимита в мобильном приложении Lumen банка.",
+			allowedChannels:   []string{"in_app_banner", "push", "email", "landing", "sms"},
+			forbiddenClaims:   []string{"Не обещать одобрение каждому заявителю.", "Не выдавать желаемый лимит за решение банка.", "Не обещать отсутствие обязательных платежей или переплаты при любых условиях."},
+			knownConstraints:  []string{"Окончательное решение по кредитному лимиту принимает банк.", "Наличие карты не означает одобрение или гарантию подключения лимита."},
+			primaryMetric:     "application_submit_rate",
+			metricNumerator:   "Число уникальных клиентов группы, отправивших заявление в заданное окно наблюдения",
+			metricDenominator: "Число уникальных клиентов, рандомизированных в эту группу",
+			unknowns:          []string{"Фактическая доступность предложения и согласие на коммуникацию проверяются отдельно.", "Результат кредитного решения и готовность клиента использовать лимит не подтверждены."},
+		},
+	}
+	seed, ok := seeds[slug]
+	return seed, ok
 }
 
 func main() {
@@ -54,6 +110,14 @@ func main() {
 }
 
 func run() error {
+	productSlug := flag.String("product", "cafe", "product source set to seed: cafe or bank")
+	flag.Parse()
+
+	seed, ok := productSeedFor(*productSlug)
+	if !ok {
+		return fmt.Errorf("unsupported product %q; choose cafe or bank", *productSlug)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
@@ -75,7 +139,7 @@ func run() error {
 
 	transaction, err := pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("begin Tempo seed transaction: %w", err)
+		return fmt.Errorf("begin %s seed transaction: %w", seed.name, err)
 	}
 	defer transaction.Rollback(ctx) //nolint:errcheck
 
@@ -97,10 +161,10 @@ func run() error {
 		ON CONFLICT (id) DO NOTHING`,
 		hypothesisID,
 		userID,
-		"Владельцы и управляющие небольших кафе в России, которые сейчас составляют графики смен вручную, захотят попробовать Tempo для создания и публикации расписания команды.",
+		seed.hypothesis,
 	)
 	if err != nil {
-		return fmt.Errorf("insert Tempo test hypothesis: %w", err)
+		return fmt.Errorf("insert %s test hypothesis: %w", seed.name, err)
 	}
 
 	_, err = transaction.Exec(ctx, `
@@ -112,40 +176,59 @@ func run() error {
 			metric_denominator, unknowns
 		)
 		VALUES (
-			$1, 'Tempo',
-			'Сервис для создания и распространения рабочих расписаний небольших кафе.',
-			'food', ARRAY['кафе', 'расписание смен'],
-			'{"status":"unknown","description":"Цена не указана."}'::jsonb,
-			$2, 'Tempo', 'Россия', NULL,
-			'Проверить интерес владельцев и управляющих небольших кафе к пробному использованию Tempo для планирования смен.',
-			'Запросить демонстрацию или начать пробное использование Tempo.',
-			'{}',
-			ARRAY['Не утверждать, что Tempo автоматически планирует смены.','Не утверждать, что Tempo прогнозирует спрос.'],
-			ARRAY['Спрос и готовность платить не подтверждены.'],
-			'user_provided', 'tempo_trial_interest', 'increase',
-			'Уникальные владельцы или управляющие, запросившие демонстрацию или начавшие пробное использование',
-			'Уникальные подходящие участники, которым было предложено попробовать Tempo',
-			ARRAY['Фактическая цена и условия пробного периода не указаны.','Наличие интереса и готовность платить не подтверждены.']
+			$1, $2, $3, $4, $5, $6::jsonb, $7,
+			$8, 'Россия', NULL, $9, $10,
+			$11, $12, $13,
+			'user_provided', $14, 'increase', $15,
+			$16, $17
 		)
-		ON CONFLICT (hypothesis_id) DO NOTHING`, productID, hypothesisID)
+		ON CONFLICT (hypothesis_id) DO NOTHING`,
+		productID,
+		seed.name,
+		seed.description,
+		seed.category,
+		seed.keywords,
+		seed.price,
+		hypothesisID,
+		seed.name,
+		seed.experimentGoal,
+		seed.targetAction,
+		seed.allowedChannels,
+		seed.forbiddenClaims,
+		seed.knownConstraints,
+		seed.primaryMetric,
+		seed.metricNumerator,
+		seed.metricDenominator,
+		seed.unknowns,
+	)
 	if err != nil {
-		return fmt.Errorf("insert Tempo test product: %w", err)
+		return fmt.Errorf("insert %s test product: %w", seed.name, err)
 	}
 
-	if err := attachProductFiles(ctx, transaction, s3Client, hypothesisID); err != nil {
+	sourceDirectory, err := locateProductDirectory(seed.slug)
+	if err != nil {
+		return err
+	}
+
+	attachments, err := loadAttachments(sourceDirectory)
+	if err != nil {
+		return err
+	}
+
+	if err := attachProductFiles(ctx, transaction, s3Client, hypothesisID, seed, sourceDirectory, attachments); err != nil {
 		return err
 	}
 
 	var storedProductID string
 	if err := transaction.QueryRow(ctx, "SELECT id FROM product WHERE hypothesis_id = $1", hypothesisID).Scan(&storedProductID); err != nil {
-		return fmt.Errorf("verify Tempo test product: %w", err)
+		return fmt.Errorf("verify %s test product: %w", seed.name, err)
 	}
 
 	if err := transaction.Commit(ctx); err != nil {
 		return fmt.Errorf("commit Tempo seed transaction: %w", err)
 	}
 
-	fmt.Printf("Tempo test pair is ready for %s (hypothesis %s, product %s)\n", userEmail, hypothesisID, storedProductID)
+	fmt.Printf("%s test pair is ready for %s (hypothesis %s, product %s)\n", seed.name, userEmail, hypothesisID, storedProductID)
 	fmt.Printf("Attached %d product files\n", len(attachments))
 	return nil
 }
@@ -170,19 +253,14 @@ func newS3Client(ctx context.Context) (*s3.Client, error) {
 	}), nil
 }
 
-func attachProductFiles(ctx context.Context, transaction pgx.Tx, client *s3.Client, hypothesisID string) error {
-	cafeDirectory, err := locateCafeDirectory()
-	if err != nil {
-		return err
-	}
-
+func attachProductFiles(ctx context.Context, transaction pgx.Tx, client *s3.Client, hypothesisID string, seed productSeed, sourceDirectory string, attachments []attachment) error {
 	for _, item := range attachments {
-		data, err := os.ReadFile(filepath.Join(cafeDirectory, item.path))
+		data, err := os.ReadFile(filepath.Join(sourceDirectory, item.path))
 		if err != nil {
-			return fmt.Errorf("read Tempo attachment %s: %w", item.filename, err)
+			return fmt.Errorf("read %s attachment %s: %w", seed.name, item.filename, err)
 		}
 
-		key := s3KeyPrefix + "/" + hypothesisID + "/" + item.filename
+		key := seed.s3KeyPrefix + "/" + hypothesisID + "/" + item.filename
 		contentType := "text/markdown; charset=utf-8"
 		if _, err := client.PutObject(ctx, &s3.PutObjectInput{
 			Bucket:        aws.String(envOrDefault("S3_BUCKET", s3Bucket)),
@@ -191,7 +269,7 @@ func attachProductFiles(ctx context.Context, transaction pgx.Tx, client *s3.Clie
 			ContentType:   aws.String(contentType),
 			ContentLength: aws.Int64(int64(len(data))),
 		}); err != nil {
-			return fmt.Errorf("upload Tempo attachment %s: %w", item.filename, err)
+			return fmt.Errorf("upload %s attachment %s: %w", seed.name, item.filename, err)
 		}
 
 		textKey := key + ".extracted.txt"
@@ -202,7 +280,7 @@ func attachProductFiles(ctx context.Context, transaction pgx.Tx, client *s3.Clie
 			ContentType:   aws.String("text/plain; charset=utf-8"),
 			ContentLength: aws.Int64(int64(len(data))),
 		}); err != nil {
-			return fmt.Errorf("upload extracted Tempo attachment %s: %w", item.filename, err)
+			return fmt.Errorf("upload extracted %s attachment %s: %w", seed.name, item.filename, err)
 		}
 
 		_, err = transaction.Exec(ctx, `
@@ -212,21 +290,61 @@ func attachProductFiles(ctx context.Context, transaction pgx.Tx, client *s3.Clie
 			uuid.NewString(), hypothesisID, item.fileType, item.filename, contentType, len(data), key,
 		)
 		if err != nil {
-			return fmt.Errorf("record Tempo attachment %s: %w", item.filename, err)
+			return fmt.Errorf("record %s attachment %s: %w", seed.name, item.filename, err)
 		}
 	}
 
 	return nil
 }
 
-func locateCafeDirectory() (string, error) {
-	for _, path := range []string{"../n8n/product/cafe", "n8n/product/cafe"} {
+func locateProductDirectory(productSlug string) (string, error) {
+	for _, path := range []string{"../n8n/product/" + productSlug, "n8n/product/" + productSlug} {
 		if info, err := os.Stat(filepath.Join(path, "product-brief.md")); err == nil && !info.IsDir() {
 			return path, nil
 		}
 	}
 
-	return "", errors.New("locate Tempo source documents: run from the repository root or backend directory")
+	return "", fmt.Errorf("locate %s source documents: run from the repository root or backend directory", productSlug)
+}
+
+func loadAttachments(sourceDirectory string) ([]attachment, error) {
+	entries, err := os.ReadDir(sourceDirectory)
+	if err != nil {
+		return nil, fmt.Errorf("list product source documents: %w", err)
+	}
+
+	attachments := make([]attachment, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || strings.EqualFold(entry.Name(), "README.md") || filepath.Ext(entry.Name()) != ".md" {
+			continue
+		}
+
+		attachments = append(attachments, attachment{
+			filename: entry.Name(),
+			path:     entry.Name(),
+			fileType: attachmentType(entry.Name()),
+		})
+	}
+
+	if len(attachments) == 0 {
+		return nil, fmt.Errorf("no Markdown source documents found in %s", sourceDirectory)
+	}
+
+	sort.Slice(attachments, func(i, j int) bool {
+		return attachments[i].filename < attachments[j].filename
+	})
+	return attachments, nil
+}
+
+func attachmentType(filename string) string {
+	switch filename {
+	case "brand-book.md":
+		return "brandbook"
+	case "features-and-pricing.md", "product-brief.md":
+		return "product"
+	default:
+		return "reference"
+	}
 }
 
 func envOrDefault(key, fallback string) string {

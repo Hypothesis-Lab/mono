@@ -21,9 +21,17 @@ class Selection(StrictModel):
     rationale: str
     supporting_signals: list[str]
     unknowns: list[str]
+    research_refs: list[str] = Field(default_factory=list)
+    evidence_type: Literal["methodological", "empirical", "none"] = "methodological"
+    transferability: Literal["high", "medium", "low", "unknown"] = "unknown"
+    unsupported_claims: list[str] = Field(default_factory=list)
 
 
 class SelectionReview(StrictModel):
     status: Literal["pass", "fail", "unknown"]
     rationale: str
     limitations: list[str]
+    research_refs: list[str] = Field(default_factory=list)
+    evidence_type: Literal["methodological", "empirical", "none"] = "methodological"
+    transferability: Literal["high", "medium", "low", "unknown"] = "unknown"
+    unsupported_claims: list[str] = Field(default_factory=list)

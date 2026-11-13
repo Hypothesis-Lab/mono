@@ -62,3 +62,12 @@ datasets because several papers reuse the same benchmark:
 Shared datasets are stored once and linked from the other source folders. The
 dataset checksums and download URLs are in `manifest.json`; paper access and
 artifact details are in `papers_manifest.json`.
+
+## Research evidence cards
+
+`research_cards.json` is a small, versioned methodological digest of the paper
+corpus for runtime retrieval by the generator. Cards preserve the source ID,
+local artifact, evidence level, methodological claim, limitations and
+transferability warning. They support the design and critique of segmentation;
+they are not evidence of demand, motivation or purchase probability for a
+current product.
