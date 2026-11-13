@@ -198,13 +198,11 @@ export function ProductAnalysis({ productId }: ProductAnalysisProps) {
     }
   }
 
-  async function handleSaveHypothesisRatings() {
-    if (Object.keys(hypothesisRatings).length === 0) {
-      setHypothesisRatingError('Оцените хотя бы одну гипотезу')
-      return
-    }
-
+  async function handleSaveHypothesisRating(id: string, rating: HypothesisRating) {
+    const nextRatings = { ...hypothesisRatings, [id]: rating }
+    setHypothesisRatings(nextRatings)
     setHypothesisRatingError(null)
+
     try {
       await saveAnalysisReview({
         id: productId,
@@ -212,7 +210,7 @@ export function ProductAnalysis({ productId }: ProductAnalysisProps) {
           stage: 'hypotheses',
           selected_candidate_ids: [],
           custom_candidates: [],
-          ratings: hypothesisRatings,
+          ratings: nextRatings,
         },
       }).unwrap()
       await refetchAnalysis()
@@ -262,18 +260,20 @@ export function ProductAnalysis({ productId }: ProductAnalysisProps) {
         <S.ResultsTitle>Результаты</S.ResultsTitle>
       )}
       {isRecord(analysis?.product_result) && (
-        <S.AudienceDetails open>
+        <S.AudienceDetails>
           <S.AudienceSummary>
             <S.SummaryLabel>Паспорт продукта</S.SummaryLabel>
+            <S.SummaryAction aria-hidden="true" />
             <ResultViewToggle value={productView} onChange={setProductView} />
           </S.AudienceSummary>
           {productView === 'rendered' ? <RenderedProduct value={analysis.product_result} /> : <JsonPreview value={analysis.product_result} />}
         </S.AudienceDetails>
       )}
       {isRecord(analysis?.audience_result) && (
-        <S.AudienceDetails open>
+        <S.AudienceDetails>
           <S.AudienceSummary>
             <S.SummaryLabel>Аудитории</S.SummaryLabel>
+            <S.SummaryAction aria-hidden="true" />
             <ResultViewToggle value={audienceView} onChange={setAudienceView} />
           </S.AudienceSummary>
           {audienceView === 'rendered' ? <RenderedAudience value={analysis.audience_result} /> : <JsonPreview value={analysis.audience_result} />}
@@ -432,10 +432,8 @@ export function ProductAnalysis({ productId }: ProductAnalysisProps) {
                           $selected={rating === 'good'}
                           $good
                           aria-pressed={rating === 'good'}
-                          onClick={() => {
-                            setHypothesisRatings((current) => ({ ...current, [id]: 'good' }))
-                            setHypothesisRatingError(null)
-                          }}
+                          onClick={() => void handleSaveHypothesisRating(id, 'good')}
+                          disabled={savingAnalysisReview}
                         >
                           Хорошо
                         </S.RatingButton>
@@ -443,10 +441,8 @@ export function ProductAnalysis({ productId }: ProductAnalysisProps) {
                           type="button"
                           $selected={rating === 'bad'}
                           aria-pressed={rating === 'bad'}
-                          onClick={() => {
-                            setHypothesisRatings((current) => ({ ...current, [id]: 'bad' }))
-                            setHypothesisRatingError(null)
-                          }}
+                          onClick={() => void handleSaveHypothesisRating(id, 'bad')}
+                          disabled={savingAnalysisReview}
                         >
                           Плохо
                         </S.RatingButton>
@@ -457,17 +453,6 @@ export function ProductAnalysis({ productId }: ProductAnalysisProps) {
               </S.AudienceItem>
             ))}
           </S.AudienceList>
-          <S.HypothesisRatingSummary>
-            Оценено: {hypotheses.filter((hypothesis, index) => hypothesisRatings[hypothesisCandidateId(hypothesis, index)]).length} из {hypotheses.length}
-          </S.HypothesisRatingSummary>
-          <S.Button
-            type="button"
-            $success
-            onClick={handleSaveHypothesisRatings}
-            disabled={savingAnalysisReview}
-          >
-            {savingAnalysisReview ? 'Сохраняем…' : 'Сохранить оценки'}
-          </S.Button>
           {hypothesisRatingError && <S.ErrorMessage>{hypothesisRatingError}</S.ErrorMessage>}
         </S.AudienceDetails>
       )}

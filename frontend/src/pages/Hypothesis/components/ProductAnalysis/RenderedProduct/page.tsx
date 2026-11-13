@@ -162,7 +162,7 @@ export function RenderedProduct({ value }: RenderedProductProps) {
         <S.QualityPanel>
           <S.SectionHeading>Проверка результата</S.SectionHeading>
           <S.QualityItems>
-            {evaluation?.overall_score !== undefined && <S.QualityItem><S.QualityLabel>Оценка</S.QualityLabel><S.QualityValue>{String(evaluation.overall_score)} / 100</S.QualityValue></S.QualityItem>}
+            <S.QualityItem><S.QualityLabel>Оценка</S.QualityLabel><S.QualityValue>{typeof evaluation?.overall_score === 'number' ? `${evaluation.overall_score} / 100` : 'Не рассчитана'}</S.QualityValue></S.QualityItem>
             {evaluation?.evaluation_status !== undefined && <S.QualityItem><S.QualityLabel>Статус оценки</S.QualityLabel><S.QualityValue>{resultStatusLabel(evaluation.evaluation_status)}</S.QualityValue></S.QualityItem>}
             {validation?.valid !== undefined && <S.QualityItem><S.QualityLabel>Структура</S.QualityLabel><S.QualityValue>{validation.valid ? 'Корректна' : 'Есть ошибки'}</S.QualityValue></S.QualityItem>}
           </S.QualityItems>

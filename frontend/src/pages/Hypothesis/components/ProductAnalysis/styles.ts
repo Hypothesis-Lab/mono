@@ -162,8 +162,11 @@ export const AudienceSummary = styled.summary`
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 48px;
   padding: 10px 12px;
+  border: 1px solid #d8d8d8;
   border-radius: 6px;
+  background: #fff;
   cursor: pointer;
   font-weight: 600;
   user-select: none;
@@ -177,7 +180,8 @@ export const AudienceSummary = styled.summary`
   }
 
   &:hover {
-    background: #f0f0f0;
+    border-color: #999;
+    background: #f6f6f6;
   }
 
   &:focus-visible {
@@ -194,10 +198,24 @@ export const SummaryLabel = styled.span`
   min-width: 0;
 `
 
+export const SummaryAction = styled.span`
+  margin-left: auto;
+  color: #777;
+  font-size: 12px;
+  font-weight: 500;
+
+  &::before {
+    content: 'Открыть';
+  }
+
+  details[open] &::before {
+    content: 'Свернуть';
+  }
+`
+
 export const ViewToggle = styled.span`
   display: inline-flex;
   flex: 0 0 auto;
-  margin-left: auto;
   padding: 2px;
   border: 1px solid #d8d8d8;
   border-radius: 5px;
@@ -270,16 +288,11 @@ export const AudienceMeta = styled.span`
 
 export const HypothesisRatingForm = styled.div`
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 12px;
   padding: 10px 12px 12px;
   border-top: 1px solid #eee;
-
-  @media (max-width: 639px) {
-    align-items: flex-start;
-    flex-direction: column;
-  }
 `
 
 export const HypothesisRatingLabel = styled.span`
@@ -304,19 +317,17 @@ export const RatingButton = styled.button<{ $selected: boolean; $good?: boolean 
   cursor: pointer;
 
   &:hover:not(:disabled) {
-    background: ${({ $good }) => ($good ? '#eaf5ea' : '#fff0f0')};
-    color: #333;
+    background: ${({ $selected, $good }) => {
+      if ($selected) return $good ? '#237023' : '#a00000'
+      return $good ? '#eaf5ea' : '#fff0f0'
+    }};
+    color: ${({ $selected }) => ($selected ? '#fff' : '#333')};
   }
 
   &:focus-visible {
     outline: 2px solid #333;
     outline-offset: 2px;
   }
-`
-
-export const HypothesisRatingSummary = styled.span`
-  color: #666;
-  font-size: 13px;
 `
 
 export const ResultsTitle = styled.h3`

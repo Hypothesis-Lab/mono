@@ -92,37 +92,42 @@ function FeatureTable({ features }: { features: Record<string, unknown>[] }) {
   )
 }
 
-function SegmentCard({ segment, selected }: { segment: Record<string, unknown>; selected: boolean }) {
+function SegmentCard({ segment, selected, summary }: { segment: Record<string, unknown>; selected: boolean; summary?: string }) {
   const size = typeof segment.size === 'number' ? formatNumber(segment.size) : null
   const signals = strings(segment.supporting_signals)
   const unknowns = strings(segment.unknowns)
+  const rationale = typeof segment.rationale === 'string' ? segment.rationale : undefined
 
   return (
     <S.SegmentCard>
-      <S.SegmentHeader>
-        <div>
-          <S.SegmentName>{text(segment.segment_id, 'Сегмент')}</S.SegmentName>
-          <S.SegmentId>{text(segment.candidate_id)}</S.SegmentId>
-        </div>
-        <S.SegmentBadges>
-          {selected && <S.SelectionBadge>Выбран</S.SelectionBadge>}
-          {size && <S.SizeBadge>{size} участников</S.SizeBadge>}
-        </S.SegmentBadges>
-      </S.SegmentHeader>
-      {segment.rationale !== undefined && <S.SegmentText>{text(segment.rationale)}</S.SegmentText>}
-      {signals.length > 0 && (
-        <S.SegmentBlock>
-          <S.BlockTitle>Поддерживающие сигналы</S.BlockTitle>
-          <S.BulletList>{signals.map((signal) => <li key={signal}>{signal}</li>)}</S.BulletList>
-        </S.SegmentBlock>
-      )}
-      <FeatureTable features={records(segment.key_features)} />
-      {unknowns.length > 0 && (
-        <S.Unknowns>
-          <S.BlockTitle>Что пока неизвестно</S.BlockTitle>
-          <S.BulletList>{unknowns.map((unknown) => <li key={unknown}>{unknown}</li>)}</S.BulletList>
-        </S.Unknowns>
-      )}
+      <S.SegmentSummary>
+        <S.SegmentHeader>
+          <div>
+            <S.SegmentName>{text(segment.segment_id, 'Сегмент')}</S.SegmentName>
+            <S.SegmentId>{text(segment.candidate_id)}</S.SegmentId>
+          </div>
+          <S.SegmentBadges>
+            {selected && <S.SelectionBadge>Выбран</S.SelectionBadge>}
+            {size && <S.SizeBadge>{size} участников</S.SizeBadge>}
+          </S.SegmentBadges>
+        </S.SegmentHeader>
+      </S.SegmentSummary>
+      <S.SegmentBody>
+        {rationale !== undefined && rationale !== summary && <S.SegmentText>{rationale}</S.SegmentText>}
+        {signals.length > 0 && (
+          <S.SegmentBlock>
+            <S.BlockTitle>Поддерживающие сигналы</S.BlockTitle>
+            <S.BulletList>{signals.map((signal) => <li key={signal}>{signal}</li>)}</S.BulletList>
+          </S.SegmentBlock>
+        )}
+        <FeatureTable features={records(segment.key_features)} />
+        {unknowns.length > 0 && (
+          <S.Unknowns>
+            <S.BlockTitle>Что пока неизвестно</S.BlockTitle>
+            <S.BulletList>{unknowns.map((unknown) => <li key={unknown}>{unknown}</li>)}</S.BulletList>
+          </S.Unknowns>
+        )}
+      </S.SegmentBody>
     </S.SegmentCard>
   )
 }
@@ -134,6 +139,7 @@ export function RenderedAudience({ value }: RenderedAudienceProps) {
   const selection = asRecord(audience.selection)
   const review = asRecord(audience.review)
   const limitations = strings(audience.limitations)
+  const selectionRationale = typeof selection?.rationale === 'string' ? selection.rationale : undefined
 
   return (
     <S.Root>
@@ -151,6 +157,7 @@ export function RenderedAudience({ value }: RenderedAudienceProps) {
             <SegmentCard
               key={text(segment.segment_id, String(index))}
               segment={segment}
+              summary={selectionRationale}
               selected={selectedIds.includes(text(segment.candidate_id, '')) || selection?.segment_id === segment.segment_id}
             />
           ))}

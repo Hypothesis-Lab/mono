@@ -7,12 +7,10 @@ I'm currently exploring by writing code.
 # Project map
 docs_dump/ad_platforms/yandex.md
 
-# Deployment (only on user request)
-- commit to main and push
-- ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ~/.ssh/phone_to_pi_clanker -p 22 clanker@192.168.0.13       ▐
-- in ~/projects/startup/code/mono switch to main pull
-- start or update infrastructure with `podman compose up -d` and restart the
-  affected per-user systemd services with `systemctl --user restart ...`
+# Deployment (outdated — do not push to Pi)
+- The Pi/SSH deployment instructions below are obsolete.
+- For local deployment, commit/push only when explicitly requested, then restart
+  the affected local per-user systemd service with `systemctl --user restart ...`.
 
 # Local service architecture
 
@@ -43,3 +41,8 @@ in the shared pod can depend on services omitted from the command. Compose
 volumes are preserved by `down` unless `--volumes` is explicitly supplied.
 
 See `systemd/README.md` for ports, logs, and service setup details.
+
+## Command execution
+
+- Run long-running builds, tests, servers, and service commands in the background
+  when possible so the user can continue the conversation.

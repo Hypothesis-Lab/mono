@@ -52,14 +52,48 @@ export const SegmentList = styled.div`
   gap: 10px;
 `
 
-export const SegmentCard = styled.article`
-  display: flex;
-  flex-direction: column;
-  gap: 11px;
-  padding: 13px;
+export const SegmentCard = styled.details`
   border: 1px solid #e1e1e1;
   border-radius: 8px;
   background: #fcfcfc;
+
+  &[open] > summary::before {
+    transform: rotate(90deg);
+  }
+`
+
+export const SegmentSummary = styled.summary`
+  position: relative;
+  padding: 13px 13px 13px 34px;
+  border-radius: 8px;
+  cursor: pointer;
+  list-style: none;
+
+  &::-webkit-details-marker {
+    display: none;
+  }
+
+  &::before {
+    position: absolute;
+    top: 18px;
+    left: 14px;
+    content: '›';
+    color: #666;
+    font-size: 22px;
+    line-height: 1;
+    transition: transform 120ms ease;
+  }
+
+  &:hover {
+    background: #f5f5f5;
+  }
+`
+
+export const SegmentBody = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 0 13px 13px;
 `
 
 export const SegmentHeader = styled.div`
