@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { skipToken } from '@reduxjs/toolkit/query'
 import {
   isApiNotFound,
@@ -16,11 +16,15 @@ import type {
   ProductAnalysisStatusResponse,
 } from '../../../../store/generatedApi'
 import { JsonTree } from './JsonTree/page'
+import { RenderedAudience } from './RenderedAudience/page'
+import { RenderedProduct } from './RenderedProduct/page'
 import * as S from './styles'
 
 type ProductAnalysisProps = {
   productId: string
 }
+
+type ResultView = 'rendered' | 'json'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -70,6 +74,8 @@ export function ProductAnalysis({ productId }: ProductAnalysisProps) {
   const [customAudienceName, setCustomAudienceName] = useState('')
   const [customAudienceDescription, setCustomAudienceDescription] = useState('')
   const [showCustomAudienceForm, setShowCustomAudienceForm] = useState(false)
+  const [productView, setProductView] = useState<ResultView>('rendered')
+  const [audienceView, setAudienceView] = useState<ResultView>('rendered')
   const analysisStatusSignature = analysisStatus
     ? `${analysisStatus.id}:${analysisStatus.status}:${analysisStatus.current_stage}:${analysisStatus.product_result_available}:${analysisStatus.audience_result_available}:${analysisStatus.hypothesis_result_available}:${analysisStatus.audience_review_available}:${analysisStatus.hypothesis_review_available}`
     : null
@@ -208,15 +214,21 @@ export function ProductAnalysis({ productId }: ProductAnalysisProps) {
         <S.ResultsTitle>Результаты</S.ResultsTitle>
       )}
       {isRecord(analysis?.product_result) && (
-        <S.AudienceDetails>
-          <S.AudienceSummary>Паспорт продукта</S.AudienceSummary>
-          <JsonTree value={analysis.product_result} />
+        <S.AudienceDetails open>
+          <S.AudienceSummary>
+            <S.SummaryLabel>Паспорт продукта</S.SummaryLabel>
+            <ResultViewToggle value={productView} onChange={setProductView} />
+          </S.AudienceSummary>
+          {productView === 'rendered' ? <RenderedProduct value={analysis.product_result} /> : <JsonPreview value={analysis.product_result} />}
         </S.AudienceDetails>
       )}
       {isRecord(analysis?.audience_result) && (
-        <S.AudienceDetails>
-          <S.AudienceSummary>Аудитории</S.AudienceSummary>
-          <JsonTree value={analysis.audience_result} />
+        <S.AudienceDetails open>
+          <S.AudienceSummary>
+            <S.SummaryLabel>Аудитории</S.SummaryLabel>
+            <ResultViewToggle value={audienceView} onChange={setAudienceView} />
+          </S.AudienceSummary>
+          {audienceView === 'rendered' ? <RenderedAudience value={analysis.audience_result} /> : <JsonPreview value={analysis.audience_result} />}
         </S.AudienceDetails>
       )}
       {analysisStatus?.status === 'waiting_for_user_input' && analysisStatus.current_stage === 'audience' && (
@@ -380,6 +392,29 @@ export function ProductAnalysis({ productId }: ProductAnalysisProps) {
       </S.Button>
       {analysisStartError && <S.ErrorMessage>{analysisStartError}</S.ErrorMessage>}
     </S.AnalysisSection>
+  )
+}
+
+function JsonPreview({ value }: { value: unknown }) {
+  return <S.JsonPreview>{JSON.stringify(value, null, 2) ?? 'null'}</S.JsonPreview>
+}
+
+function ResultViewToggle({ value, onChange }: { value: ResultView; onChange: (value: ResultView) => void }) {
+  function selectView(event: MouseEvent<HTMLButtonElement>, nextView: ResultView) {
+    event.preventDefault()
+    event.stopPropagation()
+    onChange(nextView)
+  }
+
+  return (
+    <S.ViewToggle aria-label="Вид результата">
+      <S.ViewToggleButton type="button" aria-pressed={value === 'rendered'} onClick={(event) => selectView(event, 'rendered')}>
+        Вид
+      </S.ViewToggleButton>
+      <S.ViewToggleButton type="button" aria-pressed={value === 'json'} onClick={(event) => selectView(event, 'json')}>
+        JSON
+      </S.ViewToggleButton>
+    </S.ViewToggle>
   )
 }
 

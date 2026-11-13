@@ -190,6 +190,57 @@ export const AudienceSummary = styled.summary`
   }
 `
 
+export const SummaryLabel = styled.span`
+  min-width: 0;
+`
+
+export const ViewToggle = styled.span`
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 2px;
+  border: 1px solid #d8d8d8;
+  border-radius: 5px;
+  background: #f7f7f7;
+`
+
+export const ViewToggleButton = styled.button`
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #777;
+  font-size: 11px;
+  cursor: pointer;
+
+  &[aria-pressed='true'] {
+    background: #fff;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+    color: #222;
+    font-weight: 700;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #333;
+    outline-offset: 1px;
+  }
+`
+
+export const JsonPreview = styled.pre`
+  max-height: 680px;
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  border-top: 1px solid #e2e2e2;
+  background: #1f2329;
+  color: #e6edf3;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre;
+  tab-size: 2;
+`
+
 export const AudienceInfo = styled.div`
   display: flex;
   flex: 1;
