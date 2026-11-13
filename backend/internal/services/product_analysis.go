@@ -146,8 +146,8 @@ func (s *ProductAnalysisService) LatestStatus(ctx context.Context, userID, produ
 	return status, nil
 }
 
-func (s *ProductAnalysisService) SaveReview(ctx context.Context, userID, productID, stage string, selectedIDs []string, customCandidates []map[string]any) (*productanalysis.StageReview, error) {
-	if err := validateReviewRequest(stage, selectedIDs); err != nil {
+func (s *ProductAnalysisService) SaveReview(ctx context.Context, userID, productID, stage string, selectedIDs []string, customCandidates []map[string]any, ratings map[string]string) (*productanalysis.StageReview, error) {
+	if err := validateReviewRequest(stage, selectedIDs, ratings); err != nil {
 		return nil, err
 	}
 
@@ -165,7 +165,7 @@ func (s *ProductAnalysisService) SaveReview(ctx context.Context, userID, product
 		return nil, fmt.Errorf("get analysis for review: %w", err)
 	}
 
-	if run.Status != "waiting_for_user_input" || run.CurrentStage != stage {
+	if !reviewReady(run, stage) {
 		return nil, ErrAnalysisReviewNotReady
 	}
 
@@ -178,12 +178,16 @@ func (s *ProductAnalysisService) SaveReview(ctx context.Context, userID, product
 		return nil, err
 	}
 
-	customJSON, err := json.Marshal(customCandidates)
-	if err != nil {
-		return nil, fmt.Errorf("encode analysis review candidates: %w", err)
+	if err := validateRatings(stage, resultForStage(run, stage), ratings); err != nil {
+		return nil, err
 	}
 
-	review, err := s.runs.SaveReview(ctx, runID, stage, selectedIDs, customJSON)
+	customJSON, ratingsJSON, err := encodeReviewPayload(customCandidates, ratings)
+	if err != nil {
+		return nil, err
+	}
+
+	review, err := s.runs.SaveReview(ctx, runID, stage, selectedIDs, customJSON, ratingsJSON)
 	if err != nil {
 		return nil, fmt.Errorf("save analysis review: %w", err)
 	}
@@ -191,13 +195,66 @@ func (s *ProductAnalysisService) SaveReview(ctx context.Context, userID, product
 	return review, nil
 }
 
-func validateReviewRequest(stage string, selectedIDs []string) error {
+func reviewReady(run *productanalysis.Run, stage string) bool {
+	if stage == "hypotheses" {
+		return run.Status == "completed" && run.CurrentStage == stage && len(run.HypothesisResult) > 0
+	}
+
+	return run.Status == "waiting_for_user_input" && run.CurrentStage == stage
+}
+
+func encodeReviewPayload(customCandidates []map[string]any, ratings map[string]string) (json.RawMessage, json.RawMessage, error) {
+	customJSON, err := json.Marshal(customCandidates)
+	if err != nil {
+		return nil, nil, fmt.Errorf("encode analysis review candidates: %w", err)
+	}
+
+	if ratings == nil {
+		ratings = map[string]string{}
+	}
+
+	ratingsJSON, err := json.Marshal(ratings)
+	if err != nil {
+		return nil, nil, fmt.Errorf("encode analysis hypothesis ratings: %w", err)
+	}
+
+	return customJSON, ratingsJSON, nil
+}
+
+func validateReviewRequest(stage string, selectedIDs []string, ratings map[string]string) error {
 	if stage != "audience" && stage != "hypotheses" {
 		return fmt.Errorf("%w: unsupported stage %q", ErrInvalidAnalysisReview, stage)
 	}
 
-	if len(selectedIDs) == 0 {
+	if stage == "audience" && len(selectedIDs) == 0 {
 		return fmt.Errorf("%w: at least one candidate must be selected", ErrInvalidAnalysisReview)
+	}
+
+	if stage == "hypotheses" && len(ratings) == 0 {
+		return fmt.Errorf("%w: at least one hypothesis must be rated", ErrInvalidAnalysisReview)
+	}
+
+	return nil
+}
+
+func validateRatings(stage string, result json.RawMessage, ratings map[string]string) error {
+	if stage != "hypotheses" {
+		return nil
+	}
+
+	allowedIDs, err := candidateIDs(stage, result)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidAnalysisReview, err)
+	}
+
+	for id, rating := range ratings {
+		if _, allowed := allowedIDs[id]; !allowed {
+			return fmt.Errorf("%w: hypothesis %q is unknown", ErrInvalidAnalysisReview, id)
+		}
+
+		if rating != "good" && rating != "bad" {
+			return fmt.Errorf("%w: unsupported rating %q for hypothesis %q", ErrInvalidAnalysisReview, rating, id)
+		}
 	}
 
 	return nil

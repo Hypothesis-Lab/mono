@@ -52,6 +52,7 @@ type StageReview struct {
 	Stage                string
 	SelectedCandidateIDs []string
 	CustomCandidates     json.RawMessage
+	Ratings              json.RawMessage
 	UpdatedAt            time.Time
 }
 
@@ -294,28 +295,31 @@ func (r *Repository) SaveResult(ctx context.Context, runID, stage string, result
 	return nil
 }
 
-func (r *Repository) SaveReview(ctx context.Context, runID, stage string, selectedCandidateIDs []string, customCandidates json.RawMessage) (*StageReview, error) {
+func (r *Repository) SaveReview(ctx context.Context, runID, stage string, selectedCandidateIDs []string, customCandidates, ratings json.RawMessage) (*StageReview, error) {
 	if stage != "audience" && stage != "hypotheses" {
 		return nil, fmt.Errorf("invalid product analysis review stage %q", stage)
 	}
 
 	review := &StageReview{}
 	err := r.db.Pool().QueryRow(ctx, `
-		INSERT INTO product_analysis_review (run_id, stage, selected_candidate_ids, custom_candidates)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO product_analysis_review (run_id, stage, selected_candidate_ids, custom_candidates, ratings)
+		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (run_id, stage) DO UPDATE SET
 			selected_candidate_ids = EXCLUDED.selected_candidate_ids,
 			custom_candidates = EXCLUDED.custom_candidates,
+			ratings = EXCLUDED.ratings,
 			updated_at = NOW()
-		RETURNING stage, selected_candidate_ids, custom_candidates, updated_at`,
+		RETURNING stage, selected_candidate_ids, custom_candidates, ratings, updated_at`,
 		runID,
 		stage,
 		selectedCandidateIDs,
 		customCandidates,
+		ratings,
 	).Scan(
 		&review.Stage,
 		&review.SelectedCandidateIDs,
 		&review.CustomCandidates,
+		&review.Ratings,
 		&review.UpdatedAt,
 	)
 	if err != nil {
@@ -341,7 +345,7 @@ func (r *Repository) Fail(ctx context.Context, runID string) error {
 
 func (r *Repository) loadReviews(ctx context.Context, run *Run) error {
 	rows, err := r.db.Pool().Query(ctx, `
-		SELECT stage, selected_candidate_ids, custom_candidates, updated_at
+		SELECT stage, selected_candidate_ids, custom_candidates, ratings, updated_at
 		FROM product_analysis_review
 		WHERE run_id = $1`, run.ID)
 	if err != nil {
@@ -355,6 +359,7 @@ func (r *Repository) loadReviews(ctx context.Context, run *Run) error {
 			&review.Stage,
 			&review.SelectedCandidateIDs,
 			&review.CustomCandidates,
+			&review.Ratings,
 			&review.UpdatedAt,
 		); err != nil {
 			return fmt.Errorf("scan review: %w", err)

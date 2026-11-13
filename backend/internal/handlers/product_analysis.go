@@ -114,7 +114,7 @@ func (s *Server) SaveProductAnalysisReview(ctx context.Context, req api.SaveProd
 		return api.SaveProductAnalysisReview400JSONResponse(errBody(http.StatusBadRequest, "review body is required")), nil
 	}
 
-	review, err := s.productAnalysis.SaveReview(ctx, userID, req.Id, string(req.Body.Stage), req.Body.SelectedCandidateIds, req.Body.CustomCandidates)
+	review, err := s.productAnalysis.SaveReview(ctx, userID, req.Id, string(req.Body.Stage), req.Body.SelectedCandidateIds, req.Body.CustomCandidates, hypothesisRatings(req.Body.Ratings))
 	if err != nil {
 		s.logger.Error("save product analysis review", zap.String("product_id", req.Id), zap.String("stage", string(req.Body.Stage)), zap.Error(err))
 		switch {
@@ -231,10 +231,31 @@ func newProductAnalysisReviewResponse(review *productanalysis.StageReview) (api.
 		}
 	}
 
+	ratings := map[string]api.HypothesisRating{}
+	if len(review.Ratings) > 0 {
+		if err := json.Unmarshal(review.Ratings, &ratings); err != nil {
+			return api.ProductAnalysisReviewResponse{}, fmt.Errorf("decode hypothesis ratings: %w", err)
+		}
+	}
+
 	return api.ProductAnalysisReviewResponse{
 		Stage:                api.ProductAnalysisReviewStage(review.Stage),
 		SelectedCandidateIds: review.SelectedCandidateIDs,
 		CustomCandidates:     customCandidates,
+		Ratings:              ratings,
 		UpdatedAt:            review.UpdatedAt,
 	}, nil
+}
+
+func hypothesisRatings(ratings *map[string]api.HypothesisRating) map[string]string {
+	result := map[string]string{}
+	if ratings == nil {
+		return result
+	}
+
+	for id, rating := range *ratings {
+		result[id] = string(rating)
+	}
+
+	return result
 }

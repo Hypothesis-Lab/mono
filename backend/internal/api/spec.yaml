@@ -1173,12 +1173,16 @@ components:
           items:
             type: object
             additionalProperties: true
+        ratings:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/HypothesisRating"
     ProductAnalysisReviewStage:
       type: string
       enum: [audience, hypotheses]
     ProductAnalysisReviewResponse:
       type: object
-      required: [stage, selected_candidate_ids, custom_candidates, updated_at]
+      required: [stage, selected_candidate_ids, custom_candidates, ratings, updated_at]
       properties:
         stage:
           $ref: "#/components/schemas/ProductAnalysisReviewStage"
@@ -1190,7 +1194,14 @@ components:
           items:
             type: object
             additionalProperties: true
+        ratings:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/HypothesisRating"
         updated_at: { type: string, format: date-time }
+    HypothesisRating:
+      type: string
+      enum: [good, bad]
     ProductCategory:
       type: string
       enum:

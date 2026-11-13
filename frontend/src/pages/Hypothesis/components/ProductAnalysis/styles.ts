@@ -217,6 +217,57 @@ export const AudienceMeta = styled.span`
   font-size: 12px;
 `
 
+export const HypothesisRatingForm = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid #eee;
+
+  @media (max-width: 639px) {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+`
+
+export const HypothesisRatingLabel = styled.span`
+  color: #555;
+  font-size: 14px;
+  font-weight: 600;
+`
+
+export const HypothesisRatingButtons = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+`
+
+export const RatingButton = styled.button<{ $selected: boolean; $good?: boolean }>`
+  padding: 7px 12px;
+  border: 1px solid ${({ $good }) => ($good ? '#2a8a2a' : '#c00')};
+  border-radius: 6px;
+  background: ${({ $selected, $good }) => ($selected ? ($good ? '#2a8a2a' : '#c00') : '#fff')};
+  color: ${({ $selected }) => ($selected ? '#fff' : '#333')};
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: ${({ $good }) => ($good ? '#eaf5ea' : '#fff0f0')};
+    color: #333;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #333;
+    outline-offset: 2px;
+  }
+`
+
+export const HypothesisRatingSummary = styled.span`
+  color: #666;
+  font-size: 13px;
+`
+
 export const ResultsTitle = styled.h3`
   margin: 4px 0 0;
   color: #111;

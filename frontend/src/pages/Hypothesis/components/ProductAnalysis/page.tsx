@@ -12,6 +12,7 @@ import {
   useStartProductAnalysisMutation,
 } from '../../../../store/generatedApi'
 import type {
+  HypothesisRating,
   ProductAnalysisResponse,
   ProductAnalysisStatusResponse,
 } from '../../../../store/generatedApi'
@@ -43,6 +44,11 @@ function candidateId(candidate: Record<string, unknown>, index: number): string 
   return `audience_${index + 1}`
 }
 
+function hypothesisCandidateId(candidate: Record<string, unknown>, index: number): string {
+  if (typeof candidate.candidate_id === 'string' && candidate.candidate_id !== '') return candidate.candidate_id
+  return `hypothesis_${index + 1}`
+}
+
 export function ProductAnalysis({ productId }: ProductAnalysisProps) {
   const {
     data: analysisStatus,
@@ -67,9 +73,12 @@ export function ProductAnalysis({ productId }: ProductAnalysisProps) {
   const [audienceSelectionRunId, setAudienceSelectionRunId] = useState<string | null>(null)
   const [selectedAudienceIds, setSelectedAudienceIds] = useState<string[]>([])
   const [customAudiences, setCustomAudiences] = useState<Record<string, unknown>[]>([])
+  const [hypothesisRatingRunId, setHypothesisRatingRunId] = useState<string | null>(null)
+  const [hypothesisRatings, setHypothesisRatings] = useState<Record<string, HypothesisRating>>({})
   const [customAudienceName, setCustomAudienceName] = useState('')
   const [customAudienceDescription, setCustomAudienceDescription] = useState('')
   const [showCustomAudienceForm, setShowCustomAudienceForm] = useState(false)
+  const [hypothesisRatingError, setHypothesisRatingError] = useState<string | null>(null)
   const analysisStatusSignature = analysisStatus
     ? `${analysisStatus.id}:${analysisStatus.status}:${analysisStatus.current_stage}:${analysisStatus.product_result_available}:${analysisStatus.audience_result_available}:${analysisStatus.hypothesis_result_available}:${analysisStatus.audience_review_available}:${analysisStatus.hypothesis_review_available}`
     : null
@@ -91,6 +100,22 @@ export function ProductAnalysis({ productId }: ProductAnalysisProps) {
     )
     setAudienceSelectionRunId(analysis.id)
   }, [analysis, audienceSelectionRunId])
+
+  useEffect(() => {
+    if (!analysis || analysis.id === hypothesisRatingRunId) return
+
+    const review = asRecord(analysis.hypothesis_review)
+    const ratings = asRecord(review?.ratings)
+    const nextRatings: Record<string, HypothesisRating> = {}
+    for (const [id, rating] of Object.entries(ratings ?? {})) {
+      if (rating === 'good' || rating === 'bad') {
+        nextRatings[id] = rating
+      }
+    }
+
+    setHypothesisRatings(nextRatings)
+    setHypothesisRatingRunId(analysis.id)
+  }, [analysis, hypothesisRatingRunId])
 
   useEffect(() => {
     if (!analysisStatusSignature) return
@@ -164,6 +189,29 @@ export function ProductAnalysis({ productId }: ProductAnalysisProps) {
       await Promise.all([refetchAnalysisStatus(), refetchAnalysis()])
     } catch (err) {
       setAnalysisReviewError(rtkErrorMessage(err, 'Не удалось сохранить выбор аудитории'))
+    }
+  }
+
+  async function handleSaveHypothesisRatings() {
+    if (Object.keys(hypothesisRatings).length === 0) {
+      setHypothesisRatingError('Оцените хотя бы одну гипотезу')
+      return
+    }
+
+    setHypothesisRatingError(null)
+    try {
+      await saveAnalysisReview({
+        id: productId,
+        productAnalysisReviewRequest: {
+          stage: 'hypotheses',
+          selected_candidate_ids: [],
+          custom_candidates: [],
+          ratings: hypothesisRatings,
+        },
+      }).unwrap()
+      await refetchAnalysis()
+    } catch (err) {
+      setHypothesisRatingError(rtkErrorMessage(err, 'Не удалось сохранить оценки гипотез'))
     }
   }
 
@@ -360,9 +408,55 @@ export function ProductAnalysis({ productId }: ProductAnalysisProps) {
                   </S.AudienceSummary>
                   <JsonTree value={hypothesis} />
                 </S.AudienceDetails>
+                {(() => {
+                  const id = hypothesisCandidateId(hypothesis, index)
+                  const rating = hypothesisRatings[id]
+                  return (
+                    <S.HypothesisRatingForm>
+                      <S.HypothesisRatingLabel>Оценка гипотезы</S.HypothesisRatingLabel>
+                      <S.HypothesisRatingButtons>
+                        <S.RatingButton
+                          type="button"
+                          $selected={rating === 'good'}
+                          $good
+                          aria-pressed={rating === 'good'}
+                          onClick={() => {
+                            setHypothesisRatings((current) => ({ ...current, [id]: 'good' }))
+                            setHypothesisRatingError(null)
+                          }}
+                        >
+                          Хорошо
+                        </S.RatingButton>
+                        <S.RatingButton
+                          type="button"
+                          $selected={rating === 'bad'}
+                          aria-pressed={rating === 'bad'}
+                          onClick={() => {
+                            setHypothesisRatings((current) => ({ ...current, [id]: 'bad' }))
+                            setHypothesisRatingError(null)
+                          }}
+                        >
+                          Плохо
+                        </S.RatingButton>
+                      </S.HypothesisRatingButtons>
+                    </S.HypothesisRatingForm>
+                  )
+                })()}
               </S.AudienceItem>
             ))}
           </S.AudienceList>
+          <S.HypothesisRatingSummary>
+            Оценено: {hypotheses.filter((hypothesis, index) => hypothesisRatings[hypothesisCandidateId(hypothesis, index)]).length} из {hypotheses.length}
+          </S.HypothesisRatingSummary>
+          <S.Button
+            type="button"
+            $success
+            onClick={handleSaveHypothesisRatings}
+            disabled={savingAnalysisReview}
+          >
+            {savingAnalysisReview ? 'Сохраняем…' : 'Сохранить оценки'}
+          </S.Button>
+          {hypothesisRatingError && <S.ErrorMessage>{hypothesisRatingError}</S.ErrorMessage>}
         </S.AudienceDetails>
       )}
       <S.Button

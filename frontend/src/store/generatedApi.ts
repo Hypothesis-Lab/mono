@@ -604,12 +604,16 @@ export type ProductAnalysisStatusResponse = {
   hypothesis_review_available: boolean;
 };
 export type ProductAnalysisReviewStage = "audience" | "hypotheses";
+export type HypothesisRating = "good" | "bad";
 export type ProductAnalysisReviewResponse = {
   stage: ProductAnalysisReviewStage;
   selected_candidate_ids: string[];
   custom_candidates: {
     [key: string]: any;
   }[];
+  ratings: {
+    [key: string]: HypothesisRating;
+  };
   updated_at: string;
 };
 export type ProductAnalysisReviewRequest = {
@@ -618,6 +622,9 @@ export type ProductAnalysisReviewRequest = {
   custom_candidates: {
     [key: string]: any;
   }[];
+  ratings?: {
+    [key: string]: HypothesisRating;
+  };
 };
 export type ProductFileResponse = {
   id: string;
