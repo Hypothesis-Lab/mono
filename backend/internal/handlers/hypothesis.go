@@ -119,9 +119,56 @@ func (s *Server) GetHypothesisProduct(ctx context.Context, req api.GetHypothesis
 	return api.GetHypothesisProduct200JSONResponse(response), nil
 }
 
-func (s *Server) LaunchHypothesis(_ context.Context, req api.LaunchHypothesisRequestObject) (api.LaunchHypothesisResponseObject, error) {
-	s.logger.Warn("hypothesis launch is disabled", zap.String("id", req.Id))
-	return api.LaunchHypothesis400JSONResponse(errBody(http.StatusBadRequest, "hypothesis launch is not implemented")), nil
+func (s *Server) LaunchHypothesis(ctx context.Context, req api.LaunchHypothesisRequestObject) (api.LaunchHypothesisResponseObject, error) {
+	userID, ok := middlewares.UserIDFromContext(ctx)
+	if !ok {
+		s.logger.Error("missing user id in context")
+		return api.LaunchHypothesis500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
+
+	if req.Params.Mode != nil && *req.Params.Mode != "async" && *req.Params.Mode != "sync" {
+		s.logger.Error("invalid hypothesis launch mode", zap.String("id", req.Id), zap.String("mode", string(*req.Params.Mode)))
+		return api.LaunchHypothesis400JSONResponse(errBody(http.StatusBadRequest, "invalid launch mode")), nil
+	}
+
+	if req.Params.Mode != nil && *req.Params.Mode == "sync" {
+		status, err := s.hypothesisService.StartLaunchSynchronous(ctx, userID, req.Id)
+		if err != nil {
+			if status != nil && status.Status == "reconciliation_required" {
+				s.logger.Error("synchronous hypothesis launch requires reconciliation", zap.String("id", req.Id), zap.String("workflow_id", status.WorkflowID), zap.Error(err))
+				return api.LaunchHypothesis200JSONResponse(api.HypothesisLaunchResponse{WorkflowId: status.WorkflowID, Status: api.HypothesisLaunchResponseStatusReconciliationRequired}), nil
+			}
+
+			return s.launchError(req.Id, err)
+		}
+
+		return api.LaunchHypothesis200JSONResponse(api.HypothesisLaunchResponse{WorkflowId: status.WorkflowID, Status: api.HypothesisLaunchResponseStatus(status.Status)}), nil
+	}
+
+	workflowID, err := s.hypothesisService.StartLaunch(ctx, userID, req.Id)
+	if err != nil {
+		return s.launchError(req.Id, err)
+	}
+
+	return api.LaunchHypothesis202JSONResponse(api.HypothesisLaunchResponse{WorkflowId: workflowID, Status: api.HypothesisLaunchResponseStatusQueued}), nil
+}
+
+func (s *Server) launchError(id string, err error) (api.LaunchHypothesisResponseObject, error) {
+	s.logger.Error("launch hypothesis", zap.String("id", id), zap.Error(err))
+	switch {
+	case errors.Is(err, hypothesis.ErrNotFound):
+		return api.LaunchHypothesis404JSONResponse(errBody(http.StatusNotFound, "hypothesis not found")), nil
+	case errors.Is(err, services.ErrAlreadyInProgress):
+		return api.LaunchHypothesis400JSONResponse(errBody(http.StatusBadRequest, "hypothesis already in progress")), nil
+	case errors.Is(err, services.ErrHypothesisNoProduct):
+		return api.LaunchHypothesis400JSONResponse(errBody(http.StatusBadRequest, "hypothesis has no product")), nil
+	case errors.Is(err, services.ErrHypothesisNoAudience):
+		return api.LaunchHypothesis400JSONResponse(errBody(http.StatusBadRequest, "hypothesis product has no generated audiences")), nil
+	case errors.Is(err, services.ErrYandexDirectNotConnected):
+		return api.LaunchHypothesis409JSONResponse(errBodyWithCode(http.StatusConflict, "Yandex Direct connection is not connected", "yandex_direct_not_connected")), nil
+	default:
+		return api.LaunchHypothesis500JSONResponse(errBody(http.StatusInternalServerError, "internal server error")), nil
+	}
 }
 
 func (s *Server) GetHypothesisLaunchStatus(ctx context.Context, req api.GetHypothesisLaunchStatusRequestObject) (api.GetHypothesisLaunchStatusResponseObject, error) {
@@ -254,6 +301,9 @@ func (s *Server) DeleteHypothesis(ctx context.Context, req api.DeleteHypothesisR
 			s.logger.Error("delete hypothesis", zap.String("id", req.Id), zap.Error(err))
 
 			return api.DeleteHypothesis400JSONResponse(errBody(http.StatusBadRequest, "hypothesis in progress")), nil
+		case errors.Is(err, services.ErrUnresolvedPreparation):
+			s.logger.Error("delete hypothesis with unresolved preparation", zap.String("id", req.Id), zap.Error(err))
+			return api.DeleteHypothesis409JSONResponse(errBody(http.StatusConflict, "preparation resources remain; history must be preserved")), nil
 		default:
 			s.logger.Error("delete hypothesis", zap.String("id", req.Id), zap.Error(err))
 

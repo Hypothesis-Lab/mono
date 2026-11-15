@@ -8,6 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
+	"os"
 	"time"
 
 	"app/internal/clients/yandex_direct"
@@ -26,12 +29,21 @@ type YandexDirectConnectionStatus struct {
 }
 
 type YandexDirectConnectionService struct {
-	connections *yandexdirectconnection.Repository
-	oauth       *yandexoauth.Client
-	cipher      cipher.AEAD
+	connections  *yandexdirectconnection.Repository
+	oauth        *yandexoauth.Client
+	cipher       cipher.AEAD
+	mockEndpoint string
 }
 
 func NewYandexDirectConnectionService(connections *yandexdirectconnection.Repository, cfg *config.Config) (*YandexDirectConnectionService, error) {
+	mockEndpoint := os.Getenv("YANDEX_DIRECT_MOCK_ENDPOINT")
+	if mockEndpoint != "" {
+		parsed, err := url.Parse(mockEndpoint)
+		if err != nil || parsed.Scheme != "http" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Path != "/json/v5" || net.ParseIP(parsed.Hostname()) == nil || !net.ParseIP(parsed.Hostname()).IsLoopback() || parsed.Port() == "" {
+			return nil, errors.New("YANDEX_DIRECT_MOCK_ENDPOINT must be a loopback HTTP URL with port and path /json/v5")
+		}
+	}
+
 	block, err := aes.NewCipher(cfg.YandexDirectTokenEncryptionKey[:])
 	if err != nil {
 		return nil, fmt.Errorf("create yandex direct token cipher: %w", err)
@@ -43,9 +55,10 @@ func NewYandexDirectConnectionService(connections *yandexdirectconnection.Reposi
 	}
 
 	return &YandexDirectConnectionService{
-		connections: connections,
-		oauth:       yandexoauth.New(cfg.YandexDirectClientID, cfg.YandexDirectClientSecret),
-		cipher:      cipher,
+		connections:  connections,
+		oauth:        yandexoauth.New(cfg.YandexDirectClientID, cfg.YandexDirectClientSecret),
+		cipher:       cipher,
+		mockEndpoint: mockEndpoint,
 	}, nil
 }
 
@@ -129,6 +142,10 @@ func (s *YandexDirectConnectionService) MarkRevoked(ctx context.Context, userID 
 }
 
 func (s *YandexDirectConnectionService) NewClient(ctx context.Context, userID string) (*yandexdirect.Client, error) {
+	if s.mockEndpoint != "" {
+		return yandexdirect.NewLocalMock(s.mockEndpoint), nil
+	}
+
 	connection, err := s.connections.Get(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get yandex direct credentials: %w", err)

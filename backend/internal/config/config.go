@@ -24,6 +24,7 @@ type Config struct {
 	GeneratorURL                   string
 	OpenRouterAPIKey               string
 	TemporalAddress                string
+	TemporalNamespace              string
 	IsDevLogger                    bool
 
 	ReadHeaderTimeout time.Duration
@@ -126,6 +127,7 @@ func New() (*Config, error) {
 		GeneratorURL:                   generatorURL,
 		OpenRouterAPIKey:               openRouterAPIKey,
 		TemporalAddress:                temporalAddress,
+		TemporalNamespace:              os.Getenv("TEMPORAL_NAMESPACE"),
 		IsDevLogger:                    devLogger == "true",
 		ReadHeaderTimeout:              envDuration("READ_HEADER_TIMEOUT", 10*time.Second),
 		ReadTimeout:                    envDuration("READ_TIMEOUT", 30*time.Second),

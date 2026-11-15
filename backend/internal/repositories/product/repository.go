@@ -182,6 +182,19 @@ func (r *Repository) GetByHypothesisID(ctx context.Context, hypothesisID string)
 	return p, nil
 }
 
+func (r *Repository) GetPreparationConfigByHypothesisID(ctx context.Context, hypothesisID string) (json.RawMessage, error) {
+	var config json.RawMessage
+	if err := r.db.Pool().QueryRow(ctx, "SELECT preparation_config FROM product WHERE hypothesis_id = $1", hypothesisID).Scan(&config); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+
+		return nil, fmt.Errorf("get product preparation config: %w", err)
+	}
+
+	return config, nil
+}
+
 func (r *Repository) Update(ctx context.Context, userID, id string, in UpdateInput) (*Product, error) {
 	builder := squirrelPSQL.
 		Update("product").

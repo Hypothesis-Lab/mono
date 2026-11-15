@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -247,6 +248,13 @@ type Client struct {
 	onAuthenticationFailure func(context.Context) error
 }
 
+type requestTimingContextKey struct{}
+
+// WithRequestTiming observes provider request duration without changing the client API.
+func WithRequestTiming(ctx context.Context, observe func(service, method string, elapsed time.Duration, statusCode int)) context.Context {
+	return context.WithValue(ctx, requestTimingContextKey{}, observe)
+}
+
 func New(token string) *Client {
 	return NewWithAuthenticationFailure(token, nil)
 }
@@ -258,6 +266,11 @@ func NewWithAuthenticationFailure(token string, onAuthenticationFailure func(con
 		httpClient:              http.DefaultClient,
 		onAuthenticationFailure: onAuthenticationFailure,
 	}
+}
+
+// NewLocalMock never sends real provider credentials to the mock.
+func NewLocalMock(endpoint string) *Client {
+	return &Client{token: "local-mock", endpoint: endpoint, httpClient: http.DefaultClient}
 }
 
 func (e *yandexRequestError) Error() string {
@@ -483,6 +496,10 @@ func (c *Client) DeleteAudienceTarget(ctx context.Context, id int64) error {
 }
 
 func (c *Client) Get(ctx context.Context, service, objectName string, options GetOptions) (GetResult, error) {
+	return c.getAt(ctx, c.endpoint, service, objectName, options)
+}
+
+func (c *Client) getAt(ctx context.Context, endpoint, service, objectName string, options GetOptions) (GetResult, error) {
 	params := map[string]any{
 		"SelectionCriteria": options.SelectionCriteria,
 		"FieldNames":        options.FieldNames,
@@ -496,7 +513,7 @@ func (c *Client) Get(ctx context.Context, service, objectName string, options Ge
 	}
 
 	var response yandexListResponse
-	if err := c.post(ctx, service, map[string]any{"method": "get", "params": params}, &response); err != nil {
+	if err := c.postAt(ctx, endpoint, service, map[string]any{"method": "get", "params": params}, &response); err != nil {
 		return GetResult{}, fmt.Errorf("get yandex direct %s: %w", service, err)
 	}
 
@@ -595,10 +612,18 @@ func addResultID(result yandexAddResponse, name string) (int64, error) {
 		return 0, fmt.Errorf("yandex direct %s creation failed: code=%d message=%q details=%q", name, itemError.Code, itemError.Message, itemError.Details)
 	}
 
+	if item.ID <= 0 {
+		return 0, fmt.Errorf("yandex direct %s response contained invalid ID %d", name, item.ID)
+	}
+
 	return item.ID, nil
 }
 
 func (c *Client) post(ctx context.Context, service string, requestBody, result any) error {
+	return c.postAt(ctx, c.endpoint, service, requestBody, result)
+}
+
+func (c *Client) postAt(ctx context.Context, endpoint, service string, requestBody, result any) error {
 	if c.token == "" {
 		return errors.New("yandex direct token is required")
 	}
@@ -608,7 +633,7 @@ func (c *Client) post(ctx context.Context, service string, requestBody, result a
 		return fmt.Errorf("marshal yandex direct %s request: %w", service, err)
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint+"/"+service, bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint+"/"+service, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("create yandex direct %s request: %w", service, err)
 	}
@@ -617,12 +642,17 @@ func (c *Client) post(ctx context.Context, service string, requestBody, result a
 	request.Header.Set("Accept-Language", "en")
 	request.Header.Set("Content-Type", "application/json; charset=utf-8")
 
+	method := requestMethod(body)
+	started := time.Now()
 	response, err := c.httpClient.Do(request)
 	if err != nil {
+		observeRequestTiming(ctx, service, method, time.Since(started), 0)
+
 		return fmt.Errorf("send yandex direct %s request: %w", service, err)
 	}
 	defer response.Body.Close()
 	responseBody, err := io.ReadAll(response.Body)
+	observeRequestTiming(ctx, service, method, time.Since(started), response.StatusCode)
 	if err != nil {
 		return fmt.Errorf("read yandex direct %s response: %w", service, err)
 	}
@@ -652,6 +682,24 @@ func (c *Client) post(ctx context.Context, service string, requestBody, result a
 	}
 
 	return nil
+}
+
+func requestMethod(body []byte) string {
+	var metadata struct {
+		Method string `json:"method"`
+	}
+	if err := json.Unmarshal(body, &metadata); err != nil || metadata.Method == "" {
+		return "unknown"
+	}
+
+	return metadata.Method
+}
+
+func observeRequestTiming(ctx context.Context, service, method string, elapsed time.Duration, statusCode int) {
+	observe, _ := ctx.Value(requestTimingContextKey{}).(func(string, string, time.Duration, int))
+	if observe != nil {
+		observe(service, method, elapsed, statusCode)
+	}
 }
 
 func (c *Client) authenticationFailure(ctx context.Context, providerError *yandexRequestError) error {
@@ -745,6 +793,14 @@ func responseError(result any) *yandexRequestError {
 	case *yandexDeleteResponse:
 		return response.Error
 	case *yandexDictionariesGetResponse:
+		return response.Error
+	case *imageAddResponse:
+		return response.Error
+	case *imageDeleteResponse:
+		return response.Error
+	case *modifierAddResponse:
+		return response.Error
+	case *campaignSuspendResponse:
 		return response.Error
 	case *yandexListResponse:
 		return response.Error

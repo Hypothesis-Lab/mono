@@ -13,6 +13,7 @@ import (
 	"app/internal/http/middlewares"
 	"app/internal/repositories/hypothesis"
 	"app/internal/repositories/product"
+	"app/internal/services"
 
 	"go.uber.org/zap"
 )
@@ -122,6 +123,11 @@ func (s *Server) DeleteProduct(ctx context.Context, req api.DeleteProductRequest
 	}
 
 	if err := s.productService.Delete(ctx, userID, req.Id); err != nil {
+		if errors.Is(err, services.ErrUnresolvedPreparation) {
+			s.logger.Error("delete product with unresolved preparation", zap.String("id", req.Id), zap.Error(err))
+			return api.DeleteProduct409JSONResponse(errBody(http.StatusConflict, "preparation resources remain; history must be preserved")), nil
+		}
+
 		if errors.Is(err, product.ErrNotFound) {
 			s.logger.Error("delete product", zap.String("id", req.Id), zap.Error(err))
 

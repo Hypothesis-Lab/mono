@@ -25,11 +25,17 @@ const (
 	completeHypothesisLaunchActivityName                   = "hypothesis.launch.complete"
 	failHypothesisLaunchActivityName                       = "hypothesis.launch.fail"
 	requireHypothesisLaunchReconciliationActivityName      = "hypothesis.launch.require-reconciliation"
+	rollbackHypothesisLaunchResourcesActivityName          = "hypothesis.launch.rollback-resources"
+	beginHypothesisLaunchRollbackActivityName              = "hypothesis.launch.begin-rollback"
+	stopHypothesisLaunchWithResidualsActivityName          = "hypothesis.launch.stop-with-residuals"
 	markHypothesisStopRunningActivityName                  = "hypothesis.stop.mark-running"
 	completeHypothesisStopActivityName                     = "hypothesis.stop.complete"
 	requireHypothesisStopManualActivityName                = "hypothesis.stop.require-manual-intervention"
 	hypothesisLaunchWorkflowChangeID                       = "hypothesis-launch-resource-ledger"
 	hypothesisLaunchWorkflowMetadataChangeID               = "hypothesis-launch-resource-metadata"
+	hypothesisLaunchReconciliationRetryChangeID            = "hypothesis-launch-disable-reconciliation-requeue"
+	hypothesisLaunchRollbackChangeID                       = "hypothesis-launch-rollback-all-resources"
+	hypothesisLaunchResidualsChangeID                      = "hypothesis-launch-terminal-residuals"
 	hypothesisStopWorkflowMetadataChangeID                 = "hypothesis-stop-resource-metadata"
 	createHypothesisLaunchResourceActivityName             = "hypothesis.launch.create-resource"
 	deleteHypothesisLaunchResourceWithMetadataActivityName = "hypothesis.launch.delete-resource-with-metadata"
@@ -72,6 +78,9 @@ func NewHypothesisLaunchWorker(lc fx.Lifecycle, temporalClient client.Client, se
 	launchWorker.worker.RegisterActivityWithOptions(service.completeHypothesisLaunchActivity, activity.RegisterOptions{Name: completeHypothesisLaunchActivityName})
 	launchWorker.worker.RegisterActivityWithOptions(service.failHypothesisLaunchActivity, activity.RegisterOptions{Name: failHypothesisLaunchActivityName})
 	launchWorker.worker.RegisterActivityWithOptions(service.requireHypothesisLaunchReconciliationActivity, activity.RegisterOptions{Name: requireHypothesisLaunchReconciliationActivityName})
+	launchWorker.worker.RegisterActivityWithOptions(service.rollbackHypothesisLaunchResourcesActivity, activity.RegisterOptions{Name: rollbackHypothesisLaunchResourcesActivityName})
+	launchWorker.worker.RegisterActivityWithOptions(service.beginHypothesisLaunchRollbackActivity, activity.RegisterOptions{Name: beginHypothesisLaunchRollbackActivityName})
+	launchWorker.worker.RegisterActivityWithOptions(service.stopHypothesisLaunchWithResidualsActivity, activity.RegisterOptions{Name: stopHypothesisLaunchWithResidualsActivityName})
 	launchWorker.worker.RegisterActivityWithOptions(service.markHypothesisStopRunningActivity, activity.RegisterOptions{Name: markHypothesisStopRunningActivityName})
 	launchWorker.worker.RegisterActivityWithOptions(service.completeHypothesisStopActivity, activity.RegisterOptions{Name: completeHypothesisStopActivityName})
 	launchWorker.worker.RegisterActivityWithOptions(service.requireHypothesisStopManualActivity, activity.RegisterOptions{Name: requireHypothesisStopManualActivityName})
@@ -96,6 +105,8 @@ func hypothesisLaunchWorkflow(ctx workflow.Context, input hypothesisLaunchInput)
 		return legacyHypothesisLaunchWorkflow(ctx, input)
 	}
 
+	retryReconciliation := workflow.GetVersion(ctx, hypothesisLaunchReconciliationRetryChangeID, workflow.DefaultVersion, 1) == workflow.DefaultVersion
+
 	stateCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 10 * time.Second,
 		RetryPolicy: &temporal.RetryPolicy{
@@ -116,18 +127,23 @@ func hypothesisLaunchWorkflow(ctx workflow.Context, input hypothesisLaunchInput)
 		},
 	})
 	metadataVersion := workflow.GetVersion(ctx, hypothesisLaunchWorkflowMetadataChangeID, workflow.DefaultVersion, 1)
+	rollbackVersion := workflow.GetVersion(ctx, hypothesisLaunchRollbackChangeID, workflow.DefaultVersion, 1)
+	if rollbackVersion != workflow.DefaultVersion {
+		return hypothesisLaunchWorkflowWithRollback(ctx, stateCtx, input)
+	}
+
 	if metadataVersion == workflow.DefaultVersion {
 		created := make([]string, 0, len(input.ResourceIDs))
 		for _, resourceID := range input.ResourceIDs {
 			if err := workflow.ExecuteActivity(resourceCtx, ensureHypothesisLaunchResourceActivityName, resourceID).Get(ctx, nil); err != nil {
-				return failHypothesisLaunchWorkflow(ctx, stateCtx, input.LaunchID, created, err, true)
+				return failHypothesisLaunchWorkflow(ctx, stateCtx, input.LaunchID, created, err, true, retryReconciliation)
 			}
 
 			created = append(created, resourceID)
 		}
 
 		if err := workflow.ExecuteActivity(stateCtx, completeHypothesisLaunchActivityName, input.LaunchID).Get(ctx, nil); err != nil {
-			return failHypothesisLaunchWorkflow(ctx, stateCtx, input.LaunchID, created, err, false)
+			return failHypothesisLaunchWorkflow(ctx, stateCtx, input.LaunchID, created, err, false, retryReconciliation)
 		}
 
 		return nil
@@ -145,17 +161,85 @@ func hypothesisLaunchWorkflow(ctx workflow.Context, input hypothesisLaunchInput)
 			},
 		})
 		if err := workflow.ExecuteActivity(activityCtx, createHypothesisLaunchResourceActivityName, resource).Get(ctx, nil); err != nil {
-			return failHypothesisLaunchWorkflowWithMetadata(ctx, stateCtx, input.LaunchID, created, err, true)
+			return failHypothesisLaunchWorkflowWithMetadata(ctx, stateCtx, input.LaunchID, created, err, true, retryReconciliation)
 		}
 
 		created = append(created, resource)
 	}
 
 	if err := workflow.ExecuteActivity(stateCtx, completeHypothesisLaunchActivityName, input.LaunchID).Get(ctx, nil); err != nil {
-		return failHypothesisLaunchWorkflowWithMetadata(ctx, stateCtx, input.LaunchID, created, err, false)
+		return failHypothesisLaunchWorkflowWithMetadata(ctx, stateCtx, input.LaunchID, created, err, false, retryReconciliation)
 	}
 
 	return nil
+}
+
+func hypothesisLaunchWorkflowWithRollback(ctx workflow.Context, stateCtx workflow.Context, input hypothesisLaunchInput) error {
+	if len(input.Resources) == 0 {
+		return fmt.Errorf("rollback-enabled hypothesis launch has no resource snapshot")
+	}
+
+	for _, resource := range input.Resources {
+		activityCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+			ActivityID:          resourceActivityID("launch-create", resource),
+			StartToCloseTimeout: 5 * time.Minute,
+			RetryPolicy: &temporal.RetryPolicy{
+				InitialInterval: time.Second,
+				MaximumInterval: 5 * time.Second,
+				MaximumAttempts: 3,
+			},
+		})
+		if err := workflow.ExecuteActivity(activityCtx, createHypothesisLaunchResourceActivityName, resource).Get(ctx, nil); err != nil {
+			return rollbackFailedHypothesisLaunch(ctx, stateCtx, input.LaunchID, err)
+		}
+	}
+
+	completeCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+		StartToCloseTimeout: 10 * time.Second,
+		RetryPolicy:         &temporal.RetryPolicy{InitialInterval: time.Second, MaximumAttempts: 5},
+	})
+	if err := workflow.ExecuteActivity(completeCtx, completeHypothesisLaunchActivityName, input.LaunchID).Get(ctx, nil); err != nil {
+		return rollbackFailedHypothesisLaunch(ctx, stateCtx, input.LaunchID, err)
+	}
+
+	return nil
+}
+
+func rollbackFailedHypothesisLaunch(ctx workflow.Context, stateCtx workflow.Context, launchID string, launchErr error) error {
+	if err := workflow.ExecuteActivity(stateCtx, beginHypothesisLaunchRollbackActivityName, launchID, launchErr.Error()).Get(ctx, nil); err != nil {
+		return fmt.Errorf("launch hypothesis: %w; mark reconciliation required before rollback: %w", launchErr, err)
+	}
+
+	rollbackCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+		ActivityID:          "launch-rollback-" + launchID,
+		StartToCloseTimeout: 10 * time.Minute,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval: time.Second,
+			MaximumInterval: 5 * time.Second,
+			MaximumAttempts: 3,
+		},
+	})
+	if err := workflow.ExecuteActivity(rollbackCtx, rollbackHypothesisLaunchResourcesActivityName, launchID).Get(ctx, nil); err != nil {
+		var stateErr error
+		reason := launchErr.Error() + "; rollback: " + err.Error()
+		if workflow.GetVersion(ctx, hypothesisLaunchResidualsChangeID, workflow.DefaultVersion, 1) == workflow.DefaultVersion {
+			stateErr = workflow.ExecuteActivity(stateCtx, requireHypothesisLaunchReconciliationActivityName, launchID, reason, false).Get(ctx, nil)
+		} else {
+			stateErr = workflow.ExecuteActivity(stateCtx, stopHypothesisLaunchWithResidualsActivityName, launchID, reason).Get(ctx, nil)
+		}
+
+		if stateErr != nil {
+			return fmt.Errorf("rollback failed: %w; record unresolved outcome: %w", err, stateErr)
+		}
+
+		return fmt.Errorf("launch hypothesis: %w; rollback requires reconciliation: %w", launchErr, err)
+	}
+
+	if err := workflow.ExecuteActivity(stateCtx, failHypothesisLaunchActivityName, launchID, launchErr.Error()).Get(ctx, nil); err != nil {
+		return fmt.Errorf("launch hypothesis: %w; record failed status after rollback: %w", launchErr, err)
+	}
+
+	return fmt.Errorf("launch hypothesis failed and resources were rolled back: %w", launchErr)
 }
 
 func legacyHypothesisLaunchWorkflow(ctx workflow.Context, input hypothesisLaunchInput) error {
@@ -184,9 +268,9 @@ func legacyHypothesisLaunchWorkflow(ctx workflow.Context, input hypothesisLaunch
 	return fmt.Errorf("launch hypothesis: %w", err)
 }
 
-func failHypothesisLaunchWorkflow(ctx workflow.Context, stateCtx workflow.Context, launchID string, created []string, launchErr error, requiresReconciliation bool) error {
+func failHypothesisLaunchWorkflow(ctx workflow.Context, stateCtx workflow.Context, launchID string, created []string, launchErr error, requiresReconciliation, retryReconciliation bool) error {
 	if requiresReconciliation {
-		if err := workflow.ExecuteActivity(stateCtx, requireHypothesisLaunchReconciliationActivityName, launchID, launchErr.Error(), true).Get(ctx, nil); err != nil {
+		if err := workflow.ExecuteActivity(stateCtx, requireHypothesisLaunchReconciliationActivityName, launchID, launchErr.Error(), retryReconciliation).Get(ctx, nil); err != nil {
 			return fmt.Errorf("launch hypothesis: %w; mark reconciliation required: %w", launchErr, err)
 		}
 
@@ -218,9 +302,9 @@ func failHypothesisLaunchWorkflow(ctx workflow.Context, stateCtx workflow.Contex
 	return fmt.Errorf("launch hypothesis: %w", launchErr)
 }
 
-func failHypothesisLaunchWorkflowWithMetadata(ctx workflow.Context, stateCtx workflow.Context, launchID string, created []hypothesislaunch.WorkflowResource, launchErr error, requiresReconciliation bool) error {
+func failHypothesisLaunchWorkflowWithMetadata(ctx workflow.Context, stateCtx workflow.Context, launchID string, created []hypothesislaunch.WorkflowResource, launchErr error, requiresReconciliation, retryReconciliation bool) error {
 	if requiresReconciliation {
-		if err := workflow.ExecuteActivity(stateCtx, requireHypothesisLaunchReconciliationActivityName, launchID, launchErr.Error(), true).Get(ctx, nil); err != nil {
+		if err := workflow.ExecuteActivity(stateCtx, requireHypothesisLaunchReconciliationActivityName, launchID, launchErr.Error(), retryReconciliation).Get(ctx, nil); err != nil {
 			return fmt.Errorf("launch hypothesis: %w; mark reconciliation required: %w", launchErr, err)
 		}
 

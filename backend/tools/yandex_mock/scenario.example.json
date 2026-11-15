@@ -1,0 +1,5 @@
+{
+  "rules": [
+    {"service": "ads", "method": "add", "occurrence": 2, "action": "disconnect_after"}
+  ]
+}

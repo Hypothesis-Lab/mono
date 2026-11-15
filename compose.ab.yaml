@@ -1,0 +1,11 @@
+# Run only the Temporal services with this override when Postgres and SeaweedFS
+# already run on the host at ports 5433 and 8333.
+services:
+  temporal-admin-tools:
+    environment:
+      DB_PORT: "5433"
+      POSTGRES_SEEDS: host.containers.internal
+  temporal:
+    environment:
+      DB_PORT: "5433"
+      POSTGRES_SEEDS: host.containers.internal

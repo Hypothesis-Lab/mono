@@ -97,6 +97,15 @@ func (s *ProductService) Delete(ctx context.Context, userID, id string) error {
 		return fmt.Errorf("getting product: %w", err)
 	}
 
+	unresolved, err := s.products.HasUnresolvedPreparation(ctx, userID, p.HypothesisID)
+	if err != nil {
+		return fmt.Errorf("check product preparation before deleting files: %w", err)
+	}
+
+	if unresolved {
+		return ErrUnresolvedPreparation
+	}
+
 	files, err := s.files.ListByHypothesisID(ctx, p.HypothesisID)
 	if err != nil {
 		return fmt.Errorf("listing files: %w", err)

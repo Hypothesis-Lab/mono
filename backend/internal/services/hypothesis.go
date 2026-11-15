@@ -15,20 +15,23 @@ import (
 	"app/internal/repositories/hypothesislaunch"
 	"app/internal/repositories/product"
 	"app/internal/storage"
+
+	"go.uber.org/zap"
 )
 
 const russiaYandexRegionID int64 = 225
 
 var (
-	ErrAlreadyInProgress    = errors.New("hypothesis already in progress")
-	ErrHypothesisNoProduct  = errors.New("hypothesis has no product")
-	ErrUpdateInProgress     = errors.New("cannot update hypothesis in progress")
-	ErrDeleteInProgress     = errors.New("cannot delete hypothesis in progress")
-	ErrStopLaunchInProgress = errors.New("cannot stop hypothesis while launch is in progress")
-	ErrStopInProgress       = errors.New("hypothesis stop is already in progress")
-	ErrStopManual           = errors.New("hypothesis requires manual intervention")
-	ErrLaunchNotFound       = errors.New("hypothesis launch not found")
-	ErrHypothesisNoAudience = errors.New("hypothesis product has no generated audiences")
+	ErrAlreadyInProgress     = errors.New("hypothesis already in progress")
+	ErrHypothesisNoProduct   = errors.New("hypothesis has no product")
+	ErrUpdateInProgress      = errors.New("cannot update hypothesis in progress")
+	ErrDeleteInProgress      = errors.New("cannot delete hypothesis in progress")
+	ErrStopLaunchInProgress  = errors.New("cannot stop hypothesis while launch is in progress")
+	ErrStopInProgress        = errors.New("hypothesis stop is already in progress")
+	ErrStopManual            = errors.New("hypothesis requires manual intervention")
+	ErrLaunchNotFound        = errors.New("hypothesis launch not found")
+	ErrHypothesisNoAudience  = errors.New("hypothesis product has no generated audiences")
+	ErrUnresolvedPreparation = errors.New("preparation history contains unresolved resources")
 )
 
 type HypothesisService struct {
@@ -40,6 +43,7 @@ type HypothesisService struct {
 	campaigns   *adcampaign.Repository
 	connections *YandexDirectConnectionService
 	launches    *hypothesislaunch.Repository
+	logger      *zap.Logger
 }
 
 type createdAudienceTargeting struct {
@@ -67,6 +71,7 @@ func NewHypothesisService(
 	campaigns *adcampaign.Repository,
 	connections *YandexDirectConnectionService,
 	launches *hypothesislaunch.Repository,
+	logger *zap.Logger,
 ) *HypothesisService {
 	return &HypothesisService{
 		hypotheses:  hypotheses,
@@ -77,6 +82,7 @@ func NewHypothesisService(
 		campaigns:   campaigns,
 		connections: connections,
 		launches:    launches,
+		logger:      logger,
 	}
 }
 
@@ -136,35 +142,37 @@ func (s *HypothesisService) GetProduct(ctx context.Context, userID, id string) (
 }
 
 func (s *HypothesisService) StartLaunch(ctx context.Context, userID, id string) (string, error) {
-	if _, err := s.hypotheses.Get(ctx, userID, id); err != nil {
-		if errors.Is(err, hypothesis.ErrNotFound) {
-			return "", hypothesis.ErrNotFound
-		}
-
-		return "", fmt.Errorf("get hypothesis before launch: %w", err)
-	}
-
-	if err := s.connections.EnsureConnected(ctx, userID); err != nil {
-		return "", fmt.Errorf("check yandex direct connection before launch: %w", err)
-	}
-
-	launch, err := s.launches.Create(ctx, userID, id, time.Now().Format(time.DateOnly))
+	launch, err := s.createHypothesisLaunch(ctx, userID, id, false)
 	if err != nil {
-		switch {
-		case errors.Is(err, hypothesislaunch.ErrHypothesisGone):
-			return "", hypothesis.ErrNotFound
-		case errors.Is(err, hypothesislaunch.ErrAlreadyActive):
-			return "", ErrAlreadyInProgress
-		case errors.Is(err, hypothesislaunch.ErrNoProduct):
-			return "", ErrHypothesisNoProduct
-		case errors.Is(err, hypothesislaunch.ErrNoAudiences):
-			return "", ErrHypothesisNoAudience
-		default:
-			return "", fmt.Errorf("create hypothesis launch: %w", err)
-		}
+		return "", err
 	}
 
 	return launch.WorkflowID, nil
+}
+
+func (s *HypothesisService) StartLaunchSynchronous(ctx context.Context, userID, id string) (*LaunchStatus, error) {
+	started := time.Now()
+	launch, err := s.createHypothesisLaunch(ctx, userID, id, true)
+	if err != nil {
+		return nil, err
+	}
+
+	status := &LaunchStatus{WorkflowID: launch.WorkflowID, Status: "running"}
+	defer func() {
+		s.logger.Info("synchronous hypothesis preparation finished",
+			zap.String("launch_id", launch.ID),
+			zap.Int64("elapsed_ms", time.Since(started).Milliseconds()),
+			zap.String("status", status.Status),
+		)
+	}()
+
+	runErr := s.executeSynchronousHypothesisLaunch(ctx, launch.ID)
+	if runErr == nil {
+		status.Status = "completed"
+		return status, nil
+	}
+
+	return s.recordSynchronousLaunchFailure(ctx, launch.ID, status, runErr)
 }
 
 func (s *HypothesisService) GetLaunchStatus(ctx context.Context, userID, id string) (*LaunchStatus, error) {
@@ -190,10 +198,12 @@ func (s *HypothesisService) GetLaunchStatus(ctx context.Context, userID, id stri
 
 func launchWorkflowStatus(status string) string {
 	switch status {
-	case "queued", "running":
+	case "queued", "running", "rolling_back":
 		return status
 	case "succeeded":
 		return "completed"
+	case "reconciliation_required", "failed_with_residuals":
+		return status
 	default:
 		return "failed"
 	}
@@ -284,6 +294,15 @@ func (s *HypothesisService) Delete(ctx context.Context, userID, id string) error
 
 	if h.Status != hypothesis.StatusIdle {
 		return ErrDeleteInProgress
+	}
+
+	unresolved, err := s.products.HasUnresolvedPreparation(ctx, userID, id)
+	if err != nil {
+		return fmt.Errorf("check hypothesis preparation before deleting files: %w", err)
+	}
+
+	if unresolved {
+		return ErrUnresolvedPreparation
 	}
 
 	files, err := s.files.ListByHypothesisID(ctx, id)
@@ -480,4 +499,182 @@ func deleteAudienceTargeting(ctx context.Context, yandex *yandexdirect.Client, t
 	}
 
 	return launchErr
+}
+
+func (s *HypothesisService) executeSynchronousHypothesisLaunch(ctx context.Context, launchID string) error {
+	resources, err := s.launches.WorkflowResources(ctx, launchID)
+	if err != nil {
+		return err
+	}
+
+	if err := s.markHypothesisLaunchRunningActivity(ctx, launchID); err != nil {
+		return err
+	}
+
+	for _, resource := range resources {
+		if err := s.retrySynchronousLaunchResource(ctx, resource); err != nil {
+			return err
+		}
+	}
+
+	return s.completeHypothesisLaunchActivity(ctx, launchID)
+}
+
+func (s *HypothesisService) retrySynchronousLaunchResource(ctx context.Context, resource hypothesislaunch.WorkflowResource) error {
+	for attempt := 0; attempt < 3; attempt++ {
+		stepCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+		err := s.createHypothesisLaunchResourceActivity(stepCtx, resource)
+		cancel()
+		if err == nil || ctx.Err() != nil {
+			return err
+		}
+
+		if attempt == 2 {
+			return err
+		}
+
+		timer := time.NewTimer(time.Duration(attempt+1) * time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+
+	return nil
+}
+
+func (s *HypothesisService) recordSynchronousLaunchFailure(ctx context.Context, launchID string, status *LaunchStatus, cause error) (*LaunchStatus, error) {
+	s.logger.Error("synchronous hypothesis launch failed", zap.String("launch_id", launchID), zap.Error(cause))
+	if ctx.Err() != nil {
+		return s.stopSynchronousLaunch(ctx, launchID, status, cause)
+	}
+
+	if err := s.beginHypothesisLaunchRollbackActivity(ctx, launchID, cause.Error()); err != nil {
+		return s.stopSynchronousLaunch(ctx, launchID, status, errors.Join(cause, err))
+	}
+
+	var rollbackErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		rollbackErr = s.rollbackHypothesisLaunchResourcesActivity(ctx, launchID)
+		if rollbackErr == nil || ctx.Err() != nil || attempt == 2 {
+			break
+		}
+
+		timer := time.NewTimer(time.Duration(attempt+1) * time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			rollbackErr = errors.Join(rollbackErr, ctx.Err())
+		case <-timer.C:
+		}
+
+		if ctx.Err() != nil {
+			break
+		}
+	}
+
+	if rollbackErr != nil {
+		return s.stopSynchronousLaunch(ctx, launchID, status, errors.Join(cause, rollbackErr))
+	}
+
+	if err := s.failHypothesisLaunchActivity(ctx, launchID, cause.Error()); err != nil {
+		return s.stopSynchronousLaunch(ctx, launchID, status, errors.Join(cause, err))
+	}
+
+	status.Status = "failed"
+	return status, nil
+}
+
+func (s *HypothesisService) stopSynchronousLaunch(ctx context.Context, launchID string, status *LaunchStatus, cause error) (*LaunchStatus, error) {
+	stateCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	phase, err := s.launches.StopWithResiduals(stateCtx, launchID, cause.Error())
+	if err != nil {
+		return status, fmt.Errorf("synchronous launch stopped: %w; save stopped outcome: %w", cause, err)
+	}
+
+	status.Status = launchWorkflowStatus(phase)
+	return status, nil
+}
+
+func (s *HypothesisService) createHypothesisLaunch(ctx context.Context, userID, id string, synchronous bool) (*hypothesislaunch.Launch, error) {
+	if _, err := s.hypotheses.Get(ctx, userID, id); err != nil {
+		if errors.Is(err, hypothesis.ErrNotFound) {
+			return nil, hypothesis.ErrNotFound
+		}
+
+		return nil, fmt.Errorf("get hypothesis before launch: %w", err)
+	}
+
+	if err := s.connections.EnsureConnected(ctx, userID); err != nil {
+		return nil, fmt.Errorf("check yandex direct connection before launch: %w", err)
+	}
+
+	preparedProduct, err := s.products.GetByHypothesisID(ctx, id)
+	if err != nil {
+		if errors.Is(err, product.ErrNotFound) {
+			return nil, ErrHypothesisNoProduct
+		}
+
+		return nil, fmt.Errorf("get hypothesis product before launch: %w", err)
+	}
+
+	preparationConfig, err := s.products.GetPreparationConfigByHypothesisID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get hypothesis product preparation config: %w", err)
+	}
+
+	startDate := time.Now().Format(time.DateOnly)
+	if len(preparationConfig) > 0 && string(preparationConfig) != "null" {
+		audiences, err := s.audiences.ListByProductID(ctx, preparedProduct.ID)
+		if err != nil {
+			return nil, fmt.Errorf("list audiences for unified draft: %w", err)
+		}
+
+		plan, err := buildUnifiedDraftPlan(preparationConfig, audiences, startDate)
+		if err != nil {
+			return nil, fmt.Errorf("validate unified draft preparation config: %w", err)
+		}
+
+		if synchronous {
+			launch, err := s.launches.CreatePreparedSynchronous(ctx, userID, id, startDate, plan)
+			return launch, mapHypothesisLaunchCreateError("create prepared synchronous hypothesis launch", err)
+		}
+
+		launch, err := s.launches.CreatePrepared(ctx, userID, id, startDate, plan)
+		return launch, mapHypothesisLaunchCreateError("create prepared hypothesis launch", err)
+	}
+
+	create := s.launches.Create
+	if synchronous {
+		create = s.launches.CreateSynchronous
+	}
+
+	launch, err := create(ctx, userID, id, startDate)
+	if err != nil {
+		return nil, mapHypothesisLaunchCreateError("create hypothesis launch", err)
+	}
+
+	return launch, nil
+}
+
+func mapHypothesisLaunchCreateError(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	switch {
+	case errors.Is(err, hypothesislaunch.ErrHypothesisGone):
+		return hypothesis.ErrNotFound
+	case errors.Is(err, hypothesislaunch.ErrAlreadyActive):
+		return ErrAlreadyInProgress
+	case errors.Is(err, hypothesislaunch.ErrNoProduct):
+		return ErrHypothesisNoProduct
+	case errors.Is(err, hypothesislaunch.ErrNoAudiences):
+		return ErrHypothesisNoAudience
+	default:
+		return fmt.Errorf("%s: %w", operation, err)
+	}
 }

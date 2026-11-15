@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -36,6 +37,11 @@ type attachment struct {
 	filename string
 	path     string
 	fileType string
+}
+
+type sourceFile struct {
+	kind, filename, contentType, key string
+	size                             int64
 }
 
 type productSeed struct {
@@ -99,6 +105,7 @@ func productSeedFor(slug string) (productSeed, bool) {
 			unknowns:          []string{"Фактическая доступность предложения и согласие на коммуникацию проверяются отдельно.", "Результат кредитного решения и готовность клиента использовать лимит не подтверждены."},
 		},
 	}
+
 	seed, ok := seeds[slug]
 	return seed, ok
 }
@@ -107,11 +114,36 @@ func main() {
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
+
 }
 
+//nolint:cyclop // Existing seed setup plus explicit clone-mode validation.
 func run() error {
 	productSlug := flag.String("product", "cafe", "product source set to seed: cafe or bank")
+	cloneSource := flag.String("clone-source", "", "source hypothesis ID to clone into an A/B pair")
+	abPair := flag.Bool("ab-pair", false, "create two independent copies of --clone-source")
+	pilotAudience := flag.Bool("pilot-audience", false, "attach three fixed synthetic audiences to both clones if source has none")
+	draftLandingURL := flag.String("draft-landing-url", "", "add nine synthetic Tempo draft creatives using this landing URL (pair mode only)")
 	flag.Parse()
+	if *abPair && *cloneSource == "" {
+		return errors.New("--ab-pair requires --clone-source")
+	}
+
+	if *cloneSource != "" && !*abPair {
+		return errors.New("--clone-source requires --ab-pair")
+	}
+
+	if *pilotAudience && !*abPair {
+		return errors.New("--pilot-audience requires --ab-pair and --clone-source")
+	}
+
+	if *abPair && os.Getenv("DATABASE_URL") == "" {
+		return errors.New("A/B clone mode requires an explicit DATABASE_URL")
+	}
+
+	if *draftLandingURL != "" && !*abPair {
+		return errors.New("--draft-landing-url requires --ab-pair and --clone-source")
+	}
 
 	seed, ok := productSeedFor(*productSlug)
 	if !ok {
@@ -130,6 +162,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("connect to database: %w", err)
 	}
+
 	defer pool.Close()
 
 	s3Client, err := newS3Client(ctx)
@@ -137,11 +170,21 @@ func run() error {
 		return err
 	}
 
-	transaction, err := pool.Begin(ctx)
+	var transaction pgx.Tx
+	if *abPair {
+		transaction, err = pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
+	} else {
+		transaction, err = pool.Begin(ctx)
+	}
+
 	if err != nil {
 		return fmt.Errorf("begin %s seed transaction: %w", seed.name, err)
 	}
+
 	defer transaction.Rollback(ctx) //nolint:errcheck
+	if *abPair {
+		return clonePair(ctx, transaction, s3Client, *cloneSource, *pilotAudience, *draftLandingURL)
+	}
 
 	var userID string
 	if err := transaction.QueryRow(ctx, "SELECT id FROM users WHERE email = $1", userEmail).Scan(&userID); err != nil {
@@ -253,6 +296,141 @@ func newS3Client(ctx context.Context) (*s3.Client, error) {
 	}), nil
 }
 
+//nolint:cyclop // Keeps the paired clone transaction and its safety checks together.
+func clonePair(ctx context.Context, tx pgx.Tx, client *s3.Client, sourceID string, pilotAudience bool, draftLandingURL string) error {
+	var userID, description, sourceProductID string
+	if err := tx.QueryRow(ctx, `SELECT h.user_id, h.description, p.id FROM hypothesis h JOIN product p ON p.hypothesis_id=h.id WHERE h.id=$1`, sourceID).Scan(&userID, &description, &sourceProductID); err != nil {
+		return fmt.Errorf("load source hypothesis and product %s: %w", sourceID, err)
+	}
+
+	var audienceCount int
+	if err := tx.QueryRow(ctx, "SELECT count(*) FROM audience WHERE product_id=$1", sourceProductID).Scan(&audienceCount); err != nil {
+		return fmt.Errorf("count source audiences: %w", err)
+	}
+
+	if audienceCount == 0 && !pilotAudience {
+		return errors.New("source has no audience snapshot; use --pilot-audience to explicitly attach synthetic pilot data")
+	}
+
+	draftConfig, err := draftPilotConfig(ctx, tx, sourceProductID, audienceCount, draftLandingURL)
+	if err != nil {
+		return err
+	}
+
+	fileRows, err := tx.Query(ctx, "SELECT type, filename, content_type, size, s3_key FROM file WHERE hypothesis_id=$1 ORDER BY filename", sourceID)
+	if err != nil {
+		return fmt.Errorf("list source files: %w", err)
+	}
+
+	var files []sourceFile
+	for fileRows.Next() {
+		var file sourceFile
+		if err := fileRows.Scan(&file.kind, &file.filename, &file.contentType, &file.size, &file.key); err != nil {
+			fileRows.Close()
+			return fmt.Errorf("scan source file: %w", err)
+		}
+
+		files = append(files, file)
+	}
+
+	if err := fileRows.Err(); err != nil {
+		fileRows.Close()
+		return fmt.Errorf("iterate source files: %w", err)
+	}
+
+	fileRows.Close()
+
+	var receipts []string
+	for _, arm := range []string{"A", "B"} {
+		hypothesisID, productID := uuid.NewString(), uuid.NewString()
+		if _, err := tx.Exec(ctx, `INSERT INTO hypothesis (id,user_id,description,status) VALUES ($1,$2,$3,'idle')`, hypothesisID, userID, description); err != nil {
+			return fmt.Errorf("create %s hypothesis clone: %w", arm, err)
+		}
+
+		if _, err := tx.Exec(ctx, `INSERT INTO product SELECT (jsonb_populate_record(NULL::product, jsonb_set(jsonb_set(to_jsonb(p),'{id}',to_jsonb($1::text)),'{hypothesis_id}',to_jsonb($2::text)))).* FROM product p WHERE p.id=$3`, productID, hypothesisID, sourceProductID); err != nil {
+			return fmt.Errorf("create %s product clone: %w", arm, err)
+		}
+
+		if len(draftConfig) > 0 {
+			if _, err := tx.Exec(ctx, "UPDATE product SET preparation_config=$2::jsonb WHERE id=$1", productID, string(draftConfig)); err != nil {
+				return fmt.Errorf("store %s draft pilot creatives: %w", arm, err)
+			}
+		}
+
+		if err := cloneFiles(ctx, tx, client, hypothesisID, files); err != nil {
+			return fmt.Errorf("clone %s files: %w", arm, err)
+		}
+
+		if audienceCount > 0 {
+			if _, err := tx.Exec(ctx, `INSERT INTO audience (id,product_id,generator_job_id,persona_id,persona,research,metrics,hypotheses,rank,score) SELECT gen_random_uuid()::text,$1,gen_random_uuid()::text,persona_id,persona,research,metrics,hypotheses,rank,score FROM audience WHERE product_id=$2`, productID, sourceProductID); err != nil {
+				return fmt.Errorf("copy %s audience snapshot: %w", arm, err)
+			}
+
+		} else if pilotAudience {
+			if err := insertPilotAudiences(ctx, tx, productID); err != nil {
+				return fmt.Errorf("insert %s synthetic pilot audiences: %w", arm, err)
+			}
+
+		}
+
+		receipts = append(receipts, fmt.Sprintf("%s hypothesis=%s product=%s", arm, hypothesisID, productID))
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit cloned A/B pair: %w", err)
+	}
+
+	for _, receipt := range receipts {
+		fmt.Println(receipt)
+	}
+
+	return nil
+}
+
+func insertPilotAudiences(ctx context.Context, tx pgx.Tx, productID string) error {
+	profiles := []struct {
+		id, gender string
+		age, rank  int
+	}{
+		{id: "synthetic-pilot-male-30", gender: "мужчина", age: 30, rank: 1},
+		{id: "synthetic-pilot-female-30", gender: "женщина", age: 30, rank: 2},
+		{id: "synthetic-pilot-male-40", gender: "мужчина", age: 40, rank: 3},
+	}
+	for _, profile := range profiles {
+		persona := fmt.Sprintf(`{"gender":%q,"age":%d,"name":"Синтетический пилотный сегмент"}`, profile.gender, profile.age)
+		research := `{"provenance":"synthetic_pilot","note":"Engineering pilot only; not generated research."}`
+		metrics := `{"provenance":"synthetic_pilot"}`
+		hypotheses := `{"provenance":"synthetic_pilot"}`
+		if _, err := tx.Exec(ctx, `INSERT INTO audience (id,product_id,generator_job_id,persona_id,persona,research,metrics,hypotheses,rank,score) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb,$9,0)`, uuid.NewString(), productID, uuid.NewString(), profile.id, persona, research, metrics, hypotheses, profile.rank); err != nil {
+			return fmt.Errorf("insert synthetic persona %s: %w", profile.id, err)
+		}
+	}
+
+	return nil
+}
+
+func cloneFiles(ctx context.Context, tx pgx.Tx, client *s3.Client, targetID string, files []sourceFile) error {
+	bucket := envOrDefault("S3_BUCKET", s3Bucket)
+	for _, file := range files {
+		fileID := uuid.NewString()
+		key := "tempo-ab-clone/" + targetID + "/" + fileID + "/" + filepath.Base(file.key)
+		if _, err := client.CopyObject(ctx, &s3.CopyObjectInput{Bucket: aws.String(bucket), Key: aws.String(key), CopySource: aws.String(url.PathEscape(bucket + "/" + file.key))}); err != nil {
+			return fmt.Errorf("copy object %s: %w", file.key, err)
+		}
+
+		if _, err := tx.Exec(ctx, `INSERT INTO file (id,hypothesis_id,type,filename,content_type,size,s3_key) VALUES ($1,$2,$3,$4,$5,$6,$7)`, fileID, targetID, file.kind, file.filename, file.contentType, file.size, key); err != nil {
+			return fmt.Errorf("record cloned file %s: %w", file.filename, err)
+		}
+
+		if _, err := client.CopyObject(ctx, &s3.CopyObjectInput{Bucket: aws.String(bucket), Key: aws.String(key + ".extracted.txt"), CopySource: aws.String(url.PathEscape(bucket + "/" + file.key + ".extracted.txt"))}); err != nil {
+			return fmt.Errorf("copy extracted object %s: %w", file.key, err)
+		}
+
+	}
+
+	return nil
+}
+
 func attachProductFiles(ctx context.Context, transaction pgx.Tx, client *s3.Client, hypothesisID string, seed productSeed, sourceDirectory string, attachments []attachment) error {
 	for _, item := range attachments {
 		data, err := os.ReadFile(filepath.Join(sourceDirectory, item.path))
@@ -292,6 +470,7 @@ func attachProductFiles(ctx context.Context, transaction pgx.Tx, client *s3.Clie
 		if err != nil {
 			return fmt.Errorf("record %s attachment %s: %w", seed.name, item.filename, err)
 		}
+
 	}
 
 	return nil
@@ -302,6 +481,7 @@ func locateProductDirectory(productSlug string) (string, error) {
 		if info, err := os.Stat(filepath.Join(path, "product-brief.md")); err == nil && !info.IsDir() {
 			return path, nil
 		}
+
 	}
 
 	return "", fmt.Errorf("locate %s source documents: run from the repository root or backend directory", productSlug)
@@ -345,6 +525,7 @@ func attachmentType(filename string) string {
 	default:
 		return "reference"
 	}
+
 }
 
 func envOrDefault(key, fallback string) string {

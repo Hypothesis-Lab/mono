@@ -337,6 +337,12 @@ paths:
       responses:
         "204":
           description: hypothesis deleted
+        "409":
+          description: preparation resources remain and history must be preserved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
         "400":
           description: hypothesis in progress
           content:
@@ -366,7 +372,20 @@ paths:
           required: true
           schema:
             type: string
+        - name: mode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [sync, async]
+            default: async
       responses:
+        "200":
+          description: synchronous hypothesis launch completed or requires reconciliation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HypothesisLaunchResponse"
         "202":
           description: hypothesis launch queued
           content:
@@ -590,6 +609,12 @@ paths:
       responses:
         "204":
           description: product deleted
+        "409":
+          description: preparation resources remain and history must be preserved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrBody"
         "404":
           description: product not found
           content:
@@ -953,7 +978,7 @@ components:
       required: [workflow_id, status]
       properties:
         workflow_id: { type: string }
-        status: { type: string, enum: [queued] }
+        status: { type: string, enum: [queued, completed, failed, failed_with_residuals, reconciliation_required] }
     ProductFeedbackSurveyRunResponse:
       type: object
       required: [count, questionnaire]
@@ -1009,7 +1034,7 @@ components:
         workflow_id: { type: string }
         status:
           type: string
-          enum: [queued, running, completed, failed, canceled, timed_out, terminated]
+          enum: [queued, running, rolling_back, completed, failed, failed_with_residuals, reconciliation_required, canceled, timed_out, terminated]
     HypothesisStopResponse:
       type: object
       required: [workflow_id, status]

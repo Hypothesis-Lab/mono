@@ -10,7 +10,7 @@ import (
 )
 
 func NewClient(lc fx.Lifecycle, cfg *config.Config) (client.Client, error) {
-	temporalClient, err := client.Dial(client.Options{HostPort: cfg.TemporalAddress})
+	temporalClient, err := client.Dial(client.Options{HostPort: cfg.TemporalAddress, Namespace: cfg.TemporalNamespace})
 	if err != nil {
 		return nil, err
 	}

@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -65,13 +66,25 @@ func (e CreateProductRequestMetricDirection) Valid() bool {
 
 // Defines values for HypothesisLaunchResponseStatus.
 const (
-	HypothesisLaunchResponseStatusQueued HypothesisLaunchResponseStatus = "queued"
+	HypothesisLaunchResponseStatusCompleted              HypothesisLaunchResponseStatus = "completed"
+	HypothesisLaunchResponseStatusFailed                 HypothesisLaunchResponseStatus = "failed"
+	HypothesisLaunchResponseStatusFailedWithResiduals    HypothesisLaunchResponseStatus = "failed_with_residuals"
+	HypothesisLaunchResponseStatusQueued                 HypothesisLaunchResponseStatus = "queued"
+	HypothesisLaunchResponseStatusReconciliationRequired HypothesisLaunchResponseStatus = "reconciliation_required"
 )
 
 // Valid indicates whether the value is a known member of the HypothesisLaunchResponseStatus enum.
 func (e HypothesisLaunchResponseStatus) Valid() bool {
 	switch e {
+	case HypothesisLaunchResponseStatusCompleted:
+		return true
+	case HypothesisLaunchResponseStatusFailed:
+		return true
+	case HypothesisLaunchResponseStatusFailedWithResiduals:
+		return true
 	case HypothesisLaunchResponseStatusQueued:
+		return true
+	case HypothesisLaunchResponseStatusReconciliationRequired:
 		return true
 	default:
 		return false
@@ -80,13 +93,16 @@ func (e HypothesisLaunchResponseStatus) Valid() bool {
 
 // Defines values for HypothesisLaunchStatusResponseStatus.
 const (
-	HypothesisLaunchStatusResponseStatusCanceled   HypothesisLaunchStatusResponseStatus = "canceled"
-	HypothesisLaunchStatusResponseStatusCompleted  HypothesisLaunchStatusResponseStatus = "completed"
-	HypothesisLaunchStatusResponseStatusFailed     HypothesisLaunchStatusResponseStatus = "failed"
-	HypothesisLaunchStatusResponseStatusQueued     HypothesisLaunchStatusResponseStatus = "queued"
-	HypothesisLaunchStatusResponseStatusRunning    HypothesisLaunchStatusResponseStatus = "running"
-	HypothesisLaunchStatusResponseStatusTerminated HypothesisLaunchStatusResponseStatus = "terminated"
-	HypothesisLaunchStatusResponseStatusTimedOut   HypothesisLaunchStatusResponseStatus = "timed_out"
+	HypothesisLaunchStatusResponseStatusCanceled               HypothesisLaunchStatusResponseStatus = "canceled"
+	HypothesisLaunchStatusResponseStatusCompleted              HypothesisLaunchStatusResponseStatus = "completed"
+	HypothesisLaunchStatusResponseStatusFailed                 HypothesisLaunchStatusResponseStatus = "failed"
+	HypothesisLaunchStatusResponseStatusFailedWithResiduals    HypothesisLaunchStatusResponseStatus = "failed_with_residuals"
+	HypothesisLaunchStatusResponseStatusQueued                 HypothesisLaunchStatusResponseStatus = "queued"
+	HypothesisLaunchStatusResponseStatusReconciliationRequired HypothesisLaunchStatusResponseStatus = "reconciliation_required"
+	HypothesisLaunchStatusResponseStatusRollingBack            HypothesisLaunchStatusResponseStatus = "rolling_back"
+	HypothesisLaunchStatusResponseStatusRunning                HypothesisLaunchStatusResponseStatus = "running"
+	HypothesisLaunchStatusResponseStatusTerminated             HypothesisLaunchStatusResponseStatus = "terminated"
+	HypothesisLaunchStatusResponseStatusTimedOut               HypothesisLaunchStatusResponseStatus = "timed_out"
 )
 
 // Valid indicates whether the value is a known member of the HypothesisLaunchStatusResponseStatus enum.
@@ -98,7 +114,13 @@ func (e HypothesisLaunchStatusResponseStatus) Valid() bool {
 		return true
 	case HypothesisLaunchStatusResponseStatusFailed:
 		return true
+	case HypothesisLaunchStatusResponseStatusFailedWithResiduals:
+		return true
 	case HypothesisLaunchStatusResponseStatusQueued:
+		return true
+	case HypothesisLaunchStatusResponseStatusReconciliationRequired:
+		return true
+	case HypothesisLaunchStatusResponseStatusRollingBack:
 		return true
 	case HypothesisLaunchStatusResponseStatusRunning:
 		return true
@@ -486,6 +508,24 @@ func (e UploadProductFileMultipartBodyType) Valid() bool {
 	}
 }
 
+// Defines values for LaunchHypothesisParamsMode.
+const (
+	Async LaunchHypothesisParamsMode = "async"
+	Sync  LaunchHypothesisParamsMode = "sync"
+)
+
+// Valid indicates whether the value is a known member of the LaunchHypothesisParamsMode enum.
+func (e LaunchHypothesisParamsMode) Valid() bool {
+	switch e {
+	case Async:
+		return true
+	case Sync:
+		return true
+	default:
+		return false
+	}
+}
+
 // AuthTokenResponse defines model for AuthTokenResponse.
 type AuthTokenResponse struct {
 	Token string `json:"token"`
@@ -839,6 +879,14 @@ type UploadProductFileMultipartBody struct {
 // UploadProductFileMultipartBodyType defines parameters for UploadProductFile.
 type UploadProductFileMultipartBodyType string
 
+// LaunchHypothesisParams defines parameters for LaunchHypothesis.
+type LaunchHypothesisParams struct {
+	Mode *LaunchHypothesisParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
+}
+
+// LaunchHypothesisParamsMode defines parameters for LaunchHypothesis.
+type LaunchHypothesisParamsMode string
+
 // LoginUserJSONRequestBody defines body for LoginUser for application/json ContentType.
 type LoginUserJSONRequestBody = LoginUserRequest
 
@@ -903,7 +951,7 @@ type ServerInterface interface {
 	UploadProductFile(w http.ResponseWriter, r *http.Request, id string)
 	// Launch hypothesis
 	// (POST /api/v1/hypothesis/{id}/launch)
-	LaunchHypothesis(w http.ResponseWriter, r *http.Request, id string)
+	LaunchHypothesis(w http.ResponseWriter, r *http.Request, id string, params LaunchHypothesisParams)
 	// Get hypothesis launch status
 	// (GET /api/v1/hypothesis/{id}/launch-status)
 	GetHypothesisLaunchStatus(w http.ResponseWriter, r *http.Request, id string)
@@ -1029,7 +1077,7 @@ func (_ Unimplemented) UploadProductFile(w http.ResponseWriter, r *http.Request,
 
 // Launch hypothesis
 // (POST /api/v1/hypothesis/{id}/launch)
-func (_ Unimplemented) LaunchHypothesis(w http.ResponseWriter, r *http.Request, id string) {
+func (_ Unimplemented) LaunchHypothesis(w http.ResponseWriter, r *http.Request, id string, params LaunchHypothesisParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1437,8 +1485,24 @@ func (siw *ServerInterfaceWrapper) LaunchHypothesis(w http.ResponseWriter, r *ht
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params LaunchHypothesisParams
+
+	// ------------- Optional query parameter "mode" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "mode", r.URL.Query(), &params.Mode, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "mode"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "mode", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.LaunchHypothesis(w, r, id)
+		siw.Handler.LaunchHypothesis(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2432,6 +2496,20 @@ func (response DeleteHypothesis404JSONResponse) VisitDeleteHypothesisResponse(w 
 	return err
 }
 
+type DeleteHypothesis409JSONResponse ErrBody
+
+func (response DeleteHypothesis409JSONResponse) VisitDeleteHypothesisResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteHypothesis500JSONResponse ErrBody
 
 func (response DeleteHypothesis500JSONResponse) VisitDeleteHypothesisResponse(w http.ResponseWriter) error {
@@ -2705,11 +2783,26 @@ func (response UploadProductFile500JSONResponse) VisitUploadProductFileResponse(
 }
 
 type LaunchHypothesisRequestObject struct {
-	Id string `json:"id"`
+	Id     string `json:"id"`
+	Params LaunchHypothesisParams
 }
 
 type LaunchHypothesisResponseObject interface {
 	VisitLaunchHypothesisResponse(w http.ResponseWriter) error
+}
+
+type LaunchHypothesis200JSONResponse HypothesisLaunchResponse
+
+func (response LaunchHypothesis200JSONResponse) VisitLaunchHypothesisResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type LaunchHypothesis202JSONResponse HypothesisLaunchResponse
@@ -3114,6 +3207,20 @@ func (response DeleteProduct404JSONResponse) VisitDeleteProductResponse(w http.R
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProduct409JSONResponse ErrBody
+
+func (response DeleteProduct409JSONResponse) VisitDeleteProductResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4149,10 +4256,11 @@ func (sh *strictHandler) UploadProductFile(w http.ResponseWriter, r *http.Reques
 }
 
 // LaunchHypothesis operation middleware
-func (sh *strictHandler) LaunchHypothesis(w http.ResponseWriter, r *http.Request, id string) {
+func (sh *strictHandler) LaunchHypothesis(w http.ResponseWriter, r *http.Request, id string, params LaunchHypothesisParams) {
 	var request LaunchHypothesisRequestObject
 
 	request.Id = id
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.LaunchHypothesis(ctx, request.(LaunchHypothesisRequestObject))
@@ -4690,69 +4798,71 @@ func (sh *strictHandler) Healthz(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"QQjllCztMNnAoACqP12fyvjxZn+z/98A",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,
