@@ -78,19 +78,11 @@ def _sample_indices(labels: np.ndarray, limit: int, seed: int) -> np.ndarray:
     return np.sort(np.concatenate([first, extra]))
 
 
-def evaluate(prepared: Path, segmented: Path, *, sample: int = 2000,
-             seed: int = 42) -> tuple[list[dict], dict]:
+def evaluate_data(matrix: pd.DataFrame, profile: pd.DataFrame, assignment: pd.DataFrame,
+                  candidates: dict, report: dict, model: dict, *, sample: int = 2000,
+                  seed: int = 42) -> tuple[list[dict], dict]:
     if sample < 2:
         raise ValueError("sample должен быть не меньше 2")
-    prep = _read_zip(prepared, {"segmentation_matrix.csv", "client_features_combined.csv"})
-    seg = _read_zip(segmented, {"client_segments.csv", "segment_candidates.json",
-                                "segmentation_report.json", "segmentation_model.json"})
-    matrix = _csv(prep["segmentation_matrix.csv"])
-    profile = _csv(prep["client_features_combined.csv"])
-    assignment = _csv(seg["client_segments.csv"])
-    candidates = _json(seg["segment_candidates.json"])
-    report = _json(seg["segmentation_report.json"])
-    model = _json(seg["segmentation_model.json"])
 
     ids = _unique_ids(matrix, "Матрица", "__entity_id")
     profile_ids = _unique_ids(profile, "Профиль", "__entity_id")
@@ -209,21 +201,53 @@ def evaluate(prepared: Path, segmented: Path, *, sample: int = 2000,
         "global_sample_silhouette": round(float(sil_values.mean()), 4),
         "silhouette_sample_size": len(sample_indices),
         "weights": WEIGHTS, "pass_thresholds": PASS, "weak_thresholds": WEAK,
-        "source_archives": {"prepared": prepared.name, "segmented": segmented.name},
         "top3_quality_candidates": rows[:3], "ranking": rows,
         "warnings": warnings,
     }
     return rows, summary
 
 
+def evaluate(prepared: Path, segmented: Path, *, sample: int = 2000,
+             seed: int = 42) -> tuple[list[dict], dict]:
+    prep = _read_zip(prepared, {"segmentation_matrix.csv", "client_features_combined.csv"})
+    seg = _read_zip(segmented, {"client_segments.csv", "segment_candidates.json",
+                                "segmentation_report.json", "segmentation_model.json"})
+    rows, summary = evaluate_data(
+        _csv(prep["segmentation_matrix.csv"]), _csv(prep["client_features_combined.csv"]),
+        _csv(seg["client_segments.csv"]), _json(seg["segment_candidates.json"]),
+        _json(seg["segmentation_report.json"]), _json(seg["segmentation_model.json"]),
+        sample=sample, seed=seed,
+    )
+    summary["source_archives"] = {"prepared": prepared.name, "segmented": segmented.name}
+    return rows, summary
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--prepared", type=Path, required=True, help="ZIP подготовки данных")
-    parser.add_argument("--segmented", type=Path, required=True, help="ZIP сегментации")
+    prepared = parser.add_mutually_exclusive_group(required=True)
+    prepared.add_argument("--prepared", type=Path, help="ZIP подготовки данных")
+    prepared.add_argument("--prepared-dir", type=Path, help="Папка результатов подготовки")
+    segmented = parser.add_mutually_exclusive_group(required=True)
+    segmented.add_argument("--segmented", type=Path, help="ZIP сегментации")
+    segmented.add_argument("--segmented-dir", type=Path, help="Папка результатов сегментации")
     parser.add_argument("--out", type=Path, default=Path("quality_top3"), help="Папка результатов")
     parser.add_argument("--sample", type=int, default=2000, help="Максимум клиентов для Silhouette")
     args = parser.parse_args()
-    ranking, summary = evaluate(args.prepared, args.segmented, sample=args.sample)
+    if args.prepared and args.segmented:
+        ranking, summary = evaluate(args.prepared, args.segmented, sample=args.sample)
+    elif args.prepared_dir and args.segmented_dir:
+        prep, seg = args.prepared_dir, args.segmented_dir
+        ranking, summary = evaluate_data(
+            _csv((prep / "segmentation_matrix.csv").read_bytes()),
+            _csv((prep / "client_features_combined.csv").read_bytes()),
+            _csv((seg / "client_segments.csv").read_bytes()),
+            _json((seg / "segment_candidates.json").read_bytes()),
+            _json((seg / "segmentation_report.json").read_bytes()),
+            _json((seg / "segmentation_model.json").read_bytes()),
+            sample=args.sample,
+        )
+    else:
+        parser.error("используйте два ZIP или две папки")
     args.out.mkdir(parents=True, exist_ok=True)
     csv_rows = [{k: json.dumps(v, ensure_ascii=False) if isinstance(v, list) else v
                  for k, v in row.items()} for row in ranking]

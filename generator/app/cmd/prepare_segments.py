@@ -21,6 +21,7 @@ SYNTHETIC_DATASET_SHA256 = "1a00d779e0b668f31c0b74547d83a084b87ced0f75498ec7762f
 TBANK_DATASET_SHA256 = "0eaca9efdbf3ba64276d026d7fa2d362f9cf7cba9cfabff26bd765cf5f963b7a"
 PREPARATION_NOTEBOOK = EVAL / "farida_oct/Подготовка данных аудиторий.ipynb"
 SEGMENTATION_NOTEBOOK = EVAL / "farida_oct/Сегментация аудиторий.ipynb"
+QUALITY_SCRIPT = ROOT / "datasets/algos/hlab_segment_qiality_ranking.py"
 NOTEBOOK_RUNNER = """
 import json, sys
 from pathlib import Path
@@ -36,6 +37,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Prepare and store a versioned audience segment dataset")
     parser.add_argument("--dataset", type=Path, default=EVAL / "События аудиторий (датасет).xlsx")
     parser.add_argument("--python", type=Path, default=EVAL / ".venv/bin/python")
+    parser.add_argument("--export-dir", type=Path, help="Export aggregate results to a new run folder")
     args = parser.parse_args()
     dataset = args.dataset.resolve(strict=True)
     python = args.python.absolute()
@@ -93,7 +95,29 @@ def main() -> None:
             check=True,
         )
         output = directory / "segments"
+        subprocess.run(  # noqa: S603 -- interpreter is explicitly chosen by the CLI operator
+            [
+                str(python),
+                str(QUALITY_SCRIPT),
+                "--prepared-dir",
+                str(directory / "prep"),
+                "--segmented-dir",
+                str(output),
+                "--out",
+                str(directory / "quality"),
+            ],
+            cwd=directory,
+            check=True,
+        )
+        quality = json.loads((directory / "quality/segment_quality_top3.json").read_text(encoding="utf-8"))
         candidates = json.loads((output / "segment_candidates.json").read_text(encoding="utf-8"))
+        quality_by_id = {item["segment_id"]: item for item in quality["ranking"]}
+        for segment in candidates["segments"]:
+            item = quality_by_id[segment["segment_id"]]
+            segment["quality"] = {
+                key: value for key, value in item.items() if key not in ("key_features", "existing_risks")
+            }
+
         report = json.loads((output / "segmentation_report.json").read_text(encoding="utf-8"))
         preparation_report = json.loads((directory / "prep/run_report.json").read_text(encoding="utf-8"))
         segmentation_model = json.loads((output / "segmentation_model.json").read_text(encoding="utf-8"))
@@ -101,6 +125,7 @@ def main() -> None:
             members = list(csv.DictReader(file))
 
         segment_set_id = uuid4()
+        candidates["segment_set_id"] = str(segment_set_id)
         apply(database_url)
         with connect(database_url) as connection, connection.cursor() as cursor:
             cursor.execute(
@@ -114,6 +139,8 @@ def main() -> None:
                             "report": report,
                             "preparation_report": preparation_report,
                             "segmentation_model": segmentation_model,
+                            "segment_quality": quality,
+                            "quality_script_sha256": hashlib.sha256(QUALITY_SCRIPT.read_bytes()).hexdigest(),
                             "source": dataset.name,
                             "notebook_sha256": {
                                 notebook.name: hashlib.sha256(notebook.read_bytes()).hexdigest()
@@ -137,6 +164,19 @@ def main() -> None:
                 )
 
         print(f"Stored segment dataset: {segment_set_id}")
+        if args.export_dir:
+            export = args.export_dir / str(segment_set_id)
+            export.mkdir(parents=True, exist_ok=False)
+            for name, document in (
+                ("segment_candidates.json", candidates),
+                ("segmentation_report.json", report),
+                ("segment_quality_top3.json", quality),
+            ):
+                (export / name).write_text(
+                    json.dumps(document, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8"
+                )
+
+            print(f"Exported aggregate segment results: {export}")
 
 
 if __name__ == "__main__":
