@@ -18,6 +18,7 @@ from app.migrations import apply
 ROOT = Path(__file__).resolve().parents[3]
 EVAL = ROOT / "eval"
 SYNTHETIC_DATASET_SHA256 = "1a00d779e0b668f31c0b74547d83a084b87ced0f75498ec7762fae6da071f99b"
+TBANK_DATASET_SHA256 = "0eaca9efdbf3ba64276d026d7fa2d362f9cf7cba9cfabff26bd765cf5f963b7a"
 PREPARATION_NOTEBOOK = EVAL / "farida_oct/Подготовка данных аудиторий.ipynb"
 SEGMENTATION_NOTEBOOK = EVAL / "farida_oct/Сегментация аудиторий.ipynb"
 NOTEBOOK_RUNNER = """
@@ -32,7 +33,7 @@ for index, cell in enumerate(notebook['cells']):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Prepare and store a versioned Farida audience dataset")
+    parser = argparse.ArgumentParser(description="Prepare and store a versioned audience segment dataset")
     parser.add_argument("--dataset", type=Path, default=EVAL / "События аудиторий (датасет).xlsx")
     parser.add_argument("--python", type=Path, default=EVAL / ".venv/bin/python")
     args = parser.parse_args()
@@ -48,13 +49,28 @@ def main() -> None:
     with dataset.open("rb") as file:
         digest = hashlib.file_digest(file, "sha256").hexdigest()
 
-    if digest != SYNTHETIC_DATASET_SHA256:
-        raise ValueError("only the current synthetic demo dataset is supported by this CLI")
+    if digest == SYNTHETIC_DATASET_SHA256:
+        dataset_environment = {
+            "AUDIENCE_ID_COLUMN": "",
+            "AUDIENCE_TIME_COLUMN": "",
+            "AUDIENCE_DECIMAL_COMMA": "false",
+            "DATA_PROVENANCE": "synthetic_demo",
+        }
+    elif digest == TBANK_DATASET_SHA256:
+        dataset_environment = {
+            "AUDIENCE_ID_COLUMN": "id",
+            "AUDIENCE_TIME_COLUMN": "date",
+            "AUDIENCE_DECIMAL_COMMA": "true",
+            "DATA_PROVENANCE": "real_clients",
+        }
+    else:
+        raise ValueError("dataset is not one of the supported demo or T-Bank datasets")
 
     with tempfile.TemporaryDirectory(prefix="audience-preparation-") as temporary:
         directory = Path(temporary)
         environment = {
             **os.environ,
+            **dataset_environment,
             "AUDIENCE_INPUT_PATH": str(dataset),
             "AUDIENCE_OUTPUT_DIR": str(directory / "prep"),
         }

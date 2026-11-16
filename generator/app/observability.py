@@ -22,6 +22,7 @@ class Measurement:
     operation_id: str | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
+    provider_cost: float | None = None
     outcome: str = "success"
 
 

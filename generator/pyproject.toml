@@ -14,6 +14,7 @@ dependencies = [
     "langchain-openai>=1.6.6",
     "prometheus-client>=0.26.0",
     "langchain-core>=1.6.4",
+    "python-dotenv",
 ]
 
 [dependency-groups]

@@ -1,0 +1,333 @@
+{
+  "schema_version": 1,
+  "status": "exploratory_not_ground_truth",
+  "data_provenance": "synthetic_demo",
+  "source_archive": "События аудиторий (датасет).xlsx",
+  "segment_set_id": "95142c91-eaf1-416c-b32e-2d330c34341a",
+  "segments": [
+    {
+      "jtbd": null,
+      "size": 500,
+      "needs": null,
+      "pains": null,
+      "risks": [
+        "Размер и закономерности получены на синтетических данных",
+        "Устойчивость между периодами не проверена",
+        "Дата старта эксперимента не задана: отсутствие будущих событий в признаках не подтверждено",
+        "JTBD, боли и мотивация не наблюдаются напрямую в банковских событиях"
+      ],
+      "volume": {
+        "share_of_input": 0.8333,
+        "observed_clients": 500,
+        "population_estimate": null
+      },
+      "context": {
+        "status": "observed_behavior_only",
+        "signals": [
+          {
+            "kind": "numeric",
+            "feature": "__t01__rollup__expenses_total__all__count",
+            "direction": "lower",
+            "effect_size": 0.447,
+            "overall_mean": 8.83,
+            "segment_mean": 7.0,
+            "overall_median": 7.0,
+            "segment_median": 7.0
+          },
+          {
+            "kind": "numeric",
+            "feature": "__t01__rollup__expenses_by_account__value_01__личный счет__all__count",
+            "direction": "higher",
+            "effect_size": 0.447,
+            "overall_mean": 6.83,
+            "segment_mean": 7.0,
+            "overall_median": 7.0,
+            "segment_median": 7.0
+          },
+          {
+            "kind": "category",
+            "value": "текущий; счет ИП",
+            "feature": "__t01__account_types__most_common",
+            "direction": "lower",
+            "effect_size": 0.447,
+            "overall_share": 0.1667,
+            "segment_share": 0.0
+          },
+          {
+            "kind": "category",
+            "value": "личный счет",
+            "feature": "__t01__account_scope__most_common",
+            "direction": "higher",
+            "effect_size": 0.447,
+            "overall_share": 0.8333,
+            "segment_share": 1.0
+          },
+          {
+            "kind": "numeric",
+            "feature": "__t01__rollup__expenses_by_account__value_02__счет ИП__all__amount_sum",
+            "direction": "lower",
+            "effect_size": 0.445,
+            "overall_mean": 232898.17,
+            "segment_mean": 0.0,
+            "overall_median": 0.0,
+            "segment_median": 0.0
+          }
+        ]
+      },
+      "stability": {
+        "temporal_status": "not_evaluated",
+        "resample_jaccard": 1.0,
+        "seed_ari_for_chosen_k": 1.0
+      },
+      "motivation": null,
+      "segment_id": "seg_01",
+      "key_features": [
+        {
+          "kind": "numeric",
+          "feature": "__t01__rollup__expenses_total__all__count",
+          "direction": "lower",
+          "effect_size": 0.447,
+          "overall_mean": 8.83,
+          "segment_mean": 7.0,
+          "overall_median": 7.0,
+          "segment_median": 7.0
+        },
+        {
+          "kind": "numeric",
+          "feature": "__t01__rollup__expenses_by_account__value_01__личный счет__all__count",
+          "direction": "higher",
+          "effect_size": 0.447,
+          "overall_mean": 6.83,
+          "segment_mean": 7.0,
+          "overall_median": 7.0,
+          "segment_median": 7.0
+        },
+        {
+          "kind": "category",
+          "value": "текущий; счет ИП",
+          "feature": "__t01__account_types__most_common",
+          "direction": "lower",
+          "effect_size": 0.447,
+          "overall_share": 0.1667,
+          "segment_share": 0.0
+        },
+        {
+          "kind": "category",
+          "value": "личный счет",
+          "feature": "__t01__account_scope__most_common",
+          "direction": "higher",
+          "effect_size": 0.447,
+          "overall_share": 0.8333,
+          "segment_share": 1.0
+        },
+        {
+          "kind": "numeric",
+          "feature": "__t01__rollup__expenses_by_account__value_02__счет ИП__all__amount_sum",
+          "direction": "lower",
+          "effect_size": 0.445,
+          "overall_mean": 232898.17,
+          "segment_mean": 0.0,
+          "overall_median": 0.0,
+          "segment_median": 0.0
+        },
+        {
+          "kind": "numeric",
+          "feature": "__t01__rollup__expenses_by_category__value_02__выплаты персоналу__all__amount_sum",
+          "direction": "lower",
+          "effect_size": 0.444,
+          "overall_mean": 163924.34,
+          "segment_mean": 0.0,
+          "overall_median": 0.0,
+          "segment_median": 0.0
+        },
+        {
+          "kind": "numeric",
+          "feature": "__t01__rollup__expenses_by_category__value_03__закупки продуктов для заведения__all__amount_sum",
+          "direction": "lower",
+          "effect_size": 0.443,
+          "overall_mean": 68973.83,
+          "segment_mean": 0.0,
+          "overall_median": 0.0,
+          "segment_median": 0.0
+        },
+        {
+          "kind": "numeric",
+          "feature": "__t01__balance_after_event_rub__latest",
+          "direction": "lower",
+          "effect_size": 0.435,
+          "overall_mean": 976806.03,
+          "segment_mean": 364468.21,
+          "overall_median": 380326.0,
+          "segment_median": 344424.5
+        }
+      ],
+      "interpretation_status": "not_observed_in_available_data",
+      "technical_activatability": {
+        "reason": "Нужны связь client_id с разрешенным каналом, доступность ID и правила коммуникации",
+        "status": "unverified"
+      }
+    },
+    {
+      "jtbd": null,
+      "size": 100,
+      "needs": null,
+      "pains": null,
+      "risks": [
+        "Размер и закономерности получены на синтетических данных",
+        "Устойчивость между периодами не проверена",
+        "Дата старта эксперимента не задана: отсутствие будущих событий в признаках не подтверждено",
+        "JTBD, боли и мотивация не наблюдаются напрямую в банковских событиях"
+      ],
+      "volume": {
+        "share_of_input": 0.1667,
+        "observed_clients": 100,
+        "population_estimate": null
+      },
+      "context": {
+        "status": "observed_behavior_only",
+        "signals": [
+          {
+            "kind": "numeric",
+            "feature": "__t01__rollup__expenses_total__all__count",
+            "direction": "higher",
+            "effect_size": 2.236,
+            "overall_mean": 8.83,
+            "segment_mean": 18.0,
+            "overall_median": 7.0,
+            "segment_median": 18.0
+          },
+          {
+            "kind": "numeric",
+            "feature": "__t01__rollup__expenses_by_account__value_01__личный счет__all__count",
+            "direction": "lower",
+            "effect_size": 2.236,
+            "overall_mean": 6.83,
+            "segment_mean": 6.0,
+            "overall_median": 7.0,
+            "segment_median": 6.0
+          },
+          {
+            "kind": "category",
+            "value": "текущий; счет ИП",
+            "feature": "__t01__account_types__most_common",
+            "direction": "higher",
+            "effect_size": 2.236,
+            "overall_share": 0.1667,
+            "segment_share": 1.0
+          },
+          {
+            "kind": "category",
+            "value": "личный счет",
+            "feature": "__t01__account_scope__most_common",
+            "direction": "lower",
+            "effect_size": 2.236,
+            "overall_share": 0.8333,
+            "segment_share": 0.0
+          },
+          {
+            "kind": "numeric",
+            "feature": "__t01__rollup__expenses_by_account__value_02__счет ИП__all__amount_sum",
+            "direction": "higher",
+            "effect_size": 2.227,
+            "overall_mean": 232898.17,
+            "segment_mean": 1397389.0,
+            "overall_median": 0.0,
+            "segment_median": 1414370.5
+          }
+        ]
+      },
+      "stability": {
+        "temporal_status": "not_evaluated",
+        "resample_jaccard": 1.0,
+        "seed_ari_for_chosen_k": 1.0
+      },
+      "motivation": null,
+      "segment_id": "seg_02",
+      "key_features": [
+        {
+          "kind": "numeric",
+          "feature": "__t01__rollup__expenses_total__all__count",
+          "direction": "higher",
+          "effect_size": 2.236,
+          "overall_mean": 8.83,
+          "segment_mean": 18.0,
+          "overall_median": 7.0,
+          "segment_median": 18.0
+        },
+        {
+          "kind": "numeric",
+          "feature": "__t01__rollup__expenses_by_account__value_01__личный счет__all__count",
+          "direction": "lower",
+          "effect_size": 2.236,
+          "overall_mean": 6.83,
+          "segment_mean": 6.0,
+          "overall_median": 7.0,
+          "segment_median": 6.0
+        },
+        {
+          "kind": "category",
+          "value": "текущий; счет ИП",
+          "feature": "__t01__account_types__most_common",
+          "direction": "higher",
+          "effect_size": 2.236,
+          "overall_share": 0.1667,
+          "segment_share": 1.0
+        },
+        {
+          "kind": "category",
+          "value": "личный счет",
+          "feature": "__t01__account_scope__most_common",
+          "direction": "lower",
+          "effect_size": 2.236,
+          "overall_share": 0.8333,
+          "segment_share": 0.0
+        },
+        {
+          "kind": "numeric",
+          "feature": "__t01__rollup__expenses_by_account__value_02__счет ИП__all__amount_sum",
+          "direction": "higher",
+          "effect_size": 2.227,
+          "overall_mean": 232898.17,
+          "segment_mean": 1397389.0,
+          "overall_median": 0.0,
+          "segment_median": 1414370.5
+        },
+        {
+          "kind": "numeric",
+          "feature": "__t01__rollup__expenses_by_category__value_02__выплаты персоналу__all__amount_sum",
+          "direction": "higher",
+          "effect_size": 2.22,
+          "overall_mean": 163924.34,
+          "segment_mean": 983546.03,
+          "overall_median": 0.0,
+          "segment_median": 999110.0
+        },
+        {
+          "kind": "numeric",
+          "feature": "__t01__rollup__expenses_by_category__value_03__закупки продуктов для заведения__all__amount_sum",
+          "direction": "higher",
+          "effect_size": 2.217,
+          "overall_mean": 68973.83,
+          "segment_mean": 413842.97,
+          "overall_median": 0.0,
+          "segment_median": 412587.0
+        },
+        {
+          "kind": "numeric",
+          "feature": "__t01__balance_after_event_rub__latest",
+          "direction": "higher",
+          "effect_size": 2.173,
+          "overall_mean": 976806.03,
+          "segment_mean": 4038495.14,
+          "overall_median": 380326.0,
+          "segment_median": 4070737.0
+        }
+      ],
+      "interpretation_status": "not_observed_in_available_data",
+      "technical_activatability": {
+        "reason": "Нужны связь client_id с разрешенным каналом, доступность ID и правила коммуникации",
+        "status": "unverified"
+      }
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "report": {
+    "model": "KMeans with behavior-family weighting",
+    "status": "exploratory_not_ground_truth",
+    "clients": 600,
+    "features": 103,
+    "warnings": [
+      "Входная матрица помечена как предварительная: нужен смысловой контроль признаков",
+      "Не указана дата начала эксперимента; автоматический контроль утечки будущих событий не выполнен"
+    ],
+    "selected_k": 2,
+    "source_as_of": [
+      "2026-09-28 22:59:00+00:00"
+    ],
+    "data_provenance": "synthetic_demo",
+    "selection_status": "passed_internal_checks",
+    "chosen_silhouette": 0.4387,
+    "min_size_required": 18,
+    "temporal_stability": {
+      "reason": "Не передан архив следующего периода",
+      "status": "not_evaluated"
+    },
+    "ward_agreement_ari": 1.0,
+    "bootstrap_stability": {
+      "repeats": 5,
+      "train_fraction": 0.8,
+      "bootstrap_mean_ari": 1.0,
+      "per_original_label_mean_jaccard": {
+        "0": 1.0,
+        "1": 1.0
+      }
+    },
+    "external_gold_benchmark": "not_available",
+    "future_outcomes_as_features": "not_verified_without_experiment_start_date"
+  }
+}
